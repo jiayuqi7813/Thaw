@@ -3,6 +3,99 @@
     <channel>
         <title>Thaw</title>
         <item>
+            <title>2.0.0-beta.10</title>
+            <pubDate>Mon, 11 May 2026 22:17:54 +0200</pubDate>
+            <sparkle:channel>beta</sparkle:channel>
+            <sparkle:version>41</sparkle:version>
+            <sparkle:shortVersionString>2.0.0-beta.10</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h3>
+  2.0.0-beta.10: Adaptive Colors, Wake Stability &amp; Multi-Monitor Fixes
+</h3>
+
+<p>
+  This release introduces adaptive background and tint modes that use the
+  wallpaper's average color, per-screen adaptive colors for multi-monitor
+  setups, robust wake-from-sleep color handling, and fixes for always-hidden
+  section display and Thaw Bar flashing on multi-monitor.
+</p>
+
+<hr />
+
+<p><strong>New &amp; Improved:</strong></p>
+<ul>
+  <li>
+    <strong>Adaptive Background &amp; Tint:</strong> New adaptive mode uses the
+    average wallpaper color as the menu bar background or shape tint. Both
+    respect their opacity sliders. Capture retries at launch (1&nbsp;s
+    ×&nbsp;10) until the Window Server settles.
+  </li>
+  <li>
+    <strong>Per-Screen Adaptive Colors:</strong> Each display captures its own
+    wallpaper average color stored in <code>averageColors[displayID]</code>.
+    Overlay panels look up their owning screen's color instead of using the
+    active screen's value.
+  </li>
+  <li>
+    <strong>Wake-from-Sleep Stability:</strong> Adaptive colors are cached on
+    <code>screensDidSleepNotification</code> and restored immediately on wake,
+    preventing a white flash. Staggered color recapture at 0.5/2/5/10&nbsp;s
+    handles slow external displays. Wake stabilization polls until the color
+    settles instead of using a fixed 8&nbsp;s delay.
+  </li>
+  <li>
+    <strong>Always-Hidden Section Fix:</strong> The always-hidden section now
+    only shows when the mouse and active menu bar are on the same display,
+    preventing incorrect reveals on multi-monitor setups.
+  </li>
+  <li>
+    <strong>Thaw Bar "No Items" Flash Fix:</strong> Guarded
+    <code>didChangeScreenParametersNotification</code> auto-hide with a 1&nbsp;s
+    grace period after <code>show()</code>. Added 500&nbsp;ms settle delay
+    before background cache recache so <code>NSStatusItem</code> bounds are
+    valid on the new screen.
+  </li>
+  <li>
+    <strong>Memory &amp; Concurrency:</strong> Added <code>deinit</code> cleanup
+    and weak self guards, added <code>healthCheckTimer</code> cleanup, and
+    removed <code>memoryMonitoringTask</code>.
+  </li>
+  <li>
+    <strong>Game Mode Support:</strong> Game Mode (<code>GamePolicyAgent</code>)
+    is now treated as a transient non-hideable system item, excluded from search
+    and move operations.
+  </li>
+  <li>
+    <strong>Blocked-Item Recovery:</strong> Restricted recovery to moves
+    adjacent to the hidden divider only, preventing incorrect recovery triggers
+    for other anchor types.
+  </li>
+  <li>
+    <strong>Control Center:</strong> Refined handling of transient Control
+    Center items in item movement logic.
+  </li>
+  <li><strong>Localization:</strong> New Crowdin translation updates.</li>
+</ul>
+
+<hr />
+
+<p>
+  <em
+    >This is a beta release targeting macOS 26. Please report any issues on
+    <a href="https://github.com/stonerl/thaw/issues">GitHub</a>.</em
+  >
+</p>
+]]></description>
+            <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.10/Thaw_2.0.0-beta.10.zip" length="8305373" type="application/octet-stream" sparkle:edSignature="N9PLxAwIfSRj7Cumrbv/we9HwQ04TIZr64grAhbAytad2dx/rJ3uK2pMKAZQwr3uaeT9M/tEMs0OJMzuWKS1Ag=="/>
+            <sparkle:deltas>
+                <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.10/Thaw41-40.delta" sparkle:deltaFrom="40" length="702382" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="jQd8Ny1pdRv8YMGQkzuHhIr470qGQdCnY05iiSB0OVBq9LCyWjhrXMTcjS9ZJUhvbHsKaaLw7MfLtFtYQTwYDA=="/>
+                <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.10/Thaw41-39.delta" sparkle:deltaFrom="39" length="846878" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="5HzjzuAwrvOSTSNQ+DdmYZvKk/W9KdlN7U7XCQBDGL589MDoBlWTP/nMJxdDDLEYQxVJiIapjac7iajg4RXHDA=="/>
+                <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.10/Thaw41-38.delta" sparkle:deltaFrom="38" length="1294658" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="8OnLUS3PAI6Bc74fdvOXu+B5GJPOEmTpWWBwdGc8yXWy6ArrWNspDvYuTjWFtQqKPs68Qn5L5xs8SmjBQknDCA=="/>
+                <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.10/Thaw41-37.delta" sparkle:deltaFrom="37" length="1360830" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="jPFTEzP/7wrvzExkyo3ukCPz9t9VksPLO7eYbT3sbrwoR74N5cAXI4VlFaWOjEkS/hBx8fVraIF4ojTPM313DQ=="/>
+                <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.10/Thaw41-36.delta" sparkle:deltaFrom="36" length="1412930" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="67OXj/6ZtACJhMQBlaUhO8ImvGL8vIV8RFdwrCBEBQEA/+0HejayyeSXxayEobUV0Kp6GP+7OY5JmOVMXCN1Ag=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
             <title>2.0.0-beta.9</title>
             <pubDate>Sun, 10 May 2026 15:03:47 +0200</pubDate>
             <sparkle:channel>beta</sparkle:channel>
@@ -58,7 +151,7 @@
   >
 </p>
 ]]></description>
-            <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.9/Thaw_2.0.0-beta.9.zip" length="8280518" type="application/octet-stream" sparkle:edSignature="LJigcwvOfCt+XWAEjBHa9lISxbozgZ8Nysl5arqn6OUDcE66vuwnERpQZQT6eZBz7Gk+KhAmtwXOHjFnVJo6Ag=="/>
+            <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.10/Thaw_2.0.0-beta.9.zip" length="8280518" type="application/octet-stream" sparkle:edSignature="LJigcwvOfCt+XWAEjBHa9lISxbozgZ8Nysl5arqn6OUDcE66vuwnERpQZQT6eZBz7Gk+KhAmtwXOHjFnVJo6Ag=="/>
             <sparkle:deltas>
                 <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.9/Thaw40-39.delta" sparkle:deltaFrom="39" length="699630" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="59EqZ6kOnDtAGYFbvDsuYUTZrmTGuhW/YwSV01Q2WU5x1UVpwRlo2MZNsV5uoIqPrfVeB0hz8hMVir8anfwGAg=="/>
                 <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.9/Thaw40-38.delta" sparkle:deltaFrom="38" length="1208810" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="SZ4fbH7QkW4ZKBM6fTylGwZZRTxaTMOBVwp5beyMKVU39d4xor+6HrnlRgr93nSUJVhlF6/2taLpZr/HnDiHDw=="/>
@@ -155,99 +248,13 @@
   >
 </p>
 ]]></description>
-            <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.9/Thaw_2.0.0-beta.8.zip" length="8254321" type="application/octet-stream" sparkle:edSignature="D+02PrC3nOO4/tlz8okSBOd0mJbiqGfZDXdRCNzerBuUfThRrFrQeRMjbFyqQVryhdb+9N7acHLtyNltt6W4DQ=="/>
+            <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.10/Thaw_2.0.0-beta.8.zip" length="8254321" type="application/octet-stream" sparkle:edSignature="D+02PrC3nOO4/tlz8okSBOd0mJbiqGfZDXdRCNzerBuUfThRrFrQeRMjbFyqQVryhdb+9N7acHLtyNltt6W4DQ=="/>
             <sparkle:deltas>
                 <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.8/Thaw39-38.delta" sparkle:deltaFrom="38" length="1127490" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="StrEo8Vh23po2RxhwMcjueRhPbkcRT7hE7i46cnN+uau6zzu0isvBxyE2yYBOufEb6kEjkgctmt2ynxTHoguDQ=="/>
                 <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.8/Thaw39-37.delta" sparkle:deltaFrom="37" length="1216094" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="O5RG9FboXJ0gtLc/WaPbSZIFETPXaaU53w0EUG5mG/spP7H9ywY+An2FSI9WY/Q9W1yW4vep1M6bj7YPgnKLCg=="/>
                 <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.8/Thaw39-36.delta" sparkle:deltaFrom="36" length="1262382" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="LrqBFZtdwyupCn1q56wNPUcj9e469EkpyR56yDdLmtRAp9SsrlOIEiyXwj3LTFAyanL+qnt1df7GpuY6P8sHCQ=="/>
                 <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.8/Thaw39-35.delta" sparkle:deltaFrom="35" length="3159622" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="rbwAPlHviG4uzQd0+hBtXKOP9Doke+ZLde5fC49GuBOlUAA15fAMTxBjDE1GtPeXf/1Z9mXeTS/8cuoSc1dnCA=="/>
                 <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.8/Thaw39-34.delta" sparkle:deltaFrom="34" length="3248934" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="sH3jVu+nwIlXZtrEsjsVMgz2mbFqh6vS86eN0I3FSfO5oXZOMaeIfgb8uwhAF4TpyqqACleQpw4oOXYinTVTDA=="/>
-            </sparkle:deltas>
-        </item>
-        <item>
-            <title>2.0.0-beta.7</title>
-            <pubDate>Sun, 03 May 2026 19:22:55 +0200</pubDate>
-            <sparkle:channel>beta</sparkle:channel>
-            <sparkle:version>38</sparkle:version>
-            <sparkle:shortVersionString>2.0.0-beta.7</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h3>2.0.0-beta.7: Notch Shape, Tint Opacity &amp; Memory Fixes</h3>
-
-<p>
-  This release introduces a new Notch shape kind that splits at the physical
-  display notch, adds tint opacity control and Thaw Bar left/right alignment
-  options, fixes a permanent menu bar height cache poison that silently dropped
-  clicks, and eliminates memory growth on multi-monitor hotplug.
-</p>
-
-<hr />
-
-<p><strong>New &amp; Improved:</strong></p>
-<ul>
-  <li>
-    <strong>Notch Shape:</strong> New <code>.notch</code> shape kind that splits
-    the menu bar background at the physical display notch. Behaves as full shape
-    on non-notched displays. Full 4-corner end cap control via the split shape
-    picker.
-  </li>
-  <li>
-    <strong>Thaw Bar Alignments:</strong> New <code>leftAligned</code> and
-    <code>rightAligned</code> location options with 24&nbsp;px edge padding.
-  </li>
-  <li>
-    <strong>Notch Margin Slider:</strong> Adjustable notch margin (0–15&nbsp;px)
-    shown as spacers in the shape preview.
-  </li>
-  <li>
-    <strong>Tint Opacity:</strong> New tint opacity slider (0–1,
-    default&nbsp;0.2). Tints are now rendered behind the menu bar at user-chosen
-    opacity, with the overlay panel moved to
-    <code>statusWindow&nbsp;-&nbsp;1</code> for any active tint or shape. The
-    <code>.noTint</code> background only draws when a shape is active.
-  </li>
-  <li>
-    <strong>Menu Bar Height Cache Fix:</strong> Removed the permanent
-    <code>-1</code> sentinel that poisoned the height cache when the Window
-    Server hadn't yet reported the menu bar window. Failed queries now schedule
-    a 500&nbsp;ms retry. Fixes clicks on empty menu bar doing nothing, Thaw Bar
-    showing wrong dimensions, and dual-monitor asymmetry.
-  </li>
-  <li>
-    <strong>Stale Cache Verification:</strong> Cached menu bar item bounds are
-    now verified against the window server. Temporary system items (screen
-    recording, mic, camera indicators) that vanish no longer leave stale bounds
-    causing false positive hit-testing.
-  </li>
-  <li>
-    <strong>Memory Growth Eliminated:</strong> Fixed retain cycle in live
-    refresh loop (<code>weak self.appState</code>), removed duplicate image
-    cache entries with stale <code>windowID</code>s after monitor reconnect,
-    fixed LRU eviction to protect all current items, and force cache rebuild on
-    display connect/disconnect.
-  </li>
-  <li>
-    <strong>Default Icon Refresh Rate:</strong> Increased from 2&nbsp;fps to
-    10&nbsp;fps for more responsive icon updates.
-  </li>
-  <li><strong>Localization:</strong> Updated translations via Crowdin.</li>
-</ul>
-
-<hr />
-
-<p>
-  <em
-    >This is a beta release targeting macOS 26. Please report any issues on
-    <a href="https://github.com/stonerl/thaw/issues">GitHub</a>.</em
-  >
-</p>
-]]></description>
-            <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.9/Thaw_2.0.0-beta.7.zip" length="8118093" type="application/octet-stream" sparkle:edSignature="zApuIW68/B8KMWVq0a5bJNRm/6nxqpXKnSGe9pP25nEoIsjZnVy2cfMs+AI/Mbo+wMJVnMEIQR607Sobol2WBw=="/>
-            <sparkle:deltas>
-                <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.7/Thaw38-37.delta" sparkle:deltaFrom="37" length="719702" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="j4lYzHMRKLAyLQJ7BcJzPE96CQo6wl8dbHHkG/bfwLTkONrsN5PU6PwuPSWHeKw+cxzdOJPF+KNjh+aylD1yBw=="/>
-                <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.7/Thaw38-36.delta" sparkle:deltaFrom="36" length="845594" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="r9++jpT7eqvsind14kQ+UellTfYB+c0WnMcanIb7+HjFENA9IpnIVaT/cO/uUduoIYDLXa+9rpOW5uoL6QxyDQ=="/>
-                <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.7/Thaw38-35.delta" sparkle:deltaFrom="35" length="2786454" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="m7vKidmF9a96Lj127S8gLlH9irh9XH8eEvTjDI0MHkeNbtYWoqwLEvNFIaZHlcZQEv05wqBVmxrkKuLyUlQwCw=="/>
-                <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.7/Thaw38-34.delta" sparkle:deltaFrom="34" length="2951070" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="vMcunqZl2kKuXjqQlm6O9q7yI8/QhnuVftiYcUP/gqbshGccdOXq8QeYnQFk3EMozp/7hI4qVbeFd1Tgy1hnAw=="/>
-                <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.7/Thaw38-33.delta" sparkle:deltaFrom="33" length="3950970" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="YgHDvhgCMTfL6EpcmSK3Z7fLHAuyl6mD8kAH+hEvj9truRTPJ7Dal1pE3RgAr0G2Sua4Q5bqJ9o0uSwEkwdmBQ=="/>
             </sparkle:deltas>
         </item>
         <item>
@@ -362,13 +369,13 @@
   >
 </p>
 ]]></description>
-            <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.9/Thaw_1.3.0-beta.1.zip" length="5220414" type="application/octet-stream" sparkle:edSignature="MPnlOmjcKuGkXmSTeV3vTOTvkcTIo21rULlpJcNi8m2wyt5UdvY1hE4mxJ48XwV6CEV5DSKufj9JiFKGkHPPDQ=="/>
+            <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.10/Thaw_1.3.0-beta.1.zip" length="5220414" type="application/octet-stream" sparkle:edSignature="MPnlOmjcKuGkXmSTeV3vTOTvkcTIo21rULlpJcNi8m2wyt5UdvY1hE4mxJ48XwV6CEV5DSKufj9JiFKGkHPPDQ=="/>
             <sparkle:deltas>
-                <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.9/Thaw31-30.delta" sparkle:deltaFrom="30" length="1193342" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="aC32Jd9STWakWrDw0UW/sSosof2B5ZvZCAWS8zCoVbCOSAbqhdW+nzehpWI6bUzLdw6DI1nXmjVvXszobvCWBw=="/>
-                <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.9/Thaw31-29.delta" sparkle:deltaFrom="29" length="2135094" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="aB3X+XmZAZDrHDrt8oTQtyD6LSchIk71Yuq+VVIofv1Wh49Ni1A8GaaRPcxEkdE2gkg+S6W2b2MW2KVjo1HVAg=="/>
-                <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.9/Thaw31-28.delta" sparkle:deltaFrom="28" length="2124466" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="xFr8wOOD4hicmigGRNoePdmmbG7ozhsjvPwa3nZMTvUjwtXtvQPBx/nA0N7l1n1FEmMXVSBC9ri2lNhKgX6UCA=="/>
-                <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.9/Thaw31-27.delta" sparkle:deltaFrom="27" length="2129718" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="mZ1zcGEtHs5TzlERMZ5NoUdy6tYABLVeUhH3CLHtlBRXMv0xqUmv+4g4bJ8fhvIjXbol/iH48Q11UOKb+Z3KAg=="/>
-                <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.9/Thaw31-26.delta" sparkle:deltaFrom="26" length="2134286" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="+C5VUw5gMzx02u8jHYRcUOxDAQgMJRrTubfGwK5Hi9rxMyMR0TaiaqAjflgfkZCxuQjXhx0ZMf12Pjgy4ocVCg=="/>
+                <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.10/Thaw31-30.delta" sparkle:deltaFrom="30" length="1193342" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="aC32Jd9STWakWrDw0UW/sSosof2B5ZvZCAWS8zCoVbCOSAbqhdW+nzehpWI6bUzLdw6DI1nXmjVvXszobvCWBw=="/>
+                <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.10/Thaw31-29.delta" sparkle:deltaFrom="29" length="2135094" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="aB3X+XmZAZDrHDrt8oTQtyD6LSchIk71Yuq+VVIofv1Wh49Ni1A8GaaRPcxEkdE2gkg+S6W2b2MW2KVjo1HVAg=="/>
+                <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.10/Thaw31-28.delta" sparkle:deltaFrom="28" length="2124466" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="xFr8wOOD4hicmigGRNoePdmmbG7ozhsjvPwa3nZMTvUjwtXtvQPBx/nA0N7l1n1FEmMXVSBC9ri2lNhKgX6UCA=="/>
+                <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.10/Thaw31-27.delta" sparkle:deltaFrom="27" length="2129718" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="mZ1zcGEtHs5TzlERMZ5NoUdy6tYABLVeUhH3CLHtlBRXMv0xqUmv+4g4bJ8fhvIjXbol/iH48Q11UOKb+Z3KAg=="/>
+                <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.10/Thaw31-26.delta" sparkle:deltaFrom="26" length="2134286" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="+C5VUw5gMzx02u8jHYRcUOxDAQgMJRrTubfGwK5Hi9rxMyMR0TaiaqAjflgfkZCxuQjXhx0ZMf12Pjgy4ocVCg=="/>
             </sparkle:deltas>
         </item>
         <item>
@@ -554,13 +561,13 @@
   >
 </p>
 ]]></description>
-            <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.9/Thaw_1.2.0.zip" length="4771584" type="application/octet-stream" sparkle:edSignature="O9JLUo/EVoKhrzT8q/t/5EPKTJTXLgMR3t+Rud5YUqJTTjgfMWukeMblHnoQXukGrxaQ/1KMuxHNWSySUDDEBw=="/>
+            <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.10/Thaw_1.2.0.zip" length="4771584" type="application/octet-stream" sparkle:edSignature="O9JLUo/EVoKhrzT8q/t/5EPKTJTXLgMR3t+Rud5YUqJTTjgfMWukeMblHnoQXukGrxaQ/1KMuxHNWSySUDDEBw=="/>
             <sparkle:deltas>
-                <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.9/Thaw30-29.delta" sparkle:deltaFrom="29" length="1605326" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="65q/LwMH9NEWgvfSsMLdRP1irdzr5dwpVRtKqy+7nCdYHqDLC7wNdH/ps25STpPdQWSF5A/66C9qmNP1/VrCBg=="/>
-                <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.9/Thaw30-28.delta" sparkle:deltaFrom="28" length="1592774" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="LexvcBL/M5oiua0bhC2O1ArqHaNpq8wHCbUcP2ZCjxnwqeZqvDOVPeN2/vbVqo7xvhR/d390o7gg8Phlwcy+AQ=="/>
-                <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.9/Thaw30-27.delta" sparkle:deltaFrom="27" length="1606194" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="AOyD17QyDvFi9YnjTf6pV3xCvcne62TVP9+SrBCE3/bnezSIhy7SpcfBUwnk1FUvQE/ua6h9VZimlfcPs1EKAw=="/>
-                <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.9/Thaw30-26.delta" sparkle:deltaFrom="26" length="1602226" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="Pw3NbS8QjBfg1hvKdT5yiPKOYgUm98Uge4vax1xuPTZyfKmP5D2IUsgMseLyeLIZswDFXw+W6IIV3Jxr9LIoDg=="/>
-                <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.9/Thaw30-25.delta" sparkle:deltaFrom="25" length="1620250" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="h0qaPYuwleFIN6xoFofcTR8o9tAvXr14NWJZqXdwRrL7NWJVfEP4Uj0NGnVDJ/+GdUgxMys2/qL1lcfOhO5fBQ=="/>
+                <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.10/Thaw30-29.delta" sparkle:deltaFrom="29" length="1605326" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="65q/LwMH9NEWgvfSsMLdRP1irdzr5dwpVRtKqy+7nCdYHqDLC7wNdH/ps25STpPdQWSF5A/66C9qmNP1/VrCBg=="/>
+                <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.10/Thaw30-28.delta" sparkle:deltaFrom="28" length="1592774" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="LexvcBL/M5oiua0bhC2O1ArqHaNpq8wHCbUcP2ZCjxnwqeZqvDOVPeN2/vbVqo7xvhR/d390o7gg8Phlwcy+AQ=="/>
+                <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.10/Thaw30-27.delta" sparkle:deltaFrom="27" length="1606194" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="AOyD17QyDvFi9YnjTf6pV3xCvcne62TVP9+SrBCE3/bnezSIhy7SpcfBUwnk1FUvQE/ua6h9VZimlfcPs1EKAw=="/>
+                <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.10/Thaw30-26.delta" sparkle:deltaFrom="26" length="1602226" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="Pw3NbS8QjBfg1hvKdT5yiPKOYgUm98Uge4vax1xuPTZyfKmP5D2IUsgMseLyeLIZswDFXw+W6IIV3Jxr9LIoDg=="/>
+                <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.10/Thaw30-25.delta" sparkle:deltaFrom="25" length="1620250" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="h0qaPYuwleFIN6xoFofcTR8o9tAvXr14NWJZqXdwRrL7NWJVfEP4Uj0NGnVDJ/+GdUgxMys2/qL1lcfOhO5fBQ=="/>
             </sparkle:deltas>
         </item>
         <item>
@@ -593,7 +600,7 @@
   </li>
 </ul>
 ]]></description>
-            <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.9/Thaw_1.2.0-rc.4.zip" length="4702276" type="application/octet-stream" sparkle:edSignature="ixRRB1jxVMOXN1aVhO+Wzu6xIplTG837VPAxJRcdt6ex92AUYI1He2aCDS1k9OXWP9TPXebX1yyEPyTCXAU0DA=="/>
+            <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.10/Thaw_1.2.0-rc.4.zip" length="4702276" type="application/octet-stream" sparkle:edSignature="ixRRB1jxVMOXN1aVhO+Wzu6xIplTG837VPAxJRcdt6ex92AUYI1He2aCDS1k9OXWP9TPXebX1yyEPyTCXAU0DA=="/>
             <sparkle:deltas>
                 <enclosure url="https://github.com/stonerl/Thaw/releases/download/1.2.0/Thaw29-28.delta" sparkle:deltaFrom="28" length="495966" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="JVrJs8iej3iWgHYr83/R1+v6CCxIvrMLyfUOLQ2uuo5EitC6jK/fQQM3tdSfS8nWKAeFLJ51Y1O9Piqpxs8HCA=="/>
                 <enclosure url="https://github.com/stonerl/Thaw/releases/download/1.2.0/Thaw29-27.delta" sparkle:deltaFrom="27" length="446714" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="tU1wCIcc9VUOhAlPHnpv+ZP/nlYUepn/55W3YoDho6WNlsHIO8RsnNu/9X2N0AzKmDnq6PLPjfCmg3K0f4UvAw=="/>
@@ -722,7 +729,7 @@
   </li>
 </ul>
 ]]></description>
-            <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.9/Thaw_1.1.0.zip" length="4186088" type="application/octet-stream" sparkle:edSignature="vB4VOLiiomUjXRfCLkmio+POnp83MbT5eruqPnIwrS3E2Z3/XH/nLRO3yWXP+3D9DGkt7PIYVXReixmCxyWoCw=="/>
+            <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.10/Thaw_1.1.0.zip" length="4186088" type="application/octet-stream" sparkle:edSignature="vB4VOLiiomUjXRfCLkmio+POnp83MbT5eruqPnIwrS3E2Z3/XH/nLRO3yWXP+3D9DGkt7PIYVXReixmCxyWoCw=="/>
             <sparkle:deltas>
                 <enclosure url="https://github.com/stonerl/Thaw/releases/download/1.2.0-rc.4/Thaw14-13.delta" sparkle:deltaFrom="13" length="351750" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="860560" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="lnwhEv7F22kPcS9IIcHJiRzBeTg+0CKKbrnQaqFJjpCb+OERkD47xaVXEeV5olQvd1gjtK7YYpw7nPzuSZHgAg=="/>
                 <enclosure url="https://github.com/stonerl/Thaw/releases/download/1.2.0-rc.4/Thaw14-12.delta" sparkle:deltaFrom="12" length="382910" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="860560" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="GD3u04d8HM9XBmSbHan6u0oEeeFDlwEQsw5tbz+uHke2AG7KpH4jHjzbViE7RIvvivu8TutTjmx8nE0u4vM+Ag=="/>
@@ -813,7 +820,7 @@
   >
 </p>
 ]]></description>
-            <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.9/Thaw_1.0.0.zip" length="3736682" type="application/octet-stream" sparkle:edSignature="jxT+g1muFLQZ/gygWGSQtjZ+W/o4O0xY87key1TOcUvFeJ9MQ1LVYhqc92sGLBxYc4qA6p6xC6qnDn1lpV1QCg=="/>
+            <enclosure url="https://github.com/stonerl/Thaw/releases/download/2.0.0-beta.10/Thaw_1.0.0.zip" length="3736682" type="application/octet-stream" sparkle:edSignature="jxT+g1muFLQZ/gygWGSQtjZ+W/o4O0xY87key1TOcUvFeJ9MQ1LVYhqc92sGLBxYc4qA6p6xC6qnDn1lpV1QCg=="/>
             <sparkle:deltas>
                 <enclosure url="https://github.com/stonerl/Thaw/releases/download/1.0.1-beta.8/Thaw5-4.delta" sparkle:deltaFrom="4" length="285970" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="860560" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="Bro3YrOODS13w3atnsp8o5g40UNIMpHg/2AljH8n/3xvJ2pHhFo4MvjVvBPMnn69eJeVU8R39dAj3mYMzDCUCg=="/>
                 <enclosure url="https://github.com/stonerl/Thaw/releases/download/1.0.1-beta.8/Thaw5-3.delta" sparkle:deltaFrom="3" length="317774" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="860560" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="/k/zQ10s7eMNS2+tPObVNoHpqgt1NVvX1PBKDpRKd4otqh3axF5UaaR0J+1kwHG0JJ7IQrAtce9Q7T3CzEFuCQ=="/>
