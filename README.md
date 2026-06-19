@@ -1,8 +1,10 @@
-<div align="center">
-    <img alt="Thaw icon" src="Resources/NewIcon.png" width="200" height="200" />
-    <h1>Thaw</h1>
-</div>
-
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" width="400" srcset="Resources/headers/Header_Dark.svg">
+    <source media="(prefers-color-scheme: light)" width="400" srcset="Resources/headers/Header_Light.svg">
+    <img src="Resources/headers/Header_Light.svg" width="400" alt="Thaw Header" />
+  </picture>
+</p>
 Thaw is a powerful menu bar management tool for macOS 26. While its primary function is hiding and showing menu bar items, it aims to cover a wide variety of additional features to make it one of the most versatile menu bar tools available.
 
 <div align="center">
@@ -90,7 +92,7 @@ If a language you'd like to help to translate is not listed here, let us know an
 ## Features
 
 <details>
-<summary>Click to view the full list of features</summary>
+<summary>Click to view the full features list</summary>
 
 ### Menu bar item management
 
@@ -104,7 +106,7 @@ If a language you'd like to help to translate is not listed here, let us know an
 - Drag and drop interface to arrange individual menu bar items
 - Display hidden menu bar items in a separate bar (e.g. for MacBooks with the notch)
 - Search menu bar items
-- Menu bar item spacing (BETA)
+- Menu bar item spacing
 - Profiles for menu bar layout
 
 ### Menu bar appearance
@@ -124,21 +126,22 @@ If a language you'd like to help to translate is not listed here, let us know an
 - Show/hide section divider icons
 - Toggle application menus
 
-### Other
-
-- Launch at login
-- Automatic updates
-
 </details>
 
 ## Roadmap
 
-Planned features, grouped by area:
+<details>
+<summary>Click to view the roadmap</summary>
 
+<br>
+
+- **macOS 27 support** — compatibility with the next macOS release.
 - **Menu bar item management** — individual spacer items; menu bar item groups; show menu bar items when trigger conditions are met
 - **Menu bar appearance** — rounded screen corners
 - **Hotkeys** — enable/disable auto rehide; temporarily show individual menu bar items
 - **Other** — menu bar widgets
+
+</details>
 
 ## Gallery
 
