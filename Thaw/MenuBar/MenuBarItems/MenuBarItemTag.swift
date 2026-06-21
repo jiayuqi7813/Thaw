@@ -13,6 +13,26 @@ import Foundation
 
 /// An identifier for a menu bar item.
 struct MenuBarItemTag: Hashable, CustomStringConvertible {
+    /// How an item participates in Thaw's section model.
+    ///
+    /// This value is the classification authority shared by hiding, section
+    /// assignment, and layout caching. Consumers must use the capabilities on
+    /// this policy instead of rebuilding the system-item exceptions.
+    enum SectionManagementPolicy: Equatable {
+        /// The item can be assigned to and ordered within any section.
+        case hideable
+
+        /// The item must remain visible, but still belongs in the layout cache.
+        case forcedVisible
+
+        /// The item is not managed by the section layout.
+        case excluded
+
+        var canBeHidden: Bool { self == .hideable }
+        var isVisibleInLayout: Bool { self != .excluded }
+        var isForcedVisible: Bool { self == .forcedVisible }
+    }
+
     /// The namespace of the item identified by this tag.
     let namespace: Namespace
 
@@ -69,6 +89,28 @@ struct MenuBarItemTag: Hashable, CustomStringConvertible {
         ControlCenterModuleManager.moduleKeysByMenuExtraTitle[title] != nil
     }
 
+    /// The item's authoritative section-management classification.
+    var sectionManagementPolicy: SectionManagementPolicy {
+        if #available(macOS 27, *),
+           isLayoutAnchoredSystemItem ||
+           (isNonConcealableSystemItem && !isControlCenterGovernable)
+        {
+            return .forcedVisible
+        }
+
+        if isLayoutAnchoredSystemItem {
+            return .excluded
+        }
+
+        if MenuBarItemTag.nonHideableItems.contains(where: {
+            $0.namespace == namespace && $0.title == title
+        }) || (namespace.isUUID && title == "AudioVideoModule") {
+            return .excluded
+        }
+
+        return .hideable
+    }
+
     /// A Boolean value that indicates whether this item should be rendered as a
     /// fixed system anchor in the layout UI.
     ///
@@ -114,18 +156,17 @@ struct MenuBarItemTag: Hashable, CustomStringConvertible {
     /// A Boolean value that indicates whether the item identified
     /// by this tag can be hidden.
     var canBeHidden: Bool {
-        // macOS 27: items Thaw can't actually conceal (Apple system modules whose
-        // bundle keeps anchored siblings visible — Sound, Clock, Control Center,
-        // Spotlight, Siri…) must not be assignable to a hidden section. Trying to
-        // hide them caused bounce-back and divider thrash; they stay visible (and
-        // remain reorderable there). EXCEPTION: Control-Center-governable modules
-        // (Wi-Fi/Bluetooth/AirDrop/NowPlaying/User/Focus) CAN be hidden via the
-        // CC-pref path, so they stay hideable.
-        if #available(macOS 27, *), isNonConcealableSystemItem, !isControlCenterGovernable {
-            return false
-        }
-        return !isLayoutAnchoredSystemItem &&
-            !MenuBarItemTag.nonHideableItems.contains(where: { $0.namespace == namespace && $0.title == title }) &&
+        sectionManagementPolicy.canBeHidden
+    }
+
+    /// Whether the item can participate as hideable in the legacy divider
+    /// layout. This deliberately ignores macOS 27's assertion policy so pure
+    /// legacy planners remain deterministic when tested on a newer host OS.
+    var canBeHiddenInLegacySectionLayout: Bool {
+        isMovableInLegacySectionLayout &&
+            !MenuBarItemTag.nonHideableItems.contains(where: {
+                $0.namespace == namespace && $0.title == title
+            }) &&
             !(namespace.isUUID && title == "AudioVideoModule")
     }
 

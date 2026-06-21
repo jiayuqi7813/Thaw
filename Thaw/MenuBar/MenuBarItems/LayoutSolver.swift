@@ -267,12 +267,14 @@ enum LayoutSolver {
         // iPhone Mirroring); those live deeply off-screen and cannot be
         // dragged successfully, so retrying every cache cycle would
         // burn the eventSemaphore for ~4 s per attempt.
-        if let systemItem = leftmostItems.first(where: { !$0.canBeHidden && !$0.isTransientControlCenterItem }) {
+        if let systemItem = leftmostItems.first(where: {
+            !$0.canBeHiddenInLegacySectionLayout && !$0.isTransientControlCenterItem
+        }) {
             return .systemItem(systemItem)
         }
 
         // Path 3: hideable candidate selection.
-        let hideableLeftmost = leftmostItems.filter(\.canBeHidden)
+        let hideableLeftmost = leftmostItems.filter(\.canBeHiddenInLegacySectionLayout)
         let previousIDs = Set(observation.previousWindowIDs)
 
         // Unresolved sourcePID short-circuit. Without sourcePID
