@@ -1369,9 +1369,10 @@ private final class MenuBarOverlayPanelContentView: NSView {
             // AX status-item frames already include the button's internal
             // leading padding. Adding the legacy CGS 7 pt outset on macOS 27
             // leaves a conspicuous empty shelf before the first glyph (e.g.
-            // AirPods). Start the rounded cap at the physical item frame.
+            // AirPods). A small inner margin keeps the leftmost icon off the
+            // rounded cap without reintroducing the full-width shelf.
             if #available(macOS 27, *) {
-                return 0
+                return Constants.MenuBarTuning.trailingPillLeadingInnerMargin
             }
             return 7
         }()

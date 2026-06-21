@@ -254,7 +254,7 @@ final class IceBarPanel: NSPanel {
         // to their correct sections before the cache is rebuilt.
         // The task is cancelled in close() to avoid holding appState.
         cacheTask?.cancel()
-        cacheTask = Task { [weak appState] in
+        cacheTask = Task { [weak appState, weak self] in
             guard let appState else { return }
             await appState.itemManager.rehideTemporarilyShownItems(force: true)
             guard !Task.isCancelled else { return }
@@ -269,8 +269,44 @@ final class IceBarPanel: NSPanel {
             guard !Task.isCancelled else { return }
             await appState.itemManager.cacheItemsIfNeeded()
             guard !Task.isCancelled else { return }
+            if #available(macOS 27, *) {
+                await self?.prewarmConcealedImagesMacOS27(appState: appState)
+                guard !Task.isCancelled else { return }
+            }
             await appState.imageCache.updateCache()
         }
+    }
+
+    /// macOS 27 physically removes concealed items from MenuBarAgent, so their
+    /// glyphs can't be captured while hidden — a cold bar would show empty
+    /// slots. Briefly reveal the presented section through the assertion,
+    /// capture fresh images, then re-conceal so the popover renders real icons.
+    @available(macOS 27, *)
+    @MainActor
+    private func prewarmConcealedImagesMacOS27(appState: AppState) async {
+        guard
+            let hider = appState.menuBarManager.simpleItemHider,
+            let section = currentSection
+        else {
+            return
+        }
+        // Only flash the section when something actually needs capturing. Once
+        // every item has a cached glyph, later opens reuse the cache and the
+        // menu bar stays calm — no all-items reveal on every open. Items the
+        // cache has blacklisted after repeated capture failures are excluded too,
+        // so one stubborn glyph can't re-flash the bar on every single open.
+        let sectionItems = appState.itemManager.itemCache[section]
+        let needsCapture = sectionItems.contains {
+            appState.imageCache.images[$0.tag] == nil &&
+                appState.imageCache.wouldAttemptCapture(of: $0)
+        }
+        guard needsCapture else { return }
+
+        hider.show(section, reconcileBoundary: false)
+        // Let MenuBarAgent republish the revealed AX elements before capture.
+        try? await Task.sleep(for: Constants.MenuBarTuning.iceBarCaptureSettle)
+        await appState.imageCache.updateCacheWithoutChecks(sections: [section])
+        hider.hideRevealedSections()
     }
 
     /// Hides the panel.
@@ -352,6 +388,14 @@ private final class IceBarHostingView: NSHostingView<IceBarContentView> {
 
 // MARK: - IceBarContentView
 
+/// The factor to render a captured menu-bar glyph at inside the Thaw Bar: scale
+/// down to fit the row height, but never up. Upscaling a raster blurs, which
+/// macOS 27's tight AX item bounds (shorter than the menu-bar row) made visible.
+private func thawBarGlyphScale(imageHeight: CGFloat, rowHeight: CGFloat) -> CGFloat {
+    guard imageHeight > 0 else { return 1 }
+    return min(1, rowHeight / imageHeight)
+}
+
 private struct IceBarContentView: View {
     @ObservedObject var appState: AppState
     @ObservedObject var colorManager: IceBarColorManager
@@ -422,7 +466,7 @@ private struct IceBarContentView: View {
             guard let cachedImage = imageCache.images[item.tag] else { return nil }
             let image = cachedImage.nsImage
             guard image.size.height > 0 else { return image.size.width }
-            let scale = maxHeight / image.size.height
+            let scale = thawBarGlyphScale(imageHeight: image.size.height, rowHeight: maxHeight)
             return image.size.width * scale
         }
         return widths.max() ?? maxHeight
@@ -441,7 +485,7 @@ private struct IceBarContentView: View {
                 guard let cachedImage = imageCache.images[row[col].tag] else { return nil }
                 let image = cachedImage.nsImage
                 guard image.size.height > 0 else { return image.size.width }
-                let scale = maxHeight / image.size.height
+                let scale = thawBarGlyphScale(imageHeight: image.size.height, rowHeight: maxHeight)
                 return image.size.width * scale
             }.max() ?? 0
         }
@@ -764,7 +808,11 @@ private struct IceBarItemView: View {
                 // item visibility. Uses KVO on isVisible so we resume as soon
                 // as the panel hides rather than busy-polling.
                 await panel.waitUntilClosed(timeout: .milliseconds(200))
-                if let liveItem = await liveOnScreenItem(matching: item, on: displayID) {
+                if #available(macOS 27, *) {
+                    await itemManager.clickConcealedItem(item: item, with: .left, on: displayID)
+                    let duration = Date.now.timeIntervalSince(clickStartTime)
+                    IceBarItemView.diagLog.debug("leftClick: completed in \(Int(duration * 1000))ms (macOS 27 concealed-item path)")
+                } else if let liveItem = await liveOnScreenItem(matching: item, on: displayID) {
                     do {
                         try await itemManager.click(item: liveItem, with: .left)
                         let duration = Date.now.timeIntervalSince(clickStartTime)
@@ -793,7 +841,9 @@ private struct IceBarItemView: View {
             menuBarManager.section(withName: section)?.hide()
             Task {
                 await panel.waitUntilClosed(timeout: .milliseconds(200))
-                if let liveItem = await liveOnScreenItem(matching: item, on: displayID) {
+                if #available(macOS 27, *) {
+                    await itemManager.clickConcealedItem(item: item, with: .right, on: displayID)
+                } else if let liveItem = await liveOnScreenItem(matching: item, on: displayID) {
                     do {
                         try await itemManager.click(item: liveItem, with: .right)
                     } catch {
@@ -815,10 +865,9 @@ private struct IceBarItemView: View {
     /// cause `isWindowOnScreen` to return a false positive for an unrelated window.
     private func liveOnScreenItem(matching item: MenuBarItem, on displayID: CGDirectDisplayID) async -> MenuBarItem? {
         let liveItems = await MenuBarItem.getMenuBarItems(on: displayID, option: .onScreen)
-        guard let liveItem = liveItems.first(where: {
-            $0.tag.matchesIgnoringWindowID(item.tag) &&
-                ($0.sourcePID ?? $0.ownerPID) == (item.sourcePID ?? item.ownerPID)
-        }) else { return nil }
+        guard let liveItem = liveItems.first(where: { $0.hasSameIdentity(as: item) }) else {
+            return nil
+        }
         return Bridging.isWindowOnScreen(liveItem.windowID) ? liveItem : nil
     }
 
@@ -839,13 +888,11 @@ private struct IceBarItemView: View {
             return intrinsic
         }
 
-        // Scale to fill the available height exactly. This handles both
-        // directions: shrinking oversized captures (e.g. multi-monitor with
-        // different scale factors) and growing undersized ones (e.g. 16"
-        // MacBook Pro where the captured item height can be smaller than the
-        // IceBar's content height derived from the full notch-area menu bar).
-        let scale = maxHeight / intrinsic.height
-        return CGSize(width: intrinsic.width * scale, height: maxHeight)
+        // Scale down to fit, never up (see `thawBarGlyphScale`): captured at
+        // their native menu-bar size the icons render crisply and simply sit
+        // centered in the (taller) content row.
+        let scale = thawBarGlyphScale(imageHeight: intrinsic.height, rowHeight: maxHeight)
+        return CGSize(width: intrinsic.width * scale, height: intrinsic.height * scale)
     }
 
     var body: some View {

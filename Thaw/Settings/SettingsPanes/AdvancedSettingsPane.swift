@@ -39,7 +39,7 @@ struct AdvancedSettingsPane: View {
         IceForm {
             IceSection("Menu Bar Sections") {
                 enableAlwaysHiddenSection
-                if settings.enableAlwaysHiddenSection {
+                if settings.isAlwaysHiddenSectionEnabled {
                     useOptionClickToShowAlwaysHiddenSection
                     if appState.settings.general.showIceIcon {
                         useDoubleClickToShowAlwaysHiddenSection
@@ -116,11 +116,38 @@ struct AdvancedSettingsPane: View {
         }
     }
 
+    /// macOS 27 hosts menu bar items through the system MenuBarAgent, where the
+    /// hidden and always-hidden tiers collapse into a single concealed bucket —
+    /// the two can't be told apart yet, so the section is disabled there until
+    /// that differentiation is rebuilt.
+    private var alwaysHiddenSectionAvailable: Bool {
+        if #available(macOS 27, *) {
+            return false
+        }
+        return true
+    }
+
+    @ViewBuilder
     private var enableAlwaysHiddenSection: some View {
-        Toggle(
+        let toggle = Toggle(
             "Enable the always-hidden section",
-            isOn: $settings.enableAlwaysHiddenSection
+            isOn: alwaysHiddenSectionAvailable
+                ? $settings.enableAlwaysHiddenSection
+                : .constant(false)
         )
+        .disabled(!alwaysHiddenSectionAvailable)
+
+        if alwaysHiddenSectionAvailable {
+            toggle
+        } else {
+            toggle.annotation {
+                HStack(spacing: 4) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.yellow)
+                    Text("Not currently available on macOS 27.")
+                }
+            }
+        }
     }
 
     private var useOptionClickToShowAlwaysHiddenSection: some View {
@@ -154,7 +181,7 @@ struct AdvancedSettingsPane: View {
 
     private var displayedSearchSectionNames: [MenuBarSection.Name] {
         settings.searchSectionOrder.filter { name in
-            name != .alwaysHidden || settings.enableAlwaysHiddenSection
+            name != .alwaysHidden || settings.isAlwaysHiddenSectionEnabled
         }
     }
 

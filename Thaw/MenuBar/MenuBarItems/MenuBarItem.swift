@@ -60,6 +60,22 @@ struct MenuBarItem: CustomStringConvertible {
         tag.isNonConcealableSystemItem
     }
 
+    /// Whether this item refers to the same status item as `other`, ignoring the
+    /// volatile window ID (synthetic on macOS 27) — matched by namespace/title/
+    /// instance plus owning process. Use this to re-locate an item in a freshly
+    /// enumerated list rather than comparing window IDs.
+    func hasSameIdentity(as other: MenuBarItem) -> Bool {
+        tag.matchesIgnoringWindowID(other.tag) &&
+            (sourcePID ?? ownerPID) == (other.sourcePID ?? other.ownerPID)
+    }
+
+    /// A looser match than ``hasSameIdentity(as:)``: same owning app, ignoring a
+    /// possibly-changed transient title (e.g. a Control-Center-style `Item-N`).
+    func hasSameOwner(as other: MenuBarItem) -> Bool {
+        tag.namespace == other.tag.namespace &&
+            (sourcePID ?? ownerPID) == (other.sourcePID ?? other.ownerPID)
+    }
+
     /// A Boolean value that indicates whether this item is a transient
     /// Control Center module (e.g. Live Activities) with a generic
     /// `Item-\d+` title. These are treated like screen recording indicators.

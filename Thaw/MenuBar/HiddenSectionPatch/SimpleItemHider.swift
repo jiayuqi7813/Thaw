@@ -65,6 +65,12 @@ final class SimpleItemHider: ObservableObject {
     /// Hidden items; `.alwaysHidden` reveals both Hidden and Always-Hidden items.
     @Published private(set) var revealedSection: MenuBarSection.Name?
 
+    /// Item identifiers temporarily forced visible for a single-item reveal.
+    /// Unlike ``revealedSection``, this exposes just the touched item (used by
+    /// the Thaw Bar click path on macOS 27) instead of its whole section, so a
+    /// click never flashes every hidden icon into the menu bar.
+    private var temporarilyRevealedIDs: Set<String> = []
+
     /// The backend that performs the hiding (the private visibility-restriction
     /// assertion).
     private let backend: AssessmentModeBackend
@@ -258,6 +264,24 @@ final class SimpleItemHider: ObservableObject {
         let previous = revealedSection
         revealedSection = nil
         diagLog.info("hideRevealedSections(previous=\(previous?.rawValue ?? "none"))")
+        refresh()
+    }
+
+    /// Temporarily forces a single item visible (its owning bundle is dropped
+    /// from the concealment assertion) without revealing the rest of its
+    /// section. Used by the Thaw Bar click path so only the touched icon
+    /// appears in the menu bar.
+    func revealItemTemporarily(_ identifier: String) {
+        guard !temporarilyRevealedIDs.contains(identifier) else { return }
+        temporarilyRevealedIDs.insert(identifier)
+        diagLog.info("revealItemTemporarily(\(identifier)); single-item reveal")
+        refresh()
+    }
+
+    /// Re-conceals an item previously revealed via ``revealItemTemporarily``.
+    func concealTemporarilyRevealedItem(_ identifier: String) {
+        guard temporarilyRevealedIDs.remove(identifier) != nil else { return }
+        diagLog.info("concealTemporarilyRevealedItem(\(identifier))")
         refresh()
     }
 
@@ -572,10 +596,17 @@ final class SimpleItemHider: ObservableObject {
             snapshots[item.uniqueIdentifier] = item
         }
         snapshots = snapshots.filter { sectionAssignment[$0.key] != nil }
-        let effectiveAssignment = Self.effectiveSectionAssignment(
+        var effectiveAssignment = Self.effectiveSectionAssignment(
             sectionAssignment,
             revealing: revealedSection
         )
+
+        // Single-item reveals: drop these from the backend input so their bundle
+        // is treated as having a visible item and is lifted from concealment,
+        // exposing only the touched icon (see ``revealItemTemporarily``).
+        for identifier in temporarilyRevealedIDs {
+            effectiveAssignment.removeValue(forKey: identifier)
+        }
 
         // Apple Control Center modules cannot be hidden by the assessment-mode
         // allowlist (proven 2026-06-18); route them to their Control Center
