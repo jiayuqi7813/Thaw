@@ -151,7 +151,7 @@ final class LayoutBarPaddingView: NSView {
         // still the spatial boundary between sections. Cross-section drops first
         // Command-drag the live item across that divider and only commit the new
         // assignment after AX order verifies the physical transition.
-        if !Constants.supportsSectionHiding {
+        if !MenuBarBackendFactory.current.supportsLegacySectionHiding {
             if draggingSource.isNewItemsBadge {
                 let sourceContainer = draggingSource.oldContainerInfo?.container
                 container.appState?.itemManager.updateNewItemsPlacement(
@@ -214,6 +214,40 @@ final class LayoutBarPaddingView: NSView {
 
             if let index = arrangedViews.firstIndex(of: draggingSource) {
                 if macOS27SectionIsPhysicallyLive(container.section, hider: hider) {
+                    if container.section == .visible,
+                       let appState = container.appState
+                    {
+                        let liveItems = appState.itemManager.itemCache.managedItems(for: .visible)
+                        let desiredIDs = orderedItems.map(\.uniqueIdentifier)
+                        let achievableItems = LayoutPlanner.achievableOrderSegments(
+                            items: liveItems,
+                            desiredOrder: desiredIDs
+                        ).flatMap { $0 }
+
+                        if let destination = LayoutPlanner.achievableDestination(
+                            items: liveItems,
+                            item: item,
+                            desiredOrder: desiredIDs
+                        ) {
+                            move(
+                                item: item,
+                                to: destination,
+                                sourceContainer: sourceContainer,
+                                sectionOrderToCommit: achievableItems
+                            )
+                        } else {
+                            // The requested order is either already live or would
+                            // cross a fixed anchor. Persist only its achievable
+                            // projection so reconciliation cannot retry forever.
+                            hider?.setSectionOrder(from: achievableItems, for: .visible)
+                            Task { await appState.itemManager.cacheItemsRegardless(skipRecentMoveCheck: true) }
+                            container.canSetArrangedViews = true
+                            sourceContainer?.canSetArrangedViews = true
+                        }
+                        draggingSource.oldContainerInfo = nil
+                        return true
+                    }
+
                     let destination: MenuBarItemManager.MoveDestination? =
                         if let target = nearestItem(toRightOf: index, requiringMovable: true) {
                             .leftOfItem(target)
@@ -233,16 +267,6 @@ final class LayoutBarPaddingView: NSView {
                         return true
                     }
 
-                    if container.section == .visible {
-                        Self.diagLog.info("macOS 27: refusing visible reorder for \(item.logString); no movable neighbor in this segment")
-                        if let appState = container.appState {
-                            Task { await appState.itemManager.cacheItemsRegardless(skipRecentMoveCheck: true) }
-                        }
-                        draggingSource.oldContainerInfo = nil
-                        container.canSetArrangedViews = true
-                        sourceContainer?.canSetArrangedViews = true
-                        return false
-                    }
                 }
 
                 // Concealed sections only persist layout-bar order; the items
@@ -404,7 +428,7 @@ final class LayoutBarPaddingView: NSView {
                 // showing it for a move that visibly worked is a false alarm.
                 try? await Task.sleep(for: .milliseconds(250))
                 await appState.itemManager.cacheItemsRegardless(skipRecentMoveCheck: true)
-                if !Constants.supportsSectionHiding {
+                if !MenuBarBackendFactory.current.supportsLegacySectionHiding {
                     // macOS 27 verification must come from fresh AX order inside
                     // MenuBarItemManager. The layout cache may still contain the
                     // user's visual drop intent, so do not treat it as proof.
