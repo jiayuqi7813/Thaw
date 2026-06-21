@@ -207,6 +207,67 @@ final class ProfileLayoutLogReplayTests: XCTestCase {
         XCTAssertEqual(result, ["com.example.extra:Item-0"])
         XCTAssertEqual(result, cycle.loggedUnmanagedUIDs)
     }
+
+    // MARK: Regression lock for the display-reconnect overflow corruption (#666)
+
+    /// Replays a real field cycle (thaw_2026-06-07_09-48-52.log, 11:44:42)
+    /// where a display disconnect/reconnect left the menu bar geometry
+    /// unsettled: Control Center reported a stale off-screen edge, so the
+    /// overflow budget came out negative (availableWidth=-1202) and the buggy
+    /// build ejected all 13 visible items into hidden, collapsing the hidden
+    /// section into visible. Driving the live planNotchOverflow with that exact
+    /// budget must yield no overflow once the invalid-budget guard is in place.
+    /// Red before the guard (every visible item ejected), green after.
+    func testDisplayReconnectNegativeBudgetYieldsNoOverflow() throws {
+        let log = """
+        2026-06-07 11:44:42.027 [DEBUG] [MenuBarItemManager] applyProfileLayout: current visible section has 4 items: ["leits.MeetingBar:Item-0", "eu.exelban.Stats:CPU_bar_chart", "com.stonerl.Thaw:Thaw.ControlItem.Visible", "com.apple.TextInputMenuAgent:Item-0"]
+        2026-06-07 11:44:42.027 [DEBUG] [MenuBarItemManager] applyProfileLayout: current hidden section has 3 items: ["com.electron.dockerdesktop:Item-0", "com.apple.controlcenter:WiFi", "com.kaspersky.kav_agent:Item-0"]
+        2026-06-07 11:44:42.027 [DEBUG] [MenuBarItemManager] applyProfileLayout: current always-hidden section has 2 items: ["ru.keepcoder.Telegram:Item-0", "com.apple.controlcenter:Battery"]
+        2026-06-07 11:44:42.028 [DEBUG] [MenuBarItemManager] Notch overflow budget: screen.maxX=1728.0 notch=[771.0…956.0] rightBoundary=-222.0 availableWidth=-1202.0 userSpacing=0.0 visibleUIDs.count=14 nonProfileCount=0 nonProfileFootprint=0.0 chevronFootprint=0.0 nonProfileBreakdown=[]
+        2026-06-07 11:44:42.028 [INFO] [MenuBarItemManager] Profile layout: notch overflow; 13 item(s) moved from visible to hidden
+        """
+
+        let parsed = ProfileLayoutLogReplay.parse(log)
+        let cycle = try XCTUnwrap(parsed.cycles.first)
+
+        // Field characterization: the reconnect produced an invalid (negative)
+        // budget, and the buggy build ejected 13 items from visible.
+        XCTAssertEqual(cycle.notchAvailableWidth, -1202)
+        XCTAssertEqual(cycle.loggedOverflowCount, 13)
+
+        // Reconstruct a desiredFiltered flat order from the cycle and drive the
+        // live planner with the real (negative) budget. Widths are any positive
+        // value; the guard must short-circuit before widths matter.
+        let visibleCtrl = MenuBarItemTag.visibleControlItem.tagIdentifier
+        let hiddenCtrl = MenuBarItemTag.hiddenControlItem.tagIdentifier
+        let ahCtrl = MenuBarItemTag.alwaysHiddenControlItem.tagIdentifier
+
+        var desiredFiltered = cycle.currentVisible
+        desiredFiltered.append(hiddenCtrl)
+        desiredFiltered.append(contentsOf: cycle.currentHidden)
+        desiredFiltered.append(ahCtrl)
+        desiredFiltered.append(contentsOf: cycle.currentAlwaysHidden)
+
+        var uidWidths = [String: CGFloat]()
+        for uid in desiredFiltered {
+            uidWidths[uid] = 24
+        }
+
+        let result = LayoutSolver.planNotchOverflow(
+            desiredFiltered: desiredFiltered,
+            unmanagedUIDs: [],
+            controlUIDs: ControlUIDs(visible: visibleCtrl, hidden: hiddenCtrl, alwaysHidden: ahCtrl),
+            sectionMap: [:],
+            uidWidths: uidWidths,
+            availableWidth: try XCTUnwrap(cycle.notchAvailableWidth)
+        )
+
+        XCTAssertTrue(
+            result.overflowUIDs.isEmpty,
+            "Negative field budget (-1202) must not eject any item once guarded; the buggy build ejected \(cycle.loggedOverflowCount ?? -1)"
+        )
+        XCTAssertEqual(result.updatedDesiredFiltered, desiredFiltered)
+    }
 }
 
 /// Parses Thaw profile-layout log text into replayable cycles and drives the
@@ -228,6 +289,14 @@ enum ProfileLayoutLogReplay {
         /// UIDs the log actually routed through planUnmanagedPlacement this
         /// cycle (the field verdict the harness characterizes against).
         var loggedUnmanagedUIDs: [String] = []
+        /// The notch-overflow budget the cycle logged, when present. A
+        /// non-positive value means the menu bar geometry had not settled
+        /// (Control Center reporting a stale off-screen edge), which the
+        /// overflow planner must not act on.
+        var notchAvailableWidth: CGFloat?
+        /// How many items the cycle logged as overflowing visible -> hidden
+        /// (the field verdict for the overflow planner).
+        var loggedOverflowCount: Int?
     }
 
     /// The parsed result: the ordered cycles plus the set of menu bar items
@@ -311,6 +380,16 @@ enum ProfileLayoutLogReplay {
 
             if let match = line.firstMatch(of: /Profile layout: planUnmanagedPlacement (\S+) ->/) {
                 current?.loggedUnmanagedUIDs.append(String(match.output.1))
+                continue
+            }
+
+            if let match = line.firstMatch(of: /Notch overflow budget:.*availableWidth=(-?[0-9.]+)/) {
+                current?.notchAvailableWidth = Double(match.output.1).map { CGFloat($0) }
+                continue
+            }
+
+            if let match = line.firstMatch(of: /notch overflow; (\d+) item\(s\) moved from visible to hidden/) {
+                current?.loggedOverflowCount = Int(match.output.1)
                 continue
             }
         }
@@ -442,6 +521,66 @@ extension ProfileLayoutLogReplay.Cycle {
             ahCtrlUID: ahCtrl,
             visibleCtrlUID: visibleCtrl,
             unresolvedGenericCCOrphans: orphans
+        )
+    }
+}
+
+/// Red→green guard for the relaunch-settling gate
+/// (MenuBarItemManager.tracksMenuBarItem). When a tracked app relaunches
+/// (e.g. an in-app update) Thaw must arm a settling period so the move pass
+/// waits out the churn; without it the bulk apply runs on the transient
+/// layout and sweeps hidden items into the visible section (the Free Download
+/// Manager update unhide). Equally it must NOT arm for ordinary launches, so
+/// users don't pay a deferral on every app start, and one bundle ID must not
+/// loosely prefix-match another app.
+final class RelaunchSettlingGateTests: XCTestCase {
+    private let tracked: Set<String> = [
+        "org.freedownloadmanager.fdm6:Item-0",
+        "codes.rambo.AirBuddyHelper:codes.rambo.AirBuddy.Menu",
+        "com.apple.controlcenter:WiFi",
+    ]
+
+    func testTrackedAppRelaunchArmsSettling() {
+        XCTAssertTrue(
+            MenuBarItemManager.tracksMenuBarItem(bundleID: "org.freedownloadmanager.fdm6", in: tracked)
+        )
+    }
+
+    func testUntrackedAppLaunchDoesNotArmSettling() {
+        XCTAssertFalse(
+            MenuBarItemManager.tracksMenuBarItem(bundleID: "com.apple.Safari", in: tracked)
+        )
+    }
+
+    func testBundleIDPrefixBoundaryDoesNotFalseMatch() {
+        // org.freedownloadmanager.fdm6 must not match a different app whose
+        // bundle id merely extends it; the ":" separator anchors the match.
+        let other: Set<String> = ["org.freedownloadmanager.fdm6x:Item-0"]
+        XCTAssertFalse(
+            MenuBarItemManager.tracksMenuBarItem(bundleID: "org.freedownloadmanager.fdm6", in: other)
+        )
+    }
+
+    func testEmptyKnownSetNeverArms() {
+        XCTAssertFalse(
+            MenuBarItemManager.tracksMenuBarItem(bundleID: "org.freedownloadmanager.fdm6", in: [])
+        )
+    }
+
+    func testControlCenterSingletonItemMatches() {
+        // A simple "namespace:title" entry (title has no dots) still matches
+        // on the namespace.
+        XCTAssertTrue(
+            MenuBarItemManager.tracksMenuBarItem(bundleID: "com.apple.controlcenter", in: tracked)
+        )
+    }
+
+    func testAirBuddyWithMultiComponentTitleMatches() {
+        // The title here is itself reverse-DNS shaped
+        // (codes.rambo.AirBuddy.Menu); the ":" anchor must match on the
+        // namespace and not be confused by the dots in the title.
+        XCTAssertTrue(
+            MenuBarItemManager.tracksMenuBarItem(bundleID: "codes.rambo.AirBuddyHelper", in: tracked)
         )
     }
 }
