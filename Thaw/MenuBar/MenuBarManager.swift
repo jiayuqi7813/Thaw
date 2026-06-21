@@ -582,7 +582,7 @@ final class MenuBarManager: ObservableObject {
         // retries on stale reads of fire-and-forget Task results.
         Task { [weak self] in
             guard let self else { return }
-            for attempt in 0..<10 {
+            for attempt in 0 ..< 10 {
                 if attempt > 0 {
                     try? await Task.sleep(for: .seconds(1))
                 }

@@ -896,14 +896,13 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         // SkyLight call leaks one CFMutableDictionary inside
         // SLSWindowListCreateImageFromArrayProxying; that floor stays until
         // Apple fixes SCK or the framework leak.
-        let compositeImage: CGImage?
-        if viaSCK {
-            compositeImage = await ScreenCapture.captureWindowsAsync(
+        let compositeImage: CGImage? = if viaSCK {
+            await ScreenCapture.captureWindowsAsync(
                 with: windowIDs,
                 option: captureOption
             )
         } else {
-            compositeImage = ScreenCapture.captureWindows(
+            ScreenCapture.captureWindows(
                 with: windowIDs,
                 option: captureOption
             )

@@ -181,6 +181,7 @@ final class MenuBarItemManager: ObservableObject {
     private var backgroundCacheContinuation: CheckedContinuation<Void, Never>?
 
     // MARK: - Layout coordination state
+
     //
     // The flags below coordinate three overlapping concerns. They are
     // not collapsed into a single token because the AX-timing and live-
@@ -2048,13 +2049,13 @@ extension MenuBarItemManager {
                 }
             }
 
-            // Spatial classification mirrors currentLayoutDivergesFromSaved:
-            // visible is right of hiddenCtrl; alwaysHidden is left of
-            // ahCtrl when present; hidden is between the two control
-            // items (or anything left of hiddenCtrl when ahCtrl is
-            // disabled). Items straddling a divider return nil to
-            // avoid false positives during transient section
-            // show/hide animations.
+            /// Spatial classification mirrors currentLayoutDivergesFromSaved:
+            /// visible is right of hiddenCtrl; alwaysHidden is left of
+            /// ahCtrl when present; hidden is between the two control
+            /// items (or anything left of hiddenCtrl when ahCtrl is
+            /// disabled). Items straddling a divider return nil to
+            /// avoid false positives during transient section
+            /// show/hide animations.
             func sectionKey(for item: MenuBarItem) -> String? {
                 if item.bounds.minX >= hiddenMaxX {
                     return "visible"
@@ -3809,7 +3810,7 @@ extension MenuBarItemManager {
         }
         // Also rehide when frontmost app changes (smart-ish).
         // Debounce so rapid app switches (Cmd-Tab spam) collapse to one
-        // rehide attempt instead of queuing a separate Task per change ; 
+        // rehide attempt instead of queuing a separate Task per change ;
         // each rehide call can do an expensive on-screen window enumeration.
         rehideCancellable = NSWorkspace.shared.publisher(for: \.frontmostApplication)
             .debounce(for: .milliseconds(200), scheduler: DispatchQueue.main)
@@ -4557,7 +4558,7 @@ extension MenuBarItemManager {
             return false
         }
 
-        // Don't interfere with items that are currently temporarily shown ; 
+        // Don't interfere with items that are currently temporarily shown ;
         // those are handled by the normal rehide flow.
         let activelyShownTags = Set(temporarilyShownItemContexts.map(\.tag.tagIdentifier))
 
@@ -5456,6 +5457,7 @@ extension MenuBarItemManager {
         source: ApplySource = .profile
     ) async {
         // MARK: Phase 0: gate on startup settling
+
         //
         // During settling, cacheItemsRegardless skips restore and
         // absorbs every current item into profileSortedItemIdentifiers;
@@ -5470,6 +5472,7 @@ extension MenuBarItemManager {
         if Task.isCancelled { return }
 
         // MARK: Phase 1: persist state and arm in-flight flags
+
         // Profile-only: overwrite the persisted layout state with the
         // profile spec and arm activeProfileLayout / late-arrival
         // tracking. The savedOrder path keeps savedSectionOrder
@@ -5506,6 +5509,7 @@ extension MenuBarItemManager {
         }
 
         // MARK: Phase 2: discover items, classify sections, build sequences
+
         let hiddenWID: CGWindowID? = appState.menuBarManager
             .controlItem(withName: .hidden)?.window
             .flatMap { CGWindowID(exactly: $0.windowNumber) }
@@ -5605,7 +5609,7 @@ extension MenuBarItemManager {
             let sectionItems = items.filter { item in
                 guard isProfileItem(item) else { return false }
                 let uid = item.uniqueIdentifier
-                guard uid != hiddenCtrlUID && uid != ahCtrlUID else { return false }
+                guard uid != hiddenCtrlUID, uid != ahCtrlUID else { return false }
                 return sectionByWindowID[item.windowID] == sectionName
             }
             MenuBarItemManager.diagLog.debug(
@@ -5629,6 +5633,7 @@ extension MenuBarItemManager {
         var desiredFiltered = desiredFlat.filter { currentSet.contains($0) }
 
         // MARK: Phase 3: place unmanaged items via planUnmanagedPlacement
+
         // Items present in the menu bar but not in the profile are
         // placed via planUnmanagedPlacement. The planner consults the
         // user's saved layout history first (so a previously-seen app
@@ -5678,16 +5683,15 @@ extension MenuBarItemManager {
             // (only logs when unmanaged items exist) and the most
             // direct signal for triaging "why did X move?" reports.
             for uid in unmanagedUIDs {
-                let placementSummary: String
-                switch placements[uid] {
+                let placementSummary = switch placements[uid] {
                 case let .saved(section, index)?:
-                    placementSummary = "saved(section=\(section.logString), index=\(index))"
+                    "saved(section=\(section.logString), index=\(index))"
                 case let .newItemAnchored(section, anchorUID, relation)?:
-                    placementSummary = "newItemAnchored(section=\(section.logString), anchor=\(anchorUID), relation=\(String(describing: relation)))"
+                    "newItemAnchored(section=\(section.logString), anchor=\(anchorUID), relation=\(String(describing: relation)))"
                 case let .newItemDefault(section)?:
-                    placementSummary = "newItemDefault(section=\(section.logString))"
+                    "newItemDefault(section=\(section.logString))"
                 case nil:
-                    placementSummary = "<no placement returned>"
+                    "<no placement returned>"
                 }
                 MenuBarItemManager.diagLog.debug(
                     "Profile layout: planUnmanagedPlacement \(uid) -> \(placementSummary)"
@@ -5715,6 +5719,7 @@ extension MenuBarItemManager {
         }
 
         // MARK: Phase 4: notch overflow rebalance
+
         // On notched displays, calculate available visible space and overflow
         // items that won't fit into the hidden section. The Thaw visible
         // control icon stays as the last visible item (nearest the hidden divider).
@@ -5838,6 +5843,7 @@ extension MenuBarItemManager {
         }
 
         // MARK: Phase 5: choose execution strategy (full-sort vs LCS)
+
         // On notched displays, use a full-section rearrange instead of
         // LCS-based partial moves. LCS leaves "stable" anchors in place,
         // but on notched screens those anchors may sit in or near the
@@ -5854,6 +5860,7 @@ extension MenuBarItemManager {
 
         if isNotchedDisplay {
             // MARK: Phase 6a: full-sort execution (notched)
+
             let fullSequence = LayoutSolver.planFullSortSequence(
                 currentFlat: currentFlat,
                 desiredFiltered: desiredFiltered,
@@ -5937,6 +5944,7 @@ extension MenuBarItemManager {
             try? await Task.sleep(for: .milliseconds(200))
         } else {
             // MARK: Phase 6b: LCS execution (non-notched)
+
             // ── Sub-phase 1: Move control items to optimal boundary positions ──
             //
             // Moving a control item reassigns all items on either side to
@@ -6285,6 +6293,7 @@ extension MenuBarItemManager {
         }
 
         // MARK: Phase 7: finalize (cursor, snapshot, cache, UI refresh)
+
         // Restore cursor to its original position.
         let screen = NSScreen.screens.first(where: { $0.frame.contains(savedCursorPosition) })
             ?? NSScreen.main
@@ -6374,17 +6383,16 @@ extension MenuBarItemManager {
                 continue
             }
 
-            let currentSection: MenuBarSection.Name?
-            if item.bounds.minX >= hiddenMaxX {
-                currentSection = .visible
+            let currentSection: MenuBarSection.Name? = if item.bounds.minX >= hiddenMaxX {
+                .visible
             } else if let ahBounds, item.bounds.maxX <= ahBounds.minX {
-                currentSection = .alwaysHidden
+                .alwaysHidden
             } else if let ahBounds, item.bounds.minX >= ahBounds.maxX, item.bounds.maxX <= hiddenMinX {
-                currentSection = .hidden
+                .hidden
             } else if ahBounds == nil, item.bounds.maxX <= hiddenMinX {
-                currentSection = .hidden
+                .hidden
             } else {
-                currentSection = nil
+                nil
             }
 
             guard let currentSection else { continue }

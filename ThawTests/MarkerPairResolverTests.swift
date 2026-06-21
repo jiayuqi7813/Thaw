@@ -62,12 +62,12 @@ final class MarkerPairResolverTests: XCTestCase {
     /// lookup path because the marker's CG owner is Control Center
     /// (the macOS 26 reparenting case).
     func testAgentSceneResolvesViaTitleLookup() {
-        let icons = [icon(windowID: 11_379, title: "Item-0")]
+        let icons = [icon(windowID: 11379, title: "Item-0")]
         let markers = [
             marker(
-                windowID: 61_456,
+                windowID: 61456,
                 title: "at.obdev.littlesnitch.agent",
-                owningPID: 39_187 // Control Center
+                owningPID: 39187 // Control Center
             ),
         ]
         let result = MarkerPairResolver.resolve(
@@ -76,18 +76,18 @@ final class MarkerPairResolverTests: XCTestCase {
             thawBundleID: thawBundleID,
             ccBundleID: ccBundleID,
             pidToBundleID: { pid in
-                if pid == 39_187 { return self.ccBundleID }
-                if pid == 13_496 { return "at.obdev.littlesnitch.agent" }
+                if pid == 39187 { return self.ccBundleID }
+                if pid == 13496 { return "at.obdev.littlesnitch.agent" }
                 return nil
             },
             bundleIDToPID: { bundleID in
-                bundleID == "at.obdev.littlesnitch.agent" ? 13_496 : nil
+                bundleID == "at.obdev.littlesnitch.agent" ? 13496 : nil
             }
         )
         XCTAssertEqual(result.count, 1)
-        XCTAssertEqual(result.first?.iconWindowID, 11_379)
-        XCTAssertEqual(result.first?.resolvedPID, 13_496)
-        XCTAssertEqual(result.first?.markerWindowID, 61_456)
+        XCTAssertEqual(result.first?.iconWindowID, 11379)
+        XCTAssertEqual(result.first?.resolvedPID, 13496)
+        XCTAssertEqual(result.first?.markerWindowID, 61456)
         XCTAssertEqual(result.first?.markerTitle, "at.obdev.littlesnitch.agent")
     }
 

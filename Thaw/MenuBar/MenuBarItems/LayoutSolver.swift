@@ -152,7 +152,7 @@ enum LayoutSolver {
     ///
     /// Pure over its inputs. Shared by applyProfileLayout and the log-replay
     /// harness so both build currentFlat identically.
-    nonisolated static func flattenCurrentSections(
+    static nonisolated func flattenCurrentSections(
         visible: [String],
         hidden: [String],
         alwaysHidden: [String],
@@ -200,7 +200,7 @@ enum LayoutSolver {
     /// Input order is preserved, since downstream consumers (LCS
     /// planner) treat the result as the iteration order for placement.
     /// Pure over its inputs.
-    nonisolated static func partitionUnmanagedUIDs(
+    static nonisolated func partitionUnmanagedUIDs(
         currentFlat: [String],
         desiredUIDs: Set<String>,
         hiddenCtrlUID: String?,
@@ -232,7 +232,7 @@ enum LayoutSolver {
     /// (all of which depend on live state) and passes them in. State
     /// mutation (knownItemIdentifiers, persistence) and execution
     /// (move()) stay with the orchestrator.
-    nonisolated static func planLeftmostMove(
+    static nonisolated func planLeftmostMove(
         items: [MenuBarItem],
         observation: LeftmostObservation,
         savedSectionOrder: [String: [String]],
@@ -343,7 +343,7 @@ enum LayoutSolver {
     /// and supply per-uid widths derived from live item bounds. This
     /// keeps the planner pure for testing and pins down the algorithm
     /// for regression-locking.
-    nonisolated static func planNotchOverflow(
+    static nonisolated func planNotchOverflow(
         desiredFiltered: [String],
         unmanagedUIDs: [String],
         controlUIDs: ControlUIDs,
@@ -479,7 +479,7 @@ enum LayoutSolver {
     ///
     /// Pure over its inputs. Returns destinations as anchor UIDs so the
     /// orchestrator can resolve them against fresh items between moves.
-    nonisolated static func planLCSMoveSequence(
+    static nonisolated func planLCSMoveSequence(
         currentNoControls: [String],
         desiredNoControls: [String],
         sectionMap: [String: String]
@@ -533,11 +533,10 @@ enum LayoutSolver {
 
             // Fallback to section boundary.
             if destination == nil {
-                let targetSection: MenuBarSection.Name
-                switch targetKey {
-                case "hidden": targetSection = .hidden
-                case "alwaysHidden": targetSection = .alwaysHidden
-                default: targetSection = .visible
+                let targetSection: MenuBarSection.Name = switch targetKey {
+                case "hidden": .hidden
+                case "alwaysHidden": .alwaysHidden
+                default: .visible
                 }
                 destination = .sectionBoundary(targetSection)
             }
@@ -565,7 +564,7 @@ enum LayoutSolver {
     ///
     /// Pure over its inputs. The orchestrator handles per-item live
     /// fetching, the move() loop, and control-item state restoration.
-    nonisolated static func planFullSortSequence(
+    static nonisolated func planFullSortSequence(
         currentFlat: [String],
         desiredFiltered: [String],
         sectionMap: [String: String],
@@ -607,7 +606,7 @@ enum LayoutSolver {
     ///
     /// Returns the section and index in that section's saved array if the
     /// identifier matches an entry. Returns nil if not found.
-    nonisolated static func savedPosition(
+    static nonisolated func savedPosition(
         for uid: String,
         in savedSectionOrder: [String: [String]]
     ) -> SavedPosition? {
@@ -629,7 +628,7 @@ enum LayoutSolver {
     /// exact-identifier match, then a baseID-prefix match against any
     /// instance saved for the same namespace:title. Returns the first
     /// baseID match found.
-    nonisolated static func savedPositionByBaseID(
+    static nonisolated func savedPositionByBaseID(
         for uid: String,
         in savedSectionOrder: [String: [String]]
     ) -> SavedPosition? {
@@ -662,7 +661,7 @@ enum LayoutSolver {
     /// with the user's actual layout history.
     ///
     /// Pure over its inputs.
-    nonisolated static func planUnmanagedPlacement(
+    static nonisolated func planUnmanagedPlacement(
         unmanagedUIDs: [String],
         savedSectionOrder: [String: [String]],
         newItemsPlacement: MenuBarItemManager.NewItemsPlacement,
@@ -720,7 +719,7 @@ enum LayoutSolver {
     /// "this is where the section ends".
     ///
     /// Pure over its inputs.
-    nonisolated static func anchorDestination(
+    static nonisolated func anchorDestination(
         forSavedIndex savedIndex: Int,
         inSection section: MenuBarSection.Name,
         savedSequence: [String],
@@ -770,7 +769,7 @@ enum LayoutSolver {
     ///    then append as last resort.
     ///
     /// Pure over its inputs.
-    nonisolated static func planSectionOrder(
+    static nonisolated func planSectionOrder(
         currentInSection: [String],
         oldSavedForSection: [String],
         allCurrentIdentifiers: Set<String>,
@@ -838,7 +837,7 @@ enum LayoutSolver {
     /// Computes the Longest Common Subsequence of two string arrays.
     /// Returns the set of items that appear in both arrays in the same
     /// relative order: these items don't need to be moved.
-    nonisolated static func longestCommonSubsequence(_ a: [String], _ b: [String]) -> Set<String> {
+    static nonisolated func longestCommonSubsequence(_ a: [String], _ b: [String]) -> Set<String> {
         let m = a.count
         let n = b.count
         guard m > 0, n > 0 else { return [] }
@@ -873,12 +872,12 @@ enum LayoutSolver {
     }
 
     /// Extracts the baseID (namespace:title) prefix from a uniqueIdentifier.
-    nonisolated private static func baseID(forIdentifier id: String) -> String {
+    private static nonisolated func baseID(forIdentifier id: String) -> String {
         id.split(separator: ":", maxSplits: 2).prefix(2).joined(separator: ":")
     }
 
     /// Maps a persisted section key string to its enum value.
-    nonisolated private static func sectionName(forPersistedKey key: String) -> MenuBarSection.Name? {
+    private static nonisolated func sectionName(forPersistedKey key: String) -> MenuBarSection.Name? {
         switch key {
         case "visible": .visible
         case "hidden": .hidden
@@ -888,7 +887,7 @@ enum LayoutSolver {
     }
 
     /// Maps a section to its persisted key string.
-    nonisolated private static func sectionKeyFor(_ section: MenuBarSection.Name) -> String {
+    private static nonisolated func sectionKeyFor(_ section: MenuBarSection.Name) -> String {
         switch section {
         case .visible: return "visible"
         case .hidden: return "hidden"
@@ -907,7 +906,7 @@ enum LayoutSolver {
     /// instantiating MenuBarItemManager. Any future addition to the
     /// gate (new in-flight signal) should extend both this function
     /// and its tests.
-    nonisolated static func shouldPersistSavedOrder(
+    static nonisolated func shouldPersistSavedOrder(
         isRestoringItemOrder: Bool,
         isResettingLayout: Bool,
         isInStartupSettling: Bool,
@@ -943,7 +942,7 @@ enum LayoutSolver {
     /// the cache snapshot, so planSectionOrder treats them as closed
     /// apps and preserves their original-section saved entry rather
     /// than overwriting it with the live visible position.
-    nonisolated static func pendingRehideTagIdentifiers(
+    static nonisolated func pendingRehideTagIdentifiers(
         pendingReturnDestinations: [String: [String: String]],
         pendingRelocations: [String: String],
         waitForRelaunchPrefix: String
@@ -968,7 +967,7 @@ enum LayoutSolver {
     /// the scan path to execute and resolves every other unresolved
     /// window in the same batch by populating the cache during the
     /// AX traversal.
-    nonisolated static func selectWindowForBatchScan<W>(
+    static nonisolated func selectWindowForBatchScan<W>(
         windows: [W],
         windowID: (W) -> CGWindowID,
         cachedPIDs: [CGWindowID: pid_t]
