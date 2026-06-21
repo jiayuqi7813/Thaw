@@ -39,7 +39,18 @@ struct MenuBarItem: CustomStringConvertible {
 
     /// A Boolean value that indicates whether this item can be hidden.
     var canBeHidden: Bool {
-        tag.canBeHidden && !isTransientControlCenterItem
+        sectionManagementPolicy.canBeHidden
+    }
+
+    /// Legacy divider-layout hideability, independent of the current host OS.
+    var canBeHiddenInLegacySectionLayout: Bool {
+        tag.canBeHiddenInLegacySectionLayout && !isTransientControlCenterItem
+    }
+
+    /// The item's section-management policy, including live-item exclusions
+    /// that cannot be determined from its tag alone.
+    var sectionManagementPolicy: MenuBarItemTag.SectionManagementPolicy {
+        isTransientControlCenterItem ? .excluded : tag.sectionManagementPolicy
     }
 
     /// A Boolean value that indicates whether this item is owned by an Apple
