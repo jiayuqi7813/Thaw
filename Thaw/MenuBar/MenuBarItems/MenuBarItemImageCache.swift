@@ -912,7 +912,8 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
     private nonisolated func captureImages(
         of items: [MenuBarItem],
         scale: CGFloat,
-        appState: AppState
+        appState: AppState,
+        freshBounds: Bool = false
     ) async -> CaptureResult {
         // Thaw's section-divider control items capture as transparent via
         // CGWindowListCreateImage on macOS <=26, so skip them there. On macOS
@@ -933,9 +934,25 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                 NSScreen.screens.first { $0.displayID == displayID }?.frame
             }
 
+            // Crop against FRESH live AX bounds, not the cached `item.bounds`.
+            // A just-revealed Hidden item still carries its stale snapshot
+            // position in the cache, so cropping with it grabs a neighbor's
+            // pixels from the live screenshot (e.g. BetterDisplay shows the Sound
+            // icon). Only the Hidden/Always-Hidden sections need this; the Visible
+            // section's cache bounds are already fresh and it is captured far too
+            // often to pay for an extra all-apps AX walk each time.
+            var liveBoundsByID: [String: CGRect] = [:]
+            if freshBounds {
+                let liveItems = await MenuBarItem.getMenuBarItems(option: [.onScreen, .activeSpace])
+                liveBoundsByID = Dictionary(
+                    liveItems.map { ($0.uniqueIdentifier, $0.bounds) },
+                    uniquingKeysWith: { first, _ in first }
+                )
+            }
+
             var axItems: [(item: MenuBarItem, bounds: CGRect)] = []
             for item in capturable {
-                let bounds = item.bounds
+                let bounds = liveBoundsByID[item.uniqueIdentifier] ?? item.bounds
                 guard !bounds.isEmpty else { continue }
                 // items.bounds is in global screen coords (Y-down); NSScreen.frame
                 // is in AppKit coords (Y-up) — but both share the same X axis and
@@ -1154,7 +1171,10 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         let captureResult = await captureImages(
             of: items,
             scale: scale,
-            appState: appState
+            appState: appState,
+            // Only Hidden/Always-Hidden carry stale snapshot bounds; the Visible
+            // section already has fresh cache bounds and is captured very often.
+            freshBounds: section != .visible
         )
         if !captureResult.excluded.isEmpty {
             MenuBarItemImageCache.diagLog.debug(
@@ -1510,7 +1530,13 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
             appState.itemManager.itemCache.managedItems.map(\.tag)
         )
 
-        await MainActor.run { [newImages, allValidTags] in
+        // Plus the tags of items the hider has assigned (their snapshots). A
+        // concealed item can briefly fall out of `managedItems` between conceal
+        // and the snapshot re-add; without this it would lose its last-good icon
+        // here and show a blank Hidden slot after a visible→hidden move.
+        let assignedSnapshotTags = appState.menuBarManager.simpleItemHider?.assignedSnapshotTags ?? []
+
+        await MainActor.run { [newImages, allValidTags, assignedSnapshotTags] in
             let beforeCount = images.count
 
             // Tags with recent capture failures should keep their cached images
@@ -1522,15 +1548,19 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
 
             // Remove images for items that no longer exist in the item cache,
             // but preserve images for items that have recent capture failures
-            // (they may reappear shortly with a new window ID).
+            // (they may reappear shortly with a new window ID) and for
+            // hider-assigned items (concealed items mid-re-add).
             // Use matchesIgnoringWindowID for non-system items so disk-loaded
             // entries are not incorrectly evicted when their windowID is nil.
             images = images.filter { key, _ in
                 if key.isSystemItem {
-                    return allValidTags.contains(key) || recentlyFailedTags.contains(key)
+                    return allValidTags.contains(key)
+                        || recentlyFailedTags.contains(key)
+                        || assignedSnapshotTags.contains(key)
                 }
                 return containsTagMatchingIgnoringWindowID(allValidTags, target: key) ||
-                    containsTagMatchingIgnoringWindowID(recentlyFailedTags, target: key)
+                    containsTagMatchingIgnoringWindowID(recentlyFailedTags, target: key) ||
+                    containsTagMatchingIgnoringWindowID(assignedSnapshotTags, target: key)
             }
 
             // Additional cleanup: Remove entries with invalid window information,
