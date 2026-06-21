@@ -247,10 +247,14 @@ final class AppState: ObservableObject {
                 if isPresented {
                     self.openWindows.insert(.settings)
                     // Start Sparkle consent flow the first time settings is shown.
-                    if !Defaults.bool(forKey: .hasSeenUpdateConsent) {
+                    if Constants.supportsSparkleUpdates,
+                       !Defaults.bool(forKey: .hasSeenUpdateConsent)
+                    {
                         self.isUpdateConsentPresented = true
                     } else {
-                        self.updatesManager.startUpdaterIfNeeded()
+                        if Constants.supportsSparkleUpdates {
+                            self.updatesManager.startUpdaterIfNeeded()
+                        }
                         self.presentOnboardingIfNeeded()
                     }
                 } else {

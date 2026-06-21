@@ -28,6 +28,14 @@ enum Constants {
     /// The app's display name.
     static let displayName = Bundle.main.displayName
 
+    /// Sparkle update checks are disabled on the macOS 27 unsupported preview.
+    static var supportsSparkleUpdates: Bool {
+        if #available(macOS 27, *) {
+            return false
+        }
+        return true
+    }
+
     // swiftlint:enable force_unwrapping
 
     // MARK: - Thaw-owned menu bar identity

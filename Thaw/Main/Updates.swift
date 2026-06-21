@@ -63,6 +63,9 @@ final class UpdatesManager: NSObject, ObservableObject {
             updater.automaticallyChecksForUpdates
         }
         set {
+            guard Constants.supportsSparkleUpdates else {
+                return
+            }
             objectWillChange.send()
             updater.automaticallyChecksForUpdates = newValue
             if newValue {
@@ -77,6 +80,9 @@ final class UpdatesManager: NSObject, ObservableObject {
             updater.automaticallyDownloadsUpdates
         }
         set {
+            guard Constants.supportsSparkleUpdates else {
+                return
+            }
             objectWillChange.send()
             updater.automaticallyDownloadsUpdates = newValue
             if newValue {
@@ -94,6 +100,9 @@ final class UpdatesManager: NSObject, ObservableObject {
 
     /// Starts the updater if it hasn't been started yet.
     func startUpdaterIfNeeded() {
+        guard Constants.supportsSparkleUpdates else {
+            return
+        }
         guard !hasStartedUpdater else {
             return
         }
@@ -111,6 +120,9 @@ final class UpdatesManager: NSObject, ObservableObject {
 
     /// Checks for app updates.
     @objc func checkForUpdates() {
+        guard Constants.supportsSparkleUpdates else {
+            return
+        }
         #if DEBUG
             // Checking for updates hangs in debug mode.
             let alert = NSAlert()
