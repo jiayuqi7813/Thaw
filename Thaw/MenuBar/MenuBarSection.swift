@@ -198,6 +198,20 @@ final class MenuBarSection {
     /// A Boolean value that indicates whether the section is hidden.
     var isHidden: Bool {
         guard MenuBarBackendFactory.current.supportsLegacySectionHiding else {
+            // macOS 27: the Thaw Bar can present a section while its items stay
+            // concealed by the assertion. An open bar must count as "not hidden"
+            // so a second Thaw-icon click toggles it closed instead of re-showing
+            // (which would re-run the prewarm and re-flash the hidden items).
+            switch name {
+            case .visible, .hidden:
+                if menuBarManager?.iceBarPanel.currentSection == .hidden {
+                    return false
+                }
+            case .alwaysHidden:
+                if menuBarManager?.iceBarPanel.currentSection == .alwaysHidden {
+                    return false
+                }
+            }
             return appState?.menuBarManager.simpleItemHider?.isSectionHidden(name) ?? true
         }
         if useIceBar {
@@ -242,7 +256,7 @@ final class MenuBarSection {
             case .hidden:
                 return true
             case .alwaysHidden:
-                return appState?.settings.advanced.enableAlwaysHiddenSection ?? false
+                return appState?.settings.advanced.isAlwaysHiddenSectionEnabled ?? false
             }
         }
         return controlItem.isAddedToMenuBar
@@ -335,6 +349,27 @@ final class MenuBarSection {
         menuBarManager.updateLastShowTimestamp()
 
         guard MenuBarBackendFactory.current.supportsLegacySectionHiding else {
+            // macOS 27: honor the per-display Thaw Bar setting. When enabled,
+            // present the popover instead of revealing the items inline in the
+            // menu bar. The bar populates its glyphs from a brief reveal/capture
+            // pass inside `IceBarPanel.show`, and clicks are forwarded through a
+            // reveal → click → re-conceal cycle (see `revealClickAndConceal`).
+            if useIceBar, let screen = screenForIceBar {
+                for section in menuBarManager.sections {
+                    section.desiredState = section.name == .visible ? .showSection : .hideSection
+                    section.updateControlItemState(for: nil)
+                }
+                menuBarManager.iceBarPanel.show(
+                    section: name == .alwaysHidden ? .alwaysHidden : .hidden,
+                    on: screen,
+                    triggeredByHotkey: triggeredByHotkey
+                )
+                startRehideChecks()
+                return
+            }
+
+            // Otherwise reveal the items in place via the assertion-based hider.
+            menuBarManager.iceBarPanel.close()
             menuBarManager.simpleItemHider?.show(name)
             switch name {
             case .visible, .hidden:

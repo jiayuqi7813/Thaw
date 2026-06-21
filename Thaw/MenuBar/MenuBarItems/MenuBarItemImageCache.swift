@@ -1236,6 +1236,14 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
     // MARK: Failed Capture Management
 
     /// Checks if an item should be skipped due to repeated capture failures.
+    /// Whether a capture of `item` would currently be attempted, rather than
+    /// skipped because it's blacklisted after repeated failures. The Thaw Bar
+    /// uses this to avoid revealing (and flashing) the menu bar for an item that
+    /// can't be captured anyway.
+    nonisolated func wouldAttemptCapture(of item: MenuBarItem) -> Bool {
+        !shouldSkipCapture(for: item)
+    }
+
     private func shouldSkipCapture(for item: MenuBarItem) -> Bool {
         failedCapturesLock.withLock { dict in
             guard let failed = dict[item.tag] else {

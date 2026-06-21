@@ -67,9 +67,27 @@ enum Constants {
         static let imageCaptureObserverDebounceMilliseconds = 200
         static let minimumLiveImageRefreshInterval: TimeInterval = 1
         static let trailingPillClusterMaximumGap: CGFloat = 96
+        /// Inner (leading) breathing room for the split trailing pill on
+        /// macOS 27. The AX item frame starts the rounded cap flush with the
+        /// inner glyph's border, so without this the leftmost icons (e.g.
+        /// Proton, Sound) are clipped by the curve. Must clear the rounded cap
+        /// radius (~half the menu-bar height, ≈11 pt) plus visible breathing
+        /// room, so it sits well past the legacy 7 pt CGS outset.
+        static let trailingPillLeadingInnerMargin: CGFloat = 20
         static let visibleControlClusterBridgePadding: CGFloat = 32
         static let syntheticDragDropInset: CGFloat = 2
         static let syntheticDragSettleDelay: Duration = .milliseconds(250)
+
+        // MARK: Thaw Bar (macOS 27)
+
+        /// How long to wait after relaxing the visibility assertion for
+        /// MenuBarAgent to recomposite a revealed item before clicking it.
+        static let iceBarRevealSettle: Duration = .milliseconds(400)
+        /// Grace after a click for the item's menu to open before the
+        /// status-item glyph is re-concealed.
+        static let iceBarPostClickSettle: Duration = .milliseconds(150)
+        /// Settle before capturing the glyphs of a freshly-revealed section.
+        static let iceBarCaptureSettle: Duration = .milliseconds(350)
     }
 
     /// The brightness threshold above which the menu bar is considered "bright".

@@ -641,7 +641,7 @@ final class MenuBarItemManager: ObservableObject {
     /// to hidden when the always-hidden section is currently disabled.
     var effectiveNewItemsSection: MenuBarSection.Name {
         let preferredSection = sectionName(for: newItemsPlacement.sectionKey) ?? .hidden
-        if preferredSection == .alwaysHidden, appState?.settings.advanced.enableAlwaysHiddenSection != true {
+        if preferredSection == .alwaysHidden, appState?.settings.advanced.isAlwaysHiddenSectionEnabled != true {
             return .hidden
         }
         return preferredSection
@@ -747,7 +747,7 @@ final class MenuBarItemManager: ObservableObject {
         section: MenuBarSection.Name,
         arrangedViews: [LayoutBarArrangedView]
     ) {
-        let resolvedSection: MenuBarSection.Name = if section == .alwaysHidden, appState?.settings.advanced.enableAlwaysHiddenSection != true {
+        let resolvedSection: MenuBarSection.Name = if section == .alwaysHidden, appState?.settings.advanced.isAlwaysHiddenSectionEnabled != true {
             .hidden
         } else {
             section
@@ -820,7 +820,7 @@ final class MenuBarItemManager: ObservableObject {
     /// when they expand the hidden section.
     func applyNewItemsPlacement(_ placement: NewItemsPlacement) {
         let preferredSection = sectionName(for: placement.sectionKey) ?? .hidden
-        let alwaysHiddenDisabled = appState?.settings.advanced.enableAlwaysHiddenSection != true
+        let alwaysHiddenDisabled = appState?.settings.advanced.isAlwaysHiddenSectionEnabled != true
         let clampedToHidden = preferredSection == .alwaysHidden && alwaysHiddenDisabled
         let resolvedSection: MenuBarSection.Name = clampedToHidden ? .hidden : preferredSection
 
@@ -896,7 +896,7 @@ final class MenuBarItemManager: ObservableObject {
         case .visible:
             return .rightOfItem(controlItems.hidden)
         case .hidden:
-            if appState?.settings.advanced.enableAlwaysHiddenSection == true {
+            if appState?.settings.advanced.isAlwaysHiddenSectionEnabled == true {
                 if let alwaysHidden = controlItems.alwaysHidden {
                     return .rightOfItem(alwaysHidden)
                 } else {
@@ -957,7 +957,7 @@ final class MenuBarItemManager: ObservableObject {
         case .visible:
             return 0
         case .hidden:
-            if appState?.settings.advanced.enableAlwaysHiddenSection == true {
+            if appState?.settings.advanced.isAlwaysHiddenSectionEnabled == true {
                 return 0
             }
             return itemCount
@@ -1852,7 +1852,7 @@ extension MenuBarItemManager {
         context.cache = await backend.rebucket(
             context.cache,
             hider: appState?.menuBarManager.simpleItemHider,
-            allowsAlwaysHidden: appState?.settings.advanced.enableAlwaysHiddenSection ?? false
+            allowsAlwaysHidden: appState?.settings.advanced.isAlwaysHiddenSectionEnabled ?? false
         )
 
         guard itemCache != context.cache else {
@@ -4677,10 +4677,7 @@ extension MenuBarItemManager {
             // uses a fresh window reference rather than the stale pre-move struct.
             let refreshedItems = await MenuBarItem.getMenuBarItems(on: resolvedDisplayID, option: .onScreen)
             clickItem = refreshedItems.first(where: { $0.windowID == item.windowID }) ??
-                refreshedItems.first(where: {
-                    $0.tag.matchesIgnoringWindowID(item.tag) &&
-                        ($0.sourcePID ?? $0.ownerPID) == (item.sourcePID ?? item.ownerPID)
-                }) ?? item
+                refreshedItems.first { $0.hasSameIdentity(as: item) } ?? item
         } else {
             // Wait for the item's position to stabilize after the move. Some
             // apps need time to process the window relocation before they can
@@ -4691,10 +4688,7 @@ extension MenuBarItemManager {
             // Prefer an exact windowID match, then fall back to namespace+title with PID matching.
             let refreshedItems = await MenuBarItem.getMenuBarItems(on: resolvedDisplayID, option: .onScreen)
             clickItem = refreshedItems.first(where: { $0.windowID == item.windowID }) ??
-                refreshedItems.first(where: {
-                    $0.tag.matchesIgnoringWindowID(item.tag) &&
-                        ($0.sourcePID ?? $0.ownerPID) == (item.sourcePID ?? item.ownerPID)
-                }) ?? item
+                refreshedItems.first { $0.hasSameIdentity(as: item) } ?? item
 
             // Give the owning app a little extra time to finish processing the
             // move internally. Some apps (e.g. OneDrive) need more than just a
@@ -4725,10 +4719,7 @@ extension MenuBarItemManager {
                 // bounds, rather than the potentially stale pre-click struct.
                 let fallbackItems = await MenuBarItem.getMenuBarItems(on: resolvedDisplayID, option: .onScreen)
                 let fallbackItem = fallbackItems.first(where: { $0.windowID == clickItem.windowID }) ??
-                    fallbackItems.first(where: {
-                        $0.tag.matchesIgnoringWindowID(clickItem.tag) &&
-                            ($0.sourcePID ?? $0.ownerPID) == (clickItem.sourcePID ?? clickItem.ownerPID)
-                    }) ?? clickItem
+                    fallbackItems.first { $0.hasSameIdentity(as: clickItem) } ?? clickItem
 
                 // We stay inside temporarilyShow so that idsBeforeClick and context
                 // remain in scope; shownInterfaceWindow can still be captured if
@@ -4753,6 +4744,86 @@ extension MenuBarItemManager {
         }
 
         return .movedAndClicked
+    }
+
+    /// macOS 27 click path for the Thaw Bar.
+    ///
+    /// Concealed items live at their real menu-bar position behind the system
+    /// visibility assertion, so they can't be clicked while hidden — but unlike
+    /// the legacy ``temporarilyShow`` flow they don't need to be *moved* either.
+    /// Left clicks press the item's AX element directly (no assertion change, no
+    /// flicker); anything that can't take an AX press reveals just that one item,
+    /// clicks it at its real location, then re-conceals. No synthetic ⌘-drag,
+    /// which is the unreliable part on 27.
+    @available(macOS 27, *)
+    @MainActor
+    func clickConcealedItem(
+        item: MenuBarItem,
+        with mouseButton: CGMouseButton,
+        on displayID: CGDirectDisplayID
+    ) async {
+        guard let hider = appState?.menuBarManager.simpleItemHider else {
+            return
+        }
+
+        let section = hider.section(for: item)
+        guard section != .visible else {
+            // Already visible (e.g. a forced-visible system item) — just click.
+            try? await click(item: item, with: mouseButton)
+            return
+        }
+
+        // Flicker-free fast path (left click). The item's AX element stays in the
+        // app's menu-bar-extras tree even while the icon is concealed, so we can
+        // open its menu by pressing that element directly — without relaxing the
+        // visibility assertion. Relaxing it re-applies the system restriction,
+        // which reflows the whole menu bar and momentarily flickers every hidden
+        // icon. AXPress maps to the item's default action, so right-clicks (which
+        // want a different menu) fall through to the synthetic path below.
+        if mouseButton == .left, pressItemViaAccessibility(item) {
+            MenuBarItemManager.diagLog.info(
+                "clickConcealedItem: opened \(item.logString) via AX press (no reveal, no flicker)"
+            )
+            return
+        }
+
+        // Fallback: reveal ONLY the touched item, not its whole section, so a
+        // click never flashes every hidden icon into the menu bar. This path
+        // still re-applies the assertion, so a brief flicker is expected here.
+        let identifier = item.uniqueIdentifier
+        hider.revealItemTemporarily(identifier)
+        // Guarantee re-concealment on every exit path, so the item can never be
+        // left stranded visible if this method gains an early return later.
+        defer { hider.concealTemporarilyRevealedItem(identifier) }
+
+        // Let MenuBarAgent recomposite the revealed item before clicking. This
+        // is the same settle the prewarm uses to capture correct glyphs, so the
+        // AX bounds are valid by the time it elapses. We deliberately do NOT
+        // gate on `Bridging.isWindowOnScreen`: macOS 27 status items carry
+        // synthetic window IDs, so that check always fails and would abandon an
+        // otherwise-clickable item.
+        await eventSleep(for: Constants.MenuBarTuning.iceBarRevealSettle)
+
+        // Re-fetch live AX bounds for an accurate click target. Prefer an exact
+        // identity match; fall back to same-owner (a transient "Item-N" title
+        // can change between enumerations), then to the original cached item.
+        let liveItems = await MenuBarItem.getMenuBarItems(on: displayID, option: .onScreen)
+        let liveItem = liveItems.first { $0.hasSameIdentity(as: item) }
+            ?? liveItems.first { $0.hasSameOwner(as: item) }
+            ?? item
+
+        do {
+            try await click(item: liveItem, with: mouseButton)
+        } catch {
+            MenuBarItemManager.diagLog.error(
+                "clickConcealedItem: click failed for \(item.logString): \(error)"
+            )
+        }
+
+        // Let the opened menu/popup settle (it is a separate window and stays
+        // open) before the deferred re-conceal re-applies the assertion to the
+        // status item glyph.
+        await eventSleep(for: Constants.MenuBarTuning.iceBarPostClickSettle)
     }
 
     /// Resolves the best move destination for returning a temporarily shown
