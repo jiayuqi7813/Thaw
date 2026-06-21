@@ -983,14 +983,16 @@ final class ControlItem: NSObject {
 
         menu.addItem(.separator())
 
-        let checkForUpdatesItem = NSMenuItem(
-            title: String(localized: "Check for Updates…"),
-            action: #selector(checkForUpdates),
-            keyEquivalent: ""
-        )
-        checkForUpdatesItem.image = NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: "Check for Updates")
-        checkForUpdatesItem.target = self
-        menu.addItem(checkForUpdatesItem)
+        if Constants.supportsSparkleUpdates {
+            let checkForUpdatesItem = NSMenuItem(
+                title: String(localized: "Check for Updates…"),
+                action: #selector(checkForUpdates),
+                keyEquivalent: ""
+            )
+            checkForUpdatesItem.image = NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: "Check for Updates")
+            checkForUpdatesItem.target = self
+            menu.addItem(checkForUpdatesItem)
+        }
 
         let supportItem = NSMenuItem(
             title: String(localized: "Support \(Constants.displayName)…"),
