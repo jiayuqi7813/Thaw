@@ -55,9 +55,9 @@ final class SimpleItemHider: ObservableObject {
     @Published private(set) var sectionAssignment: [String: MenuBarSection.Name]
 
     /// User-chosen left-to-right order of items within each section, set by
-    /// layout-bar drags and persisted. For the Visible section, MenuBarAgent
-    /// identifiers stay out of the saved order on macOS 27 and render as a
-    /// trailing live-order block.
+    /// layout-bar drags and persisted. The Visible section renders from fresh
+    /// AX geometry on macOS 27 so stale saved order cannot drift from the real
+    /// menu bar.
     @Published private(set) var sectionItemOrder: [MenuBarSection.Name: [String]]
 
     /// The currently revealed hidden section, if any. `.hidden` reveals only
@@ -247,7 +247,7 @@ final class SimpleItemHider: ObservableObject {
     }
 
     /// Records a section order from live layout items, dropping control items
-    /// and macOS 27 MenuBarAgent entries before persistence.
+    /// and fixed system anchors before persistence.
     func setSectionOrder(from items: [MenuBarItem], for section: MenuBarSection.Name) {
         setSectionOrder(Self.persistableOrderIdentifiers(from: items, in: section), for: section)
     }
@@ -260,8 +260,7 @@ final class SimpleItemHider: ObservableObject {
         items.compactMap { item in
             guard !item.isControlItem,
                   !item.tag.isLayoutAnchoredSystemItem,
-                  !isOwnAppItem(item),
-                  !isMacOS27MenuBarAgentItem(item)
+                  !isOwnAppItem(item)
             else {
                 return nil
             }
@@ -269,9 +268,13 @@ final class SimpleItemHider: ObservableObject {
         }
     }
 
-    /// Reorders `items` to match the user's recorded order for `section`.
-    /// On macOS 27, visible MenuBarAgent items are kept as a trailing live-order
-    /// block so Apple-hosted modules do not get mixed into Thaw's saved order.
+    /// Reorders `items` for the requested section.
+    ///
+    /// On macOS 27, the visible layout must mirror fresh AX geometry instead of
+    /// persisted order. Persisted visible order can be stale after a failed
+    /// physical move, which makes the layout UI drift away from the real menu
+    /// bar. Hidden-style sections still use the user's recorded order because
+    /// those items may not have meaningful live positions.
     func ordered(_ items: [MenuBarItem], in section: MenuBarSection.Name) -> [MenuBarItem] {
         let order = sectionItemOrder[section] ?? []
         return Self.orderedItems(items, in: section, using: order)
@@ -283,7 +286,7 @@ final class SimpleItemHider: ObservableObject {
         using order: [String]
     ) -> [MenuBarItem] {
         if section == .visible {
-            return visibleItemsWithTrailingMenuBarAgentBlock(items, using: order)
+            return liveVisualOrder(items)
         }
 
         guard !order.isEmpty else {
@@ -298,32 +301,22 @@ final class SimpleItemHider: ObservableObject {
         }.map(\.element)
     }
 
-    private static func visibleItemsWithTrailingMenuBarAgentBlock(
-        _ items: [MenuBarItem],
-        using order: [String]
-    ) -> [MenuBarItem] {
-        let rank = Dictionary(order.enumerated().map { ($1, $0) }, uniquingKeysWith: { first, _ in first })
-        let partition = partitionMenuBarAgentItems(items)
-        let orderedNonMenuBarAgentItems = partition.nonMenuBarAgent.enumerated().sorted { lhs, rhs in
-            let lr = rank[lhs.element.uniqueIdentifier] ?? (order.count + lhs.offset)
-            let rr = rank[rhs.element.uniqueIdentifier] ?? (order.count + rhs.offset)
-            return lr < rr
-        }.map(\.element)
-        return orderedNonMenuBarAgentItems + partition.menuBarAgent
-    }
-
-    private static func isMacOS27MenuBarAgentItem(_ item: MenuBarItem) -> Bool {
-        if #available(macOS 27, *) {
-            return item.tag.namespace == .menuBarAgent
+    private static func liveVisualOrder(_ items: [MenuBarItem]) -> [MenuBarItem] {
+        items.sorted { lhs, rhs in
+            if lhs.bounds.midX == rhs.bounds.midX {
+                if lhs.bounds.minX == rhs.bounds.minX {
+                    return lhs.uniqueIdentifier < rhs.uniqueIdentifier
+                }
+                return lhs.bounds.minX < rhs.bounds.minX
+            }
+            return lhs.bounds.midX < rhs.bounds.midX
         }
-        return false
     }
 
     static func isProtectedAssignmentItem(_ item: MenuBarItem) -> Bool {
         item.isControlItem ||
             item.tag.isLayoutAnchoredSystemItem ||
-            isOwnAppItem(item) ||
-            isMacOS27MenuBarAgentItem(item)
+            isOwnAppItem(item)
     }
 
     private static func isOwnAppItem(_ item: MenuBarItem) -> Bool {
@@ -331,21 +324,6 @@ final class SimpleItemHider: ObservableObject {
             item.sourceApplication?.bundleIdentifier == Constants.bundleIdentifier ||
             item.owningApplication?.bundleIdentifier == Constants.bundleIdentifier ||
             isOwnAppAssignmentIdentifier(item.uniqueIdentifier)
-    }
-
-    private static func partitionMenuBarAgentItems(
-        _ items: [MenuBarItem]
-    ) -> (nonMenuBarAgent: [MenuBarItem], menuBarAgent: [MenuBarItem]) {
-        var nonMenuBarAgent = [MenuBarItem]()
-        var menuBarAgent = [MenuBarItem]()
-        for item in items {
-            if isMacOS27MenuBarAgentItem(item) {
-                menuBarAgent.append(item)
-            } else {
-                nonMenuBarAgent.append(item)
-            }
-        }
-        return (nonMenuBarAgent, menuBarAgent)
     }
 
     /// Starts the periodic refresh that keeps the backend in sync with the live
@@ -364,12 +342,11 @@ final class SimpleItemHider: ObservableObject {
         sectionAssignment[identifier] ?? .visible
     }
 
-    /// The section for a live item. System anchors and macOS 27 MenuBarAgent
-    /// items are always visible even if stale defaults say otherwise.
+    /// The section for a live item. System anchors are always visible even if
+    /// stale defaults say otherwise.
     func section(for item: MenuBarItem) -> MenuBarSection.Name {
         if item.tag.isLayoutAnchoredSystemItem ||
-            Self.isOwnAppItem(item) ||
-            Self.isMacOS27MenuBarAgentItem(item)
+            Self.isOwnAppItem(item)
         {
             return .visible
         }
@@ -449,8 +426,7 @@ final class SimpleItemHider: ObservableObject {
             allItems
                 .filter {
                     ($0.tag.isLayoutAnchoredSystemItem ||
-                        Self.isOwnAppItem($0) ||
-                        Self.isMacOS27MenuBarAgentItem($0)) &&
+                        Self.isOwnAppItem($0)) &&
                         sectionAssignment[$0.uniqueIdentifier] != nil
                 }
                 .map(\.uniqueIdentifier)
