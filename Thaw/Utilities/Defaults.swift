@@ -177,7 +177,7 @@ extension Defaults {
         #else
             static let enableDiagnosticLogging = false
         #endif
-        static let useLCSSortingOnNotchedDisplays = false
+        static let useLCSSortingOnNotchedDisplays = true
         static let useOptionClickToShowAlwaysHiddenSection = false
         static let useDoubleClickToShowAlwaysHiddenSection = false
         static let enableMenuBarItemOverflow = true
