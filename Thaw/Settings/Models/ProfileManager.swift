@@ -597,9 +597,25 @@ final class ProfileManager: ObservableObject {
     /// (and UserDefaults), not the full app state, so the capture and re-arm
     /// paths can be exercised in tests without standing up an AppState.
     private func captureCurrentLayout(from itemManager: MenuBarItemManager) -> MenuBarLayoutSnapshot {
-        let itemOrder = itemManager.computeSectionOrder(
+        let computedItemOrder = itemManager.computeSectionOrder(
             from: itemManager.itemCache
         )
+        let persistedSectionOrder = UserDefaults.standard.dictionary(
+            forKey: "MenuBarItemManager.savedSectionOrder"
+        ) as? [String: [String]] ?? [:]
+
+        // A standalone or temporarily unavailable cache has no display ID and
+        // cannot provide a meaningful empty snapshot. Preserve the last mirrored
+        // assignment-backed order rather than erasing a profile during update.
+        let itemOrder: [String: [String]] = if #available(macOS 27, *),
+                                               computedItemOrder.isEmpty,
+                                               itemManager.itemCache.displayID == nil,
+                                               !persistedSectionOrder.isEmpty
+        {
+            persistedSectionOrder
+        } else {
+            computedItemOrder
+        }
         // macOS 27 stores section membership in SimpleItemHider, not the legacy
         // savedSectionOrder key. Mirror the curated cache snapshot so profiles
         // and `defaults read` reflect the full visible/hidden layout.
@@ -607,9 +623,7 @@ final class ProfileManager: ObservableObject {
         if #available(macOS 27, *) {
             savedSectionOrder = itemOrder
         } else {
-            savedSectionOrder = UserDefaults.standard.dictionary(
-                forKey: "MenuBarItemManager.savedSectionOrder"
-            ) as? [String: [String]] ?? [:]
+            savedSectionOrder = persistedSectionOrder
         }
         let pinnedHiddenBundleIDs = UserDefaults.standard.array(
             forKey: "MenuBarItemManager.pinnedHiddenBundleIDs"

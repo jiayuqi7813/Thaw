@@ -116,13 +116,6 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
     /// The currently running live-refresh task, if any.
     private var liveRefreshTask: Task<Void, Never>?
 
-    /// When the last observer-driven capture refresh started. Used to throttle
-    /// the macOS 27 capture rate: the merged change observers (item cache, average
-    /// color, space/screen) can fire faster than the debounce absorbs, which
-    /// otherwise produces a back-to-back capture storm (~9/s). Direct callers
-    /// (a move just landed) bypass this via `updateCacheWithoutChecks`.
-    private var lastObserverCaptureStart: Date?
-
     /// Tracks whether the MenuBarLayoutSettingsPane has been opened at least once.
     /// Used to gate background cache prewarming so captures only occur after the user
     /// has accessed the layout settings.
@@ -321,23 +314,22 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
             .map { _ in () }
             .eraseToAnyPublisher()
 
-            let colorChangePublisher: AnyPublisher<Void, Never> = appState.menuBarManager.$averageColorInfo
-                .removeDuplicates()
-                .map { _ in () }
-                .eraseToAnyPublisher()
-
             let itemCacheChangePublisher: AnyPublisher<Void, Never> = appState.itemManager.$itemCache
+                .map(Self.captureInvalidationKey)
                 .removeDuplicates()
+                .dropFirst()
                 .map { _ in () }
                 .eraseToAnyPublisher()
 
             Publishers.MergeMany([
                 spaceChangePublisher,
                 screenChangePublisher,
-                colorChangePublisher,
                 itemCacheChangePublisher,
             ])
-            .debounce(for: .milliseconds(200), scheduler: DispatchQueue.main)
+            .debounce(
+                for: .milliseconds(Constants.MenuBarTuning.imageCaptureObserverDebounceMilliseconds),
+                scheduler: DispatchQueue.main
+            )
             .sink { [weak self] _ in
                 guard let self else {
                     return
@@ -402,6 +394,48 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
 
     // MARK: Live Refresh
 
+    /// Semantic cache state that requires a new item-image capture. Position is
+    /// deliberately absent: routine AX geometry jitter changes `ItemCache`
+    /// equality but not the icon pixels or crop dimensions, and was the source
+    /// of the observer-driven capture feedback loop.
+    struct CaptureInvalidationKey: Equatable {
+        struct Entry: Equatable, Comparable {
+            let section: String
+            let identifier: String
+            let windowID: CGWindowID
+            let width: CGFloat
+            let height: CGFloat
+            let isOnScreen: Bool
+
+            static func < (lhs: Entry, rhs: Entry) -> Bool {
+                if lhs.section != rhs.section { return lhs.section < rhs.section }
+                if lhs.identifier != rhs.identifier { return lhs.identifier < rhs.identifier }
+                return lhs.windowID < rhs.windowID
+            }
+        }
+
+        let displayID: CGDirectDisplayID?
+        let entries: [Entry]
+    }
+
+    static nonisolated func captureInvalidationKey(
+        _ cache: MenuBarItemManager.ItemCache
+    ) -> CaptureInvalidationKey {
+        let entries = MenuBarSection.Name.allCases.flatMap { section in
+            cache[section].map { item in
+                CaptureInvalidationKey.Entry(
+                    section: section.rawValue,
+                    identifier: item.uniqueIdentifier,
+                    windowID: item.windowID,
+                    width: item.bounds.width,
+                    height: item.bounds.height,
+                    isOnScreen: item.isOnScreen
+                )
+            }
+        }.sorted()
+        return CaptureInvalidationKey(displayID: cache.displayID, entries: entries)
+    }
+
     /// Snapshot of navigation state read in a single MainActor hop.
     struct NavigationStateSnapshot {
         let isIceBarPresented: Bool
@@ -444,24 +478,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
             return
         }
 
-        // Batch the navigation read and the macOS 27 capture throttle into a
-        // single MainActor hop. The merged change observers can fire faster than
-        // their debounce absorbs; without a floor between observer-driven captures
-        // they pile up into a back-to-back screenshot storm. A move that just
-        // landed calls `updateCacheWithoutChecks` directly and is not throttled.
-        let (nav, throttled) = await MainActor.run { () -> (NavigationStateSnapshot, Bool) in
-            let nav = makeNavigationStateSnapshot()
-            guard #available(macOS 27, *) else { return (nav, false) }
-            let now = Date()
-            if let last = lastObserverCaptureStart, now.timeIntervalSince(last) < 0.5 {
-                return (nav, true)
-            }
-            lastObserverCaptureStart = now
-            return (nav, false)
-        }
-        if throttled {
-            return
-        }
+        let nav = await MainActor.run { makeNavigationStateSnapshot() }
 
         let hasVisibleConsumer = hasVisibleCaptureConsumer(nav: nav)
 
@@ -586,7 +603,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                 // storms the CPU (~7 captures/s observed) and makes captures lag or
                 // fail, which is what leaves Hidden icons blank and interferes with
                 // moves. Layout-UI icons are near-static, so clamp to a calmer floor.
-                interval = max(interval, 1.0)
+                interval = max(interval, Constants.MenuBarTuning.minimumLiveImageRefreshInterval)
             }
             let ms = Int(interval * 1000)
             try? await Task.sleep(for: .milliseconds(ms))
@@ -1464,22 +1481,13 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         usesVisibilityRestrictions: Bool,
         revealedSection: MenuBarSection.Name?
     ) -> [MenuBarSection.Name] {
-        guard usesVisibilityRestrictions else {
-            return requestedSections
-        }
-
-        return requestedSections.filter { section in
-            switch (section, revealedSection) {
-            case (.visible, _):
-                true
-            case (.hidden, .hidden), (.hidden, .alwaysHidden):
-                true
-            case (.alwaysHidden, .alwaysHidden):
-                true
-            default:
-                false
-            }
-        }
+        let backend: any MenuBarBackend = usesVisibilityRestrictions
+            ? AssertionMenuBarBackend()
+            : LegacyMenuBarBackend()
+        return backend.capturableSections(
+            from: requestedSections,
+            revealedSection: revealedSection
+        )
     }
 
     /// Updates the cache for the given sections, without checking whether
@@ -1514,9 +1522,8 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         // Concealed macOS 27 sections have only stale snapshot bounds, so crop
         // them only while SimpleItemHider has actually revealed their live AX
         // elements. Their last-good captures remain cached after they hide.
-        let sectionsToCapture = Self.capturableSections(
+        let sectionsToCapture = MenuBarBackendFactory.current.capturableSections(
             from: sections,
-            usesVisibilityRestrictions: !Constants.supportsSectionHiding,
             revealedSection: appState.menuBarManager.simpleItemHider?.revealedSection
         )
 

@@ -831,9 +831,6 @@ private final class MenuBarOverlayPanelContentView: NSView {
     /// to the same live cluster. Must span the Thaw chevron between assigned-
     /// Hidden modules (left) and visible-section modules (right). Stale ghost
     /// frames in the empty hidden reservation sit much farther left.
-    @available(macOS 27, *)
-    private static let trailingPillClusterMaxGap: CGFloat = 96
-
     /// Bounds that the split trailing pill should wrap on macOS 27.
     @available(macOS 27, *)
     private static func trailingPillBounds(
@@ -863,9 +860,12 @@ private final class MenuBarOverlayPanelContentView: NSView {
         let clusterGap = if let visibleControl = items.first(where: { $0.tag == .visibleControlItem }),
                             !visibleControl.bounds.isEmpty
         {
-            max(trailingPillClusterMaxGap, visibleControl.bounds.width + 32)
+            max(
+                Constants.MenuBarTuning.trailingPillClusterMaximumGap,
+                visibleControl.bounds.width + Constants.MenuBarTuning.visibleControlClusterBridgePadding
+            )
         } else {
-            trailingPillClusterMaxGap
+            Constants.MenuBarTuning.trailingPillClusterMaximumGap
         }
 
         let chevronFrame = items.first(where: { $0.tag == .visibleControlItem })?.bounds
