@@ -197,7 +197,7 @@ final class MenuBarSection {
 
     /// A Boolean value that indicates whether the section is hidden.
     var isHidden: Bool {
-        guard Constants.supportsSectionHiding else {
+        guard MenuBarBackendFactory.current.supportsLegacySectionHiding else {
             return appState?.menuBarManager.simpleItemHider?.isSectionHidden(name) ?? true
         }
         if useIceBar {
@@ -235,7 +235,7 @@ final class MenuBarSection {
         // the menu bar", but the layout bars still drive section assignment for
         // the assertion-based hiding. Enable Hidden always; Always-Hidden only
         // when the user opted into it.
-        if !Constants.supportsSectionHiding {
+        if !MenuBarBackendFactory.current.supportsLegacySectionHiding {
             switch name {
             case .visible:
                 return true
@@ -334,7 +334,7 @@ final class MenuBarSection {
 
         menuBarManager.updateLastShowTimestamp()
 
-        guard Constants.supportsSectionHiding else {
+        guard MenuBarBackendFactory.current.supportsLegacySectionHiding else {
             menuBarManager.simpleItemHider?.show(name)
             switch name {
             case .visible, .hidden:
@@ -479,7 +479,7 @@ final class MenuBarSection {
             return
         }
 
-        if !Constants.supportsSectionHiding {
+        if !MenuBarBackendFactory.current.supportsLegacySectionHiding {
             menuBarManager.simpleItemHider?.hideRevealedSections()
             menuBarManager.iceBarPanel.close()
             menuBarManager.showOnHoverAllowed = true

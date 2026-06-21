@@ -120,7 +120,7 @@ final class MenuBarManager: ObservableObject {
         }
         // macOS 27 (and later) cannot hide items by divider reflow. Keep a
         // separate assignment model that drives the Assessment Mode allowlist.
-        if !Constants.supportsSectionHiding {
+        if !MenuBarBackendFactory.current.supportsLegacySectionHiding {
             let hider = SimpleItemHider(appState: appState)
             hider.start()
             simpleItemHider = hider

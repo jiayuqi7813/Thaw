@@ -764,7 +764,7 @@ extension HIDEventManager {
         // is no legacy off-screen reflow to reveal. Running this here only calls
         // no-op section.show()/toggle(), burning the main thread on every click.
         // Skip it entirely.
-        guard Constants.supportsSectionHiding else {
+        guard MenuBarBackendFactory.current.supportsLegacySectionHiding else {
             return
         }
         guard appState.settings.general.showOnClick else {
@@ -981,7 +981,7 @@ extension HIDEventManager {
         // macOS 27: assigned hidden items are kept concealed by SimpleItemHider.
         // Nothing is temporarily shown by this event path, so the legacy
         // section.hide() call is a no-op that only spams the log.
-        guard Constants.supportsSectionHiding else {
+        guard MenuBarBackendFactory.current.supportsLegacySectionHiding else {
             return
         }
         guard
@@ -1381,7 +1381,7 @@ extension HIDEventManager {
         // This runs on the throttled mouse-moved tap, so leaving it active means
         // every mouse move near the menu bar schedules no-op section work and
         // burns the main thread. Skip it.
-        guard Constants.supportsSectionHiding else {
+        guard MenuBarBackendFactory.current.supportsLegacySectionHiding else {
             return
         }
         // Make sure the "ShowOnHover" feature is enabled and allowed.
@@ -1550,7 +1550,7 @@ extension HIDEventManager {
     ) {
         // macOS 27: no off-screen section to reveal/hide; section.show()/hide()
         // here are no-ops. Skip so scrolling over the menu bar doesn't spam.
-        guard Constants.supportsSectionHiding else {
+        guard MenuBarBackendFactory.current.supportsLegacySectionHiding else {
             return
         }
         guard

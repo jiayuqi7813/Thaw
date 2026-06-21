@@ -47,7 +47,7 @@ final class ControlItem: NSObject {
                     // expanded divider just overflows off the right edge and
                     // confuses section classification instead of hiding anything.
                     // Keep it at standard width there.
-                    Constants.supportsSectionHiding ? Lengths.expanded : Lengths.standard
+                    MenuBarBackendFactory.current.supportsLegacySectionHiding ? Lengths.expanded : Lengths.standard
                 }
             }
         }
@@ -443,7 +443,7 @@ final class ControlItem: NSObject {
             switch Self.sectionDividerPresentation(
                 state: state,
                 style: appState.settings.advanced.sectionDividerStyle,
-                supportsSectionHiding: Constants.supportsSectionHiding
+                supportsSectionHiding: MenuBarBackendFactory.current.supportsLegacySectionHiding
             ) {
             case .hidden:
                 button.isEnabled = true
@@ -491,7 +491,7 @@ final class ControlItem: NSObject {
             constraint?.isActive = true
             statusItem.length = identifier.length(for: state)
 
-            let shouldUseSpacers = Constants.supportsSectionHiding
+            let shouldUseSpacers = MenuBarBackendFactory.current.supportsLegacySectionHiding
                 && (identifier == .hidden || identifier == .alwaysHidden)
                 && state == .hideSection
             updateSpacerItems(forHiddenState: shouldUseSpacers)
