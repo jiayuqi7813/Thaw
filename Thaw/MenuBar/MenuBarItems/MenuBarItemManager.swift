@@ -7449,7 +7449,7 @@ extension MenuBarItemManager {
     /// which on a notched display drifts items into always-hidden. A display
     /// switch is not a layout edit, so it must not advance the gate; the
     /// divergence check still runs and catches genuine section drift.
-    static nonisolated func windowIDsChanged(
+    nonisolated static func windowIDsChanged(
         previous: Set<CGWindowID>,
         current: Set<CGWindowID>,
         previousDisplayID: CGDirectDisplayID?,
