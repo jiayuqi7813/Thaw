@@ -60,31 +60,16 @@ enum Constants {
         }
     }
 
-    // MARK: - OS capabilities
-
-    /// Whether the *legacy* (reflow-based) menu bar section hiding is supported
-    /// on the current OS.
-    ///
-    /// macOS 27 (Golden Gate) moved status-item hosting into `MenuBarAgent` and
-    /// removed every legacy mechanism a third-party app could use to hide items:
-    /// expanding a divider no longer reflows neighbors off-screen, a synthesized
-    /// ⌘-drag cannot drop an item off-screen (the bar repacks), and items have no
-    /// externally addressable window for the SkyLight status-bar APIs. This flag
-    /// is therefore `false` on macOS 27 and gates off all of that legacy
-    /// machinery (the expand-to-hide dividers, the off-screen section reflow).
-    ///
-    /// Hiding itself is **not** gone on macOS 27 — it is reconstructed on top of
-    /// the private "Assessment Mode" visibility-restriction assertion (see
-    /// ``SimpleItemHider`` / `AssessmentModeBackend`), which drives the restored
-    /// drag-between-sections layout UI. Use this flag only to
-    /// branch between the legacy reflow path (≤26) and the assertion path (27+),
-    /// never as "hiding is unavailable".
-    static var supportsSectionHiding: Bool {
-        if #available(macOS 27, *) {
-            return false
-        } else {
-            return true
-        }
+    /// Tuned values for the macOS 27 MenuBarAgent/assertion implementation.
+    /// Keeping them together makes capture and overlay behavior auditable as a
+    /// single operating-system compatibility policy.
+    enum MenuBarTuning {
+        static let imageCaptureObserverDebounceMilliseconds = 200
+        static let minimumLiveImageRefreshInterval: TimeInterval = 1
+        static let trailingPillClusterMaximumGap: CGFloat = 96
+        static let visibleControlClusterBridgePadding: CGFloat = 32
+        static let syntheticDragDropInset: CGFloat = 2
+        static let syntheticDragSettleDelay: Duration = .milliseconds(250)
     }
 
     /// The brightness threshold above which the menu bar is considered "bright".
