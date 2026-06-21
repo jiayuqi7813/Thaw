@@ -1,23 +1,6 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "Connecting a display whose spacing differs from the current spacing relaunches every menu bar app. Keep spacing consistent across displays to avoid relaunches." : {
-      "comment" : "A warning that mismatched per-display spacing causes a menu bar app relaunch wave when a display is connected.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Connecting a display whose spacing differs from the current spacing relaunches every menu bar app. Keep spacing consistent across displays to avoid relaunches."
-          }
-        }
-      }
-    },
-    "No menu bar items available" : {
-      "comment" : "Text shown in the per-item hotkeys list when there are no menu bar items to assign a hotkey to."
-    },
-    "Open menu bar items" : {
-      "comment" : "A disclosure group label in the hotkeys settings pane that expands the list of per-item hotkeys."
-    },
     "(no script selected)" : {
       "comment" : "A placeholder displayed in the \"Path\" column of a hook row when no script is selected.",
       "localizations" : {
@@ -375,8 +358,12 @@
         }
       }
     },
+    "%@ can work in a limited mode without Screen Recording." : {
+
+    },
     "%@ can work in a limited mode without this permission." : {
       "comment" : "A callout box that explains that the app can work in a limited mode without a particular permission.",
+      "extractionState" : "stale",
       "localizations" : {
         "cs" : {
           "stringUnit" : {
@@ -1097,6 +1084,7 @@
     },
     "%@ needs this to:" : {
       "comment" : "A section within a permission box that lists the reasons why a particular permission is needed. The argument is the name of the app.",
+      "extractionState" : "stale",
       "localizations" : {
         "cs" : {
           "stringUnit" : {
@@ -1216,6 +1204,7 @@
     },
     "%@ needs your permission to manage the menu bar." : {
       "comment" : "A paragraph explaining the app's purpose and its commitment to user privacy.",
+      "extractionState" : "stale",
       "localizations" : {
         "cs" : {
           "stringUnit" : {
@@ -2553,6 +2542,7 @@
     },
     "Absolutely no personal information is collected or stored." : {
       "comment" : "A description of how user data is handled by the app.",
+      "extractionState" : "stale",
       "localizations" : {
         "cs" : {
           "stringUnit" : {
@@ -3865,6 +3855,9 @@
           }
         }
       }
+    },
+    "Almost there! %@ needs the permissions below to manage your menu bar." : {
+      "comment" : "Subtitle on the permissions screen reassuring the user they're nearly done. The argument is the name of the app."
     },
     "Always show hidden items" : {
       "comment" : "A toggle that allows users to configure whether hidden menu bar items should always be visible in the native menu bar on a particular display.",
@@ -6619,6 +6612,7 @@
     },
     "Arrange menu bar items." : {
       "comment" : "A detail about the \"Accessibility\" permission, describing the app's ability to rearrange menu bar items.",
+      "extractionState" : "stale",
       "localizations" : {
         "cs" : {
           "stringUnit" : {
@@ -9237,6 +9231,7 @@
     },
     "Change the menu bar's appearance." : {
       "comment" : "Detail about the \"Screen Recording\" permission, describing how to change the menu bar's appearance.",
+      "extractionState" : "stale",
       "localizations" : {
         "cs" : {
           "stringUnit" : {
@@ -11377,6 +11372,9 @@
         }
       }
     },
+    "Click menu bar items on your behalf, such as when using the search bar." : {
+
+    },
     "Columns" : {
       "comment" : "A label displayed above a stepper that lets the user select the number of columns in the grid layout.",
       "localizations" : {
@@ -11730,6 +11728,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "偵測到衝突的選單列管理工具"
+          }
+        }
+      }
+    },
+    "Connecting a display whose spacing differs from the current spacing relaunches every menu bar app. Keep spacing consistent across displays to avoid relaunches." : {
+      "comment" : "A warning that mismatched per-display spacing causes a menu bar app relaunch wave when a display is connected.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Connecting a display whose spacing differs from the current spacing relaunches every menu bar app. Keep spacing consistent across displays to avoid relaunches."
           }
         }
       }
@@ -13400,6 +13409,9 @@
         }
       }
     },
+    "Detect the menu bar items on your Mac and where they're positioned." : {
+
+    },
     "Development" : {
       "comment" : "A label for the \"Development\" segment in the update channel picker.",
       "localizations" : {
@@ -13878,6 +13890,7 @@
     },
     "Display images of individual menu bar items." : {
       "comment" : "Descriptive detail for the \"Screen Recording\" permission, describing the app's ability to display images of individual menu bar items.",
+      "extractionState" : "stale",
       "localizations" : {
         "cs" : {
           "stringUnit" : {
@@ -16375,6 +16388,9 @@
         }
       }
     },
+    "Enable Permissions" : {
+      "comment" : "Title of the permissions screen shown during onboarding."
+    },
     "Enable secondary context menu" : {
       "comment" : "A toggle that enables or disables the secondary context menu.",
       "localizations" : {
@@ -18160,6 +18176,9 @@
         }
       }
     },
+    "Find menu bar items visually when searching." : {
+
+    },
     "Focus" : {
       "comment" : "Localized string key for the \"Focus\" case in the `RehideStrategy` enum.",
       "localizations" : {
@@ -18397,6 +18416,9 @@
           }
         }
       }
+    },
+    "Found existing settings. Icon positions can't be restored." : {
+
     },
     "Full" : {
       "comment" : "Localized string key for the menu bar shape kind that takes up the full menu bar.",
@@ -18638,6 +18660,7 @@
     },
     "Get real-time information about the menu bar." : {
       "comment" : "A detail about the \"Accessibility\" permission, explaining that the app needs permission to get real-time information about the menu bar.",
+      "extractionState" : "stale",
       "localizations" : {
         "cs" : {
           "stringUnit" : {
@@ -18754,6 +18777,9 @@
           }
         }
       }
+    },
+    "Get Started" : {
+      "comment" : "Label for the primary button on the final onboarding slide that completes the tour."
     },
     "Glass" : {
       "comment" : "Localized string key for the glass-material background.",
@@ -20183,6 +20209,9 @@
         }
       }
     },
+    "Hide or show menu bar items on demand. Drag items between sections, keep your favorites always visible, and tuck the rest away in the always-hidden section." : {
+      "comment" : "Description of the menu bar management onboarding slide."
+    },
     "Hold to Preview" : {
       "comment" : "A button that, when held, allows users to preview changes in a menu bar.",
       "localizations" : {
@@ -20778,6 +20807,9 @@
         }
       }
     },
+    "Hotkeys & Automation" : {
+      "comment" : "Title of the hotkeys and automation onboarding slide."
+    },
     "Hover over an empty area of the menu bar to show hidden menu bar items." : {
       "comment" : "Text displayed in a toggle that allows the user to enable or disable the feature of showing hidden menu bar items by hovering over an empty area of the menu bar.",
       "localizations" : {
@@ -21254,8 +21286,9 @@
         }
       }
     },
-    "Icon positions cannot be restored." : {
+    "Icon positions can't be restored." : {
       "comment" : "A footnote explaining that icon positions cannot be restored when importing settings from Ice.",
+      "extractionState" : "stale",
       "localizations" : {
         "cs" : {
           "stringUnit" : {
@@ -22093,6 +22126,9 @@
         }
       }
     },
+    "Import from Ice" : {
+      "comment" : "Title of the box offering to import settings from Ice, the original app."
+    },
     "Import Profile(s)" : {
       "comment" : "A button label that imports one or more profiles.",
       "localizations" : {
@@ -22446,6 +22482,125 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已匯入"
+          }
+        }
+      }
+    },
+    "Imported %lld settings successfully." : {
+      "comment" : "A success message shown after importing settings from Ice. The argument is the number of settings imported.",
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nastavení aplikace %lld úspěšně importována!"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einstellungen von %lld erfolgreich importiert!"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¡%lld ajustes importados correctamente!"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réglages de %lld importés avec succès !"
+          }
+        },
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sikeresen importálva: %lld beállítás!"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pengaturan %lld berhasil diimpor!"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impostazioni %lld importate con successo!"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 件の設定をインポートしました！"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld개 설정을 성공적으로 가져왔습니다!"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld-instellingen succesvol geïmporteerd!"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pomyślnie zaimportowano %lld ustawień!"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld configurações importadas com sucesso!"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Успешно импортировано настроек: %lld!"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "นำเข้าการตั้งค่า %lld รายการได้สำเร็จ!"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld ayar başarıyla içe aktarıldı!"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Успішно імпортовано налаштувань: %lld!"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đã nhập thành công cài đặt %lld!"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "成功导入 %lld 项设置！"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已成功匯入 %lld 項設定！"
           }
         }
       }
@@ -25782,6 +25937,9 @@
         }
       }
     },
+    "Menu Bar Management" : {
+      "comment" : "Title of the menu bar management onboarding slide."
+    },
     "Menu Bar Overlay" : {
       "comment" : "Title of the menu bar overlay panel.",
       "localizations" : {
@@ -26734,6 +26892,9 @@
         }
       }
     },
+    "Move menu bar items to rearrange or hide them." : {
+
+    },
     "Move the New Items badge to choose where newly detected items will appear." : {
       "comment" : "A description of how to use the New Items badge.",
       "localizations" : {
@@ -27447,6 +27608,9 @@
           }
         }
       }
+    },
+    "No menu bar items available" : {
+      "comment" : "Text shown in the per-item hotkeys list when there are no menu bar items to assign a hotkey to."
     },
     "No profile selected" : {
       "comment" : "Subtitle of the display representation of the ThawFocusFilter intent when no profile is selected.",
@@ -29233,6 +29397,94 @@
         }
       }
     },
+    "onboarding.mockup.management.hide" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Click again to hide"
+          }
+        }
+      }
+    },
+    "onboarding.mockup.management.show" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Click divider to reveal"
+          }
+        }
+      }
+    },
+    "onboarding.mockup.profiles.personal" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Personal"
+          }
+        }
+      }
+    },
+    "onboarding.mockup.profiles.travel" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Travel"
+          }
+        }
+      }
+    },
+    "onboarding.mockup.profiles.work" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Work"
+          }
+        }
+      }
+    },
+    "onboarding.mockup.style.default" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Default"
+          }
+        }
+      }
+    },
+    "onboarding.mockup.style.gradient" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gradient"
+          }
+        }
+      }
+    },
+    "onboarding.mockup.style.rounded" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rounded"
+          }
+        }
+      }
+    },
     "One or more section dividers are hidden by macOS" : {
       "comment" : "A message displayed when macOS hides one or more section dividers in the menu bar.",
       "localizations" : {
@@ -29709,6 +29961,9 @@
         }
       }
     },
+    "Open menu bar items" : {
+      "comment" : "A disclosure group label in the hotkeys settings pane that expands the list of per-item hotkeys."
+    },
     "Other" : {
       "comment" : "Section title for advanced settings related to other functionality.",
       "localizations" : {
@@ -29827,6 +30082,19 @@
           }
         }
       }
+    },
+    "Page %lld of %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Page %1$lld of %2$lld"
+          }
+        }
+      }
+    },
+    "Paint your menu bar your way. Choose solid colors, gradients, and custom shapes, then add shadows and borders for a polished finish." : {
+      "comment" : "Description of the menu bar appearance onboarding slide."
     },
     "Per-Profile Hooks" : {
       "comment" : "A heading for the hooks that apply only to a specific profile.",
@@ -34469,6 +34737,9 @@
         }
       }
     },
+    "Sample colors from the menu bar to adjust its tint and appearance." : {
+
+    },
     "Save Current" : {
       "comment" : "A button that saves the current profile when pressed.",
       "localizations" : {
@@ -34825,6 +35096,9 @@
           }
         }
       }
+    },
+    "Save your current configuration as a named profile. Switch between layouts instantly, or let Thaw switch automatically when you change your frontmost app." : {
+      "comment" : "Description of the profiles onboarding slide."
     },
     "Screen Recording" : {
       "comment" : "Title of the screen recording permission.",
@@ -37569,6 +37843,9 @@
         }
       }
     },
+    "Show live previews of your menu bar items." : {
+
+    },
     "Show Log Files in Finder" : {
       "comment" : "A button that opens the directory containing diagnostic log files.",
       "localizations" : {
@@ -38521,6 +38798,9 @@
         }
       }
     },
+    "Skip" : {
+      "comment" : "Label for the button that skips ahead to the final onboarding slide."
+    },
     "Smart" : {
       "comment" : "Localized string key for the \"Smart\" rehide strategy.",
       "localizations" : {
@@ -39354,125 +39634,6 @@
         }
       }
     },
-    "Successfully imported %lld settings!" : {
-      "comment" : "A success message displayed when the user successfully imports settings from the original app. The argument is the number of settings that were successfully imported.",
-      "localizations" : {
-        "cs" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nastavení aplikace %lld úspěšně importována!"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Einstellungen von %lld erfolgreich importiert!"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "¡%lld ajustes importados correctamente!"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Réglages de %lld importés avec succès !"
-          }
-        },
-        "hu" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sikeresen importálva: %lld beállítás!"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pengaturan %lld berhasil diimpor!"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Impostazioni %lld importate con successo!"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld 件の設定をインポートしました！"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld개 설정을 성공적으로 가져왔습니다!"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld-instellingen succesvol geïmporteerd!"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pomyślnie zaimportowano %lld ustawień!"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld configurações importadas com sucesso!"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Успешно импортировано настроек: %lld!"
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "นำเข้าการตั้งค่า %lld รายการได้สำเร็จ!"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld ayar başarıyla içe aktarıldı!"
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Успішно імпортовано налаштувань: %lld!"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Đã nhập thành công cài đặt %lld!"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "成功导入 %lld 项设置！"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已成功匯入 %lld 項設定！"
-          }
-        }
-      }
-    },
     "Sunglasses" : {
       "comment" : "Localized string key for the \"Custom\" control item image.",
       "localizations" : {
@@ -39948,6 +40109,12 @@
           }
         }
       }
+    },
+    "Thaw gives you complete control over your menu bar — hide clutter, customize the look, and automate your workflow." : {
+      "comment" : "Description of the welcome onboarding slide."
+    },
+    "Thaw needs a couple of permissions to manage your menu bar. You can grant them now, or skip and grant them later from Settings." : {
+      "comment" : "Description of the permissions onboarding slide."
     },
     "The %@ Bar is aligned to the left edge of the display." : {
       "comment" : "A label that describes the location of the \\(Constants.displayName) Bar on a display.",
@@ -43063,6 +43230,9 @@
         }
       }
     },
+    "Trigger any action with a keystroke. Combine auto-rehide timers and Focus Filter integration so Thaw adapts to whatever you're doing." : {
+      "comment" : "Description of the hotkeys and automation onboarding slide."
+    },
     "Type Hotkey" : {
       "comment" : "A label displayed in the leading segment of the hotkey recorder when it is recording.",
       "localizations" : {
@@ -45919,8 +46089,9 @@
         }
       }
     },
-    "We found settings from Ice (the original app)." : {
+    "We found existing settings from Ice, the original app." : {
       "comment" : "A description of the feature that allows users to import settings from the original app, Ice.",
+      "extractionState" : "stale",
       "localizations" : {
         "cs" : {
           "stringUnit" : {
@@ -46037,6 +46208,9 @@
           }
         }
       }
+    },
+    "Welcome to Thaw" : {
+      "comment" : "Title of the welcome onboarding slide."
     },
     "When an app sends a thaw:// URL to change settings, Thaw checks if that app is whitelisted." : {
       "comment" : "A step in the process of how to use Thaw.",
@@ -46403,6 +46577,7 @@
     },
     "Would you like to import your existing configuration?" : {
       "comment" : "A question displayed to the user when they first open the app, asking if they would like to import their existing configuration.",
+      "extractionState" : "stale",
       "localizations" : {
         "cs" : {
           "stringUnit" : {
@@ -46757,6 +46932,9 @@
           }
         }
       }
+    },
+    "Your data stays on your Mac — nothing is ever collected or shared." : {
+      "comment" : "A privacy reassurance shown on the permissions screen."
     }
   },
   "version" : "1.1"

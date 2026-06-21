@@ -65,7 +65,9 @@ final class VirtualDisplay {
         let originPhantom: CGError
         let complete: CGError
 
-        var success: Bool { beginOK && complete == .success }
+        var success: Bool {
+            beginOK && complete == .success
+        }
     }
 
     /// Anchors realMain at the global origin (the origin defines the main display)

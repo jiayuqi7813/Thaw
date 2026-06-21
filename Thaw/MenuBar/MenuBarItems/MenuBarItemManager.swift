@@ -1869,7 +1869,7 @@ extension MenuBarItemManager {
     /// can't be a loose prefix of another (org.x.fdm6 must not match
     /// org.x.fdm6x:Item-0). Used to arm relaunch settling only for apps whose
     /// status item actually churns the bar when they relaunch.
-    nonisolated static func tracksMenuBarItem(bundleID: String, in identifiers: Set<String>) -> Bool {
+    static nonisolated func tracksMenuBarItem(bundleID: String, in identifiers: Set<String>) -> Bool {
         identifiers.contains { $0.hasPrefix(bundleID + ":") }
     }
 

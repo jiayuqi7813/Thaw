@@ -253,13 +253,13 @@ final class ProfileLayoutLogReplayTests: XCTestCase {
             uidWidths[uid] = 24
         }
 
-        let result = LayoutSolver.planNotchOverflow(
+        let result = try LayoutSolver.planNotchOverflow(
             desiredFiltered: desiredFiltered,
             unmanagedUIDs: [],
             controlUIDs: ControlUIDs(visible: visibleCtrl, hidden: hiddenCtrl, alwaysHidden: ahCtrl),
             sectionMap: [:],
             uidWidths: uidWidths,
-            availableWidth: try XCTUnwrap(cycle.notchAvailableWidth)
+            availableWidth: XCTUnwrap(cycle.notchAvailableWidth)
         )
 
         XCTAssertTrue(
@@ -555,7 +555,7 @@ final class RelaunchSettlingGateTests: XCTestCase {
     func testBundleIDPrefixBoundaryDoesNotFalseMatch() {
         // org.freedownloadmanager.fdm6 must not match a different app whose
         // bundle id merely extends it; the ":" separator anchors the match.
-        let other: Set<String> = ["org.freedownloadmanager.fdm6x:Item-0"]
+        let other: Set = ["org.freedownloadmanager.fdm6x:Item-0"]
         XCTAssertFalse(
             MenuBarItemManager.tracksMenuBarItem(bundleID: "org.freedownloadmanager.fdm6", in: other)
         )

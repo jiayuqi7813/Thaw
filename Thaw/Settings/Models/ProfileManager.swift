@@ -686,7 +686,7 @@ final class ProfileManager: ObservableObject {
     /// the new layout to disk but leaves the cache pointing at the pre-update
     /// spec, so the next late-arrival re-sort reverts the bar until the profile
     /// is manually re-applied.
-    nonisolated static func shouldRearmActiveLayout(
+    static nonisolated func shouldRearmActiveLayout(
         updatedID: UUID,
         activeID: UUID?,
         scope: ProfileUpdateScope
