@@ -904,7 +904,16 @@ private final class MenuBarOverlayPanelContentView: NSView {
             }
             let gap = rect.minX - previous.maxX
             let bridgesChevron = if let bridgingFrame, !bridgingFrame.isEmpty {
-                previous.maxX < bridgingFrame.maxX && rect.minX > bridgingFrame.minX
+                // Bridge only when the chevron sits between the two frames AND the
+                // gap is essentially just the chevron itself (its width plus normal
+                // spacing) — i.e. an assigned-Hidden module immediately left of the
+                // chevron. Without the size cap, a frame separated by the wide
+                // *empty* concealed-Hidden run was bridged too, stretching the pill
+                // far left over blank space (the leftmost on-screen system items in
+                // the hidden region sit ~290 pt left of the visible icons).
+                previous.maxX < bridgingFrame.maxX
+                    && rect.minX > bridgingFrame.minX
+                    && (gap - bridgingFrame.width) <= maxGap
             } else {
                 false
             }
@@ -957,7 +966,19 @@ private final class MenuBarOverlayPanelContentView: NSView {
             return true
         }
 
-        return item.tag != .visibleControlItem
+        // Concealed (nothing revealed): the chevron never belongs to the pill, and
+        // neither do items that are actually concealed. A concealed third-party
+        // item's AX frame can linger on-screen as a ghost (no rendered glyph),
+        // which stretched the pill far left over empty space. Drop anything
+        // assigned to a hidden section that CAN be concealed; keep non-concealable
+        // system modules (Sound/Wi-Fi/Spotlight…) — they stay on screen and render.
+        if item.tag == .visibleControlItem {
+            return false
+        }
+        if hider.section(for: item) != .visible, !item.isNonConcealableSystemItem {
+            return false
+        }
+        return true
     }
 
     /// Refreshes the cached menu bar item windows from the Window Server.
