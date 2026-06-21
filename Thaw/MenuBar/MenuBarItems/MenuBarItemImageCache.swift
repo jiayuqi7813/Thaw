@@ -116,6 +116,13 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
     /// The currently running live-refresh task, if any.
     private var liveRefreshTask: Task<Void, Never>?
 
+    /// When the last observer-driven capture refresh started. Used to throttle
+    /// the macOS 27 capture rate: the merged change observers (item cache, average
+    /// color, space/screen) can fire faster than the debounce absorbs, which
+    /// otherwise produces a back-to-back capture storm (~9/s). Direct callers
+    /// (a move just landed) bypass this via `updateCacheWithoutChecks`.
+    private var lastObserverCaptureStart: Date?
+
     /// Tracks whether the MenuBarLayoutSettingsPane has been opened at least once.
     /// Used to gate background cache prewarming so captures only occur after the user
     /// has accessed the layout settings.
@@ -437,9 +444,23 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
             return
         }
 
-        // Batch all navigation state reads into single MainActor hop
-        let nav = await MainActor.run {
-            makeNavigationStateSnapshot()
+        // Batch the navigation read and the macOS 27 capture throttle into a
+        // single MainActor hop. The merged change observers can fire faster than
+        // their debounce absorbs; without a floor between observer-driven captures
+        // they pile up into a back-to-back screenshot storm. A move that just
+        // landed calls `updateCacheWithoutChecks` directly and is not throttled.
+        let (nav, throttled) = await MainActor.run { () -> (NavigationStateSnapshot, Bool) in
+            let nav = makeNavigationStateSnapshot()
+            guard #available(macOS 27, *) else { return (nav, false) }
+            let now = Date()
+            if let last = lastObserverCaptureStart, now.timeIntervalSince(last) < 0.5 {
+                return (nav, true)
+            }
+            lastObserverCaptureStart = now
+            return (nav, false)
+        }
+        if throttled {
+            return
         }
 
         let hasVisibleConsumer = hasVisibleCaptureConsumer(nav: nav)
@@ -553,10 +574,19 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
 
         while !Task.isCancelled {
             guard let appState = self.appState else { break }
-            let interval = appState.settings.advanced.iconRefreshInterval
+            var interval = appState.settings.advanced.iconRefreshInterval
             guard interval > 0 else {
                 try? await Task.sleep(for: .seconds(1))
                 continue
+            }
+            if #available(macOS 27, *) {
+                // Each macOS 27 refresh is a full MenuBarAgent hosting-window
+                // screenshot (plus an AX walk for concealed sections) — far
+                // heavier than the legacy per-window capture. A sub-second cadence
+                // storms the CPU (~7 captures/s observed) and makes captures lag or
+                // fail, which is what leaves Hidden icons blank and interferes with
+                // moves. Layout-UI icons are near-static, so clamp to a calmer floor.
+                interval = max(interval, 1.0)
             }
             let ms = Int(interval * 1000)
             try? await Task.sleep(for: .milliseconds(ms))
@@ -1172,9 +1202,11 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
             of: items,
             scale: scale,
             appState: appState,
-            // Only Hidden/Always-Hidden carry stale snapshot bounds; the Visible
-            // section already has fresh cache bounds and is captured very often.
-            freshBounds: section != .visible
+            // Always crop against fresh live bounds on macOS 27: even Visible-section
+            // system items (Spotlight/Sound) shift position constantly, so stale
+            // cache bounds misalign the crop and blank the icon. The extra AX walk
+            // is affordable because the capture rate itself is throttled.
+            freshBounds: true
         )
         if !captureResult.excluded.isEmpty {
             MenuBarItemImageCache.diagLog.debug(

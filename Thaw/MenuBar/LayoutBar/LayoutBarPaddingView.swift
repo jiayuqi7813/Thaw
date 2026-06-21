@@ -193,13 +193,22 @@ final class LayoutBarPaddingView: NSView {
             let orderedItems = orderedLayoutItems()
 
             if sourceSection != container.section {
-                moveAcrossMacOS27SectionBoundary(
-                    item: item,
-                    from: sourceSection,
-                    sourceContainer: sourceContainer,
-                    sectionOrderToCommit: orderedItems
-                )
+                // macOS 27: a section change is driven by the assertion
+                // (assignment), NOT a physical divider-crossing drag. The synthetic
+                // cross-divider move is unreliable — it exhausts its attempts and
+                // the item snaps back, freezing the editor while it retries
+                // (EventError.cannotComplete). The assertion conceals/reveals
+                // immediately from the new assignment, and physical order within a
+                // section is reconciled separately on reveal, so just commit the
+                // new section + order here.
+                hider?.setSection(container.section, item: item)
+                hider?.setSectionOrder(from: orderedItems, for: container.section)
+                if let appState = container.appState {
+                    Task { await appState.itemManager.cacheItemsRegardless(skipRecentMoveCheck: true) }
+                }
                 draggingSource.oldContainerInfo = nil
+                container.canSetArrangedViews = true
+                sourceContainer?.canSetArrangedViews = true
                 return true
             }
 
@@ -323,123 +332,6 @@ final class LayoutBarPaddingView: NSView {
         }
 
         return true
-    }
-
-    /// Moves an item across the live macOS 27 section divider, then commits its
-    /// assignment. Concealed source items are temporarily revealed so the
-    /// Command-drag operates on a fresh AX element rather than a cached snapshot.
-    private func moveAcrossMacOS27SectionBoundary(
-        item: MenuBarItem,
-        from sourceSection: MenuBarSection.Name,
-        sourceContainer: LayoutBarContainer?,
-        sectionOrderToCommit: [MenuBarItem]
-    ) {
-        guard let appState = container.appState,
-              let hider = appState.menuBarManager.simpleItemHider
-        else {
-            container.canSetArrangedViews = true
-            sourceContainer?.canSetArrangedViews = true
-            return
-        }
-
-        Task { [weak self, weak appState] in
-            guard let self, let appState else { return }
-            guard !isStabilizing else {
-                container.canSetArrangedViews = true
-                if sourceContainer !== container {
-                    sourceContainer?.canSetArrangedViews = true
-                }
-                return
-            }
-            isStabilizing = true
-            showOverlay(true)
-
-            let previousReveal = hider.revealedSection
-            let sourceWasAlreadyRevealed = switch sourceSection {
-            case .visible:
-                true
-            case .hidden:
-                previousReveal == .hidden || previousReveal == .alwaysHidden
-            case .alwaysHidden:
-                previousReveal == .alwaysHidden
-            }
-            let temporarilyRevealedSource = sourceSection != .visible && !sourceWasAlreadyRevealed
-
-            defer {
-                if temporarilyRevealedSource {
-                    if let previousReveal {
-                        hider.show(previousReveal, reconcileBoundary: false)
-                    } else {
-                        hider.hideRevealedSections()
-                    }
-                }
-                isStabilizing = false
-                showOverlay(false)
-                container.canSetArrangedViews = true
-                if sourceContainer !== container {
-                    sourceContainer?.canSetArrangedViews = true
-                }
-            }
-
-            do {
-                if temporarilyRevealedSource {
-                    hider.show(sourceSection, reconcileBoundary: false)
-                    try await Task.sleep(for: .milliseconds(350))
-                }
-
-                var liveItems = await MenuBarItem.getMenuBarItems(option: .activeSpace)
-                guard let liveItem = liveItems.first(where: {
-                    $0.uniqueIdentifier == item.uniqueIdentifier
-                }) else {
-                    Self.diagLog.error("macOS 27: section transition source is not live: \(item.logString)")
-                    return
-                }
-
-                let hiddenControlItemWindowID = appState.menuBarManager
-                    .controlItem(withName: .hidden)?.window
-                    .flatMap { CGWindowID(exactly: $0.windowNumber) }
-                let alwaysHiddenControlItemWindowID = appState.menuBarManager
-                    .controlItem(withName: .alwaysHidden)?.window
-                    .flatMap { CGWindowID(exactly: $0.windowNumber) }
-                guard let controlItems = MenuBarItemManager.ControlItemPair(
-                    items: &liveItems,
-                    hiddenControlItemWindowID: hiddenControlItemWindowID,
-                    alwaysHiddenControlItemWindowID: alwaysHiddenControlItemWindowID
-                ),
-                    let destination = MenuBarItemManager.macOS27SectionBoundaryDestination(
-                        for: container.section,
-                        controlItems: controlItems
-                    )
-                else {
-                    Self.diagLog.error("macOS 27: cannot resolve a live section divider for \(container.section.logString)")
-                    return
-                }
-
-                try await appState.itemManager.move(
-                    item: liveItem,
-                    to: destination,
-                    skipInputPause: true,
-                    watchdogTimeout: MenuBarItemManager.layoutWatchdogTimeout,
-                    allowSectionBoundaryTargetOnMacOS27: true
-                )
-
-                // The physical boundary is authoritative. Persist assignment
-                // only after move() verifies fresh AX adjacency.
-                hider.setSection(container.section, item: liveItem)
-                hider.setSectionOrder(from: sectionOrderToCommit, for: container.section)
-                appState.itemManager.removeTemporarilyShownItemFromCache(with: liveItem.tag)
-                await stabilizePlacement(
-                    of: liveItem,
-                    to: destination,
-                    expectedSection: container.section,
-                    appState: appState
-                )
-            } catch {
-                Self.diagLog.error("macOS 27: failed section-boundary move for \(item.logString): \(error)")
-            }
-
-            await appState.itemManager.cacheItemsRegardless(skipRecentMoveCheck: true)
-        }
     }
 
     private func move(
