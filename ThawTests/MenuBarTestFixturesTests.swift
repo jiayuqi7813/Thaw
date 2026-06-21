@@ -380,4 +380,70 @@ final class MenuBarItemCaptureSectionTests: XCTestCase {
             revealedSection: revealedSection
         )
     }
+
+    func testBackendAdaptersExposeDistinctSectionModels() {
+        let legacy = LegacyMenuBarBackend()
+        let assertion = AssertionMenuBarBackend()
+
+        XCTAssertTrue(legacy.supportsLegacySectionHiding)
+        XCTAssertFalse(legacy.usesAssertionHiding)
+        XCTAssertFalse(assertion.supportsLegacySectionHiding)
+        XCTAssertTrue(assertion.usesAssertionHiding)
+        XCTAssertEqual(
+            legacy.capturableSections(from: allSections, revealedSection: nil),
+            allSections
+        )
+        XCTAssertEqual(
+            assertion.capturableSections(from: allSections, revealedSection: nil),
+            [.visible]
+        )
+    }
+}
+
+// MARK: - Image Capture Invalidation Tests
+
+final class ImageCaptureInvalidationTests: XCTestCase {
+    func testPositionOnlyJitterDoesNotInvalidateCapture() {
+        let tag = MenuBarItemTag.appItem(bundleID: "com.example.app", title: "Status")
+        let original = cache(containing: .fixture(
+            tag: tag,
+            windowID: 100,
+            bounds: CGRect(x: 100, y: 0, width: 24, height: 22)
+        ))
+        let jittered = cache(containing: .fixture(
+            tag: tag,
+            windowID: 100,
+            bounds: CGRect(x: 101, y: 1, width: 24, height: 22)
+        ))
+
+        XCTAssertEqual(
+            MenuBarItemImageCache.captureInvalidationKey(original),
+            MenuBarItemImageCache.captureInvalidationKey(jittered)
+        )
+    }
+
+    func testSizeChangeInvalidatesCapture() {
+        let tag = MenuBarItemTag.appItem(bundleID: "com.example.app", title: "Status")
+        let original = cache(containing: .fixture(
+            tag: tag,
+            windowID: 100,
+            bounds: CGRect(x: 100, y: 0, width: 24, height: 22)
+        ))
+        let resized = cache(containing: .fixture(
+            tag: tag,
+            windowID: 100,
+            bounds: CGRect(x: 100, y: 0, width: 30, height: 22)
+        ))
+
+        XCTAssertNotEqual(
+            MenuBarItemImageCache.captureInvalidationKey(original),
+            MenuBarItemImageCache.captureInvalidationKey(resized)
+        )
+    }
+
+    private func cache(containing item: MenuBarItem) -> MenuBarItemManager.ItemCache {
+        var cache = MenuBarItemManager.ItemCache(displayID: 1)
+        cache[.visible] = [item]
+        return cache
+    }
 }
