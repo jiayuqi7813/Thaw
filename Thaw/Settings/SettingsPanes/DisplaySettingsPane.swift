@@ -682,17 +682,12 @@ struct DisplaySettingsPane: View {
 
     private func globalConfirmationMessage(for pending: PendingGlobalApply) -> String {
         let profileName = pending.activeProfileName ?? ""
+        let displayMessage = String(localized: "This will overwrite the settings of \(pending.displayCount) display with the global template and may briefly relaunch apps with menu bar items.")
         if pending.activeProfileID != nil {
-            return String(
-                format: String(localized: "This will overwrite the settings of %d display(s) with the global template and may briefly relaunch apps with menu bar items. Save the global template to the active profile \"%@\", or save it to every profile."),
-                pending.displayCount,
-                profileName
-            )
+            let profileInstruction = String(localized: "Save the global template to the active profile \"\(profileName)\", or save it to every profile.")
+            return "\(displayMessage) \(profileInstruction)"
         } else {
-            return String(
-                format: String(localized: "This will overwrite the settings of %d display(s) with the global template and may briefly relaunch apps with menu bar items."),
-                pending.displayCount
-            )
+            return displayMessage
         }
     }
 }

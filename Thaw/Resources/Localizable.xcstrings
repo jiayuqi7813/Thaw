@@ -4087,6 +4087,125 @@
         }
       }
     },
+    "Always show hidden menu bar items in the menu bar." : {
+      "comment" : "Annotation for the Always-show-hidden-items toggle in the Global section of the Displays pane.",
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Always show hidden menu bar items in the menu bar."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Always show hidden menu bar items in the menu bar."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar siempre los elementos ocultos de la barra de menús en esta pantalla."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toujours afficher les éléments cachés de la barre de menu."
+          }
+        },
+        "hu" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Always show hidden menu bar items in the menu bar."
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Always show hidden menu bar items in the menu bar."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Always show hidden menu bar items in the menu bar."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Always show hidden menu bar items in the menu bar."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Always show hidden menu bar items in the menu bar."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Always show hidden menu bar items in the menu bar."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zawsze pokazuj ukryte elementy paska menu na pasku menu."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Always show hidden menu bar items in the menu bar."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Always show hidden menu bar items in the menu bar."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Always show hidden menu bar items in the menu bar."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gizli menü çubuğu ögelerini menü çubuğunda her zaman göster."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Always show hidden menu bar items in the menu bar."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Always show hidden menu bar items in the menu bar."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Always show hidden menu bar items in the menu bar."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Always show hidden menu bar items in the menu bar."
+          }
+        }
+      }
+    },
     "Always show the %@ Bar at the mouse pointer's location when it is shown using a hotkey." : {
       "comment" : "A toggle that lets users decide whether the location of the \\(Constants.displayName) Bar should be fixed at the mouse pointer's location when it is shown using a hotkey.",
       "localizations" : {
@@ -4920,6 +5039,363 @@
         }
       }
     },
+    "Apply global settings to all displays?" : {
+      "comment" : "Title of the alert shown before applying the global display template to every known display.",
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply global settings to all displays?"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply global settings to all displays?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Aplicar la configuración global a todas las pantallas?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appliquer les paramètres globaux à tous les écrans ?"
+          }
+        },
+        "hu" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply global settings to all displays?"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply global settings to all displays?"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply global settings to all displays?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply global settings to all displays?"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply global settings to all displays?"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply global settings to all displays?"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zastosować ustawienia globalne do wszystkich wyświetlaczy?"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply global settings to all displays?"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply global settings to all displays?"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply global settings to all displays?"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Genel ayarlar tüm ekranlara uygulansın mı?"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply global settings to all displays?"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply global settings to all displays?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply global settings to all displays?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply global settings to all displays?"
+          }
+        }
+      }
+    },
+    "Apply spacing change?" : {
+      "comment" : "Title of the alert shown before applying a menu bar item spacing change.",
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Použít změnu nastavení rozestupů?"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply spacing change?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Aplicar el cambio en el espaciado?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appliquer les modifications d'espacement ?"
+          }
+        },
+        "hu" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply spacing change?"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply spacing change?"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply spacing change?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply spacing change?"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply spacing change?"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply spacing change?"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zastosować zmianę odstępów?"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aplicar mudança de espaçamento?"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply spacing change?"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ปรับเปลี่ยนระยะห่าง"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aralık değişikliği uygulansın mı?"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply spacing change?"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply spacing change?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "确定应用空白变动吗？"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply spacing change?"
+          }
+        }
+      }
+    },
+    "Apply the global template above to every connected and previously-seen display. Newly connected displays are also seeded from this template." : {
+      "comment" : "Annotation under the Apply-to-All-Displays button in the Global section of the Displays pane.",
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply the global template above to every connected and previously-seen display. Newly connected displays are also seeded from this template."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply the global template above to every connected and previously-seen display. Newly connected displays are also seeded from this template."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aplica la plantilla global anterior a todas las pantallas conectadas y que se hayan visto anteriormente. Las pantallas recién conectadas también se configuran a partir de esta plantilla."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply the global template above to every connected and previously-seen display. Newly connected displays are also seeded from this template."
+          }
+        },
+        "hu" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply the global template above to every connected and previously-seen display. Newly connected displays are also seeded from this template."
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply the global template above to every connected and previously-seen display. Newly connected displays are also seeded from this template."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply the global template above to every connected and previously-seen display. Newly connected displays are also seeded from this template."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply the global template above to every connected and previously-seen display. Newly connected displays are also seeded from this template."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply the global template above to every connected and previously-seen display. Newly connected displays are also seeded from this template."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply the global template above to every connected and previously-seen display. Newly connected displays are also seeded from this template."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zastosuj powyższy szablon globalny do każdego podłączonego i wcześniej widocznego wyświetlacza. Nowo podłączone wyświetlacze są również konfigurowane na podstawie tego szablonu."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply the global template above to every connected and previously-seen display. Newly connected displays are also seeded from this template."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply the global template above to every connected and previously-seen display. Newly connected displays are also seeded from this template."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply the global template above to every connected and previously-seen display. Newly connected displays are also seeded from this template."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yukarıdaki genel şablonu bağlı olan ve daha önce bağlanmış tüm ekranlara uygula. Yeni bağlanan ekranlar da bu şablondan türetilir."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply the global template above to every connected and previously-seen display. Newly connected displays are also seeded from this template."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply the global template above to every connected and previously-seen display. Newly connected displays are also seeded from this template."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply the global template above to every connected and previously-seen display. Newly connected displays are also seeded from this template."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply the global template above to every connected and previously-seen display. Newly connected displays are also seeded from this template."
+          }
+        }
+      }
+    },
     "Apply the spacing for this display" : {
       "comment" : "A button that applies the spacing for a display.",
       "localizations" : {
@@ -5035,6 +5511,482 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "套用此顯示器的間距"
+          }
+        }
+      }
+    },
+    "Apply to All Displays" : {
+      "comment" : "Button in the Global section of the Displays pane that broadcasts the global template to every known display.",
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply to All Displays"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply to All Displays"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aplicar a todas las pantallas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appliquer à tous les écrans"
+          }
+        },
+        "hu" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply to All Displays"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply to All Displays"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply to All Displays"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply to All Displays"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply to All Displays"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply to All Displays"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zastosuj do wszystkich wyświetlaczy"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply to All Displays"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply to All Displays"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply to All Displays"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tüm Ekranlara Uygula"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply to All Displays"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply to All Displays"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply to All Displays"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Apply to All Displays"
+          }
+        }
+      }
+    },
+    "Applying briefly relaunches apps with menu bar items so they pick up the new spacing." : {
+      "comment" : "Annotation under the spacing slider in the Global section of the Displays pane.",
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying briefly relaunches apps with menu bar items so they pick up the new spacing."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying briefly relaunches apps with menu bar items so they pick up the new spacing."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Al aplicar, se vuelve a iniciar las aplicaciones con elementos de la barra de menús para que adopten el nuevo espaciado."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying briefly relaunches apps with menu bar items so they pick up the new spacing."
+          }
+        },
+        "hu" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying briefly relaunches apps with menu bar items so they pick up the new spacing."
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying briefly relaunches apps with menu bar items so they pick up the new spacing."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying briefly relaunches apps with menu bar items so they pick up the new spacing."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying briefly relaunches apps with menu bar items so they pick up the new spacing."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying briefly relaunches apps with menu bar items so they pick up the new spacing."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying briefly relaunches apps with menu bar items so they pick up the new spacing."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zatwierdzenie zmian na chwilę zrestartuje programy w pasku menu, by odświeżyć ich odstępy."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying briefly relaunches apps with menu bar items so they pick up the new spacing."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying briefly relaunches apps with menu bar items so they pick up the new spacing."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying briefly relaunches apps with menu bar items so they pick up the new spacing."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uygulama, yeni aralığı algılayabilmeleri için menü çubuğu ögelerine sahip uygulamaları kısa süreliğine yeniden başlatır."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying briefly relaunches apps with menu bar items so they pick up the new spacing."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying briefly relaunches apps with menu bar items so they pick up the new spacing."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying briefly relaunches apps with menu bar items so they pick up the new spacing."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying briefly relaunches apps with menu bar items so they pick up the new spacing."
+          }
+        }
+      }
+    },
+    "Applying this spacing change will briefly relaunch all apps with menu bar items." : {
+      "comment" : "Alert message variant shown when applying a spacing change for the active menu bar display and no profile is active.",
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Po změně nastavení rozestupů se krátce restartují aplikace s položkami v řádku nabídek."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Al aplicar este cambio de espaciado, se reiniciarán momentáneamente todas las aplicaciones que tengan elementos en la barra de menús."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'enregistrement de cet espacement va brièvement relancer toutes les applications contenues dans la barre des menus."
+          }
+        },
+        "hu" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items."
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zastosowanie tej zmiany odstępów spowoduje ponowne uruchomienie wszystkich aplikacji z ikonami na pasku menu."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aplicar essa mudança de espaçamento reiniciará brevemente todos os aplicativos com itens na barra de menus."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "การปรับเปลี่ยนระยะห่างนี้จะทำให้แอปพลิเคชันทั้งหมดที่มีรายการในแถบเมนูรีสตาร์ทชั่วครู่"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu aralığı uygulamak menü çubuğundaki tüm uygulamaları yeniden başlatır."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items."
+          }
+        }
+      }
+    },
+    "Applying this spacing change will briefly relaunch all apps with menu bar items. Save the new spacing to the active profile \"%@\", or save it to every profile." : {
+      "comment" : "Alert message variant shown when applying a spacing change for the active menu bar display while a profile is active. %@ is the active profile name.",
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Po změně nastavení rozestupů se krátce restartují aplikace s položkami v řádku nabídek. Uložte nové nastavení rozložení pro aktivní profil „%@“, nebo pro všechny profily."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items. Save the new spacing to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Al aplicar este cambio de espaciado, se reiniciarán momentáneamente todas las aplicaciones que tengan elementos en la barra de menús. Guarda el nuevo espaciado en el perfil activo %@ o guárdalo en todos los perfiles."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'enregistrement de cet espacement va brièvement relancer toutes les applications contenues dans la barre des menus. Enregistrer le nouvel espacement au profil actif \"%@\", ou le sauvegarder sur tous les profils."
+          }
+        },
+        "hu" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items. Save the new spacing to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items. Save the new spacing to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items. Save the new spacing to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items. Save the new spacing to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items. Save the new spacing to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items. Save the new spacing to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zastosowanie tej zmiany odstępów spowoduje chwilowe ponowne uruchomienie wszystkich aplikacji z ikonami na pasku menu. Zapisz nowe ustawienie odstępów w aktywnym profilu \"%@\" lub we wszystkich profilach."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aplicar essa mudança de espaçamento reiniciará brevemente todos os aplicativos com itens na barra de menus. Salve o novo espaçamento no perfil ativo \"%@\", ou salve em todos os perfis."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items. Save the new spacing to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "การเปลี่ยนแปลงระยะห่างนี้จะทำให้แอปพลิเคชันทั้งหมดที่มีรายการในแถบเมนูเปิดใหม่ บันทึกระยะห่างใหม่ลงในโปรไฟล์ที่ใช้งานอยู่ \"%@\" หรือบันทึกไว้ในทุกโปรไฟล์"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu aralık değişikliği uygulandığında, menü çubuğu ögesi olan tüm uygulamalar kısaca yeniden başlatılacak. Yeni aralığı aktif profil \"%@\" için kaydet veya tüm profiller için kaydet."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items. Save the new spacing to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items. Save the new spacing to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items. Save the new spacing to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items. Save the new spacing to the active profile \"%@\", or save it to every profile."
           }
         }
       }
@@ -7667,6 +8619,125 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "邊框寬度"
+          }
+        }
+      }
+    },
+    "Broadcast" : {
+      "comment" : "Label for the row that contains the Apply-to-All-Displays button in the Global section of the Displays pane.",
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Broadcast"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Broadcast"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transmisión"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Broadcast"
+          }
+        },
+        "hu" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Broadcast"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Broadcast"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Broadcast"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Broadcast"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Broadcast"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Broadcast"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transmisja"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Broadcast"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Broadcast"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Broadcast"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tümüne Uygula"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Broadcast"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Broadcast"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Broadcast"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Broadcast"
           }
         }
       }
@@ -17905,6 +18976,125 @@
         }
       }
     },
+    "Global" : {
+      "comment" : "Header of the Global section at the top of the Displays pane.",
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Global"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Global"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Global"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Global"
+          }
+        },
+        "hu" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Global"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Global"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Global"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Global"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Global"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Global"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Globalne"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Global"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Global"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Global"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Genel"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Global"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Global"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全局"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Global"
+          }
+        }
+      }
+    },
     "Global Hooks" : {
       "comment" : "A heading for the global hooks section.",
       "localizations" : {
@@ -27193,6 +28383,125 @@
         }
       }
     },
+    "Not available because the %@ Bar is enabled in the global template." : {
+      "comment" : "Annotation shown when the Always-show-hidden-items toggle in the Global section is disabled because Use Thaw Bar is enabled in the global template. %@ is the Thaw display name.",
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Not available because the %@ Bar is enabled in the global template."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Not available because the %@ Bar is enabled in the global template."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No disponible porque la barra de %@ está activada en esta pantalla."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Not available because the %@ Bar is enabled in the global template."
+          }
+        },
+        "hu" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Not available because the %@ Bar is enabled in the global template."
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Not available because the %@ Bar is enabled in the global template."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Not available because the %@ Bar is enabled in the global template."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Not available because the %@ Bar is enabled in the global template."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Not available because the %@ Bar is enabled in the global template."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Not available because the %@ Bar is enabled in the global template."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opcja niedostępna ze względu na włączony pasek %@ w szablonie globalnym."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Not available because the %@ Bar is enabled in the global template."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Not available because the %@ Bar is enabled in the global template."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Not available because the %@ Bar is enabled in the global template."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Genel şablonda %@ Çubuğu etkin olduğu için kullanılamıyor."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Not available because the %@ Bar is enabled in the global template."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Not available because the %@ Bar is enabled in the global template."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Not available because the %@ Bar is enabled in the global template."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Not available because the %@ Bar is enabled in the global template."
+          }
+        }
+      }
+    },
     "Not enough room to show \"%@\"" : {
       "comment" : "Title of an alert that appears when there is not enough room to show a menu bar item.",
       "localizations" : {
@@ -33262,6 +34571,244 @@
         }
       }
     },
+    "Save the global template to the active profile \"%@\", or save it to every profile." : {
+      "comment" : "A message that instructs the user to save the global template to a profile.",
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Save the global template to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Save the global template to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Save the global template to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Save the global template to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "hu" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Save the global template to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Save the global template to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Save the global template to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Save the global template to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Save the global template to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Save the global template to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Save the global template to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Save the global template to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Save the global template to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Save the global template to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Save the global template to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Save the global template to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Save the global template to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Save the global template to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Save the global template to the active profile \"%@\", or save it to every profile."
+          }
+        }
+      }
+    },
+    "Save the new spacing to the active profile \"%@\", or save it to every profile." : {
+      "comment" : "Alert message variant shown when applying a spacing change for a non-active display while a profile is active. %@ is the active profile name.",
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uložit nové nastavení rozestupů pro aktivní profil „%@“, nebo pro všechny profily."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Save the new spacing to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guarda el nuevo espaciado en el perfil activo %@ o guárdalo en todos los perfiles."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrer le nouvel espacement au profil actif \"%@\", ou le sauvegarder sur tous les profils."
+          }
+        },
+        "hu" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Save the new spacing to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Save the new spacing to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Save the new spacing to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Save the new spacing to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Save the new spacing to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Save the new spacing to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zapisz nowe odstępy w aktywnym profilu \"%@\" lub we wszystkich profilach."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Salve o novo espaçamento no perfil ativo \"%@\", ou salve em todos os perfis."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Save the new spacing to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "บันทึกการเว้นวรรคใหม่ลงในโปรไฟล์ที่ใช้งานอยู่ \"%@\" หรือบันทึกไว้ในทุกโปรไฟล์"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yeni aralığı aktif profil \"%@\" için kaydet veya tüm profiller için kaydet."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Save the new spacing to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Save the new spacing to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Save the new spacing to the active profile \"%@\", or save it to every profile."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Save the new spacing to the active profile \"%@\", or save it to every profile."
+          }
+        }
+      }
+    },
     "Screen Recording" : {
       "comment" : "Title of the screen recording permission.",
       "localizations" : {
@@ -35644,6 +37191,125 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在此顯示器上以獨立列顯示隱藏的選單列項目。"
+          }
+        }
+      }
+    },
+    "Show hidden menu bar items in a separate bar below the menu bar." : {
+      "comment" : "Annotation under the Use-Thaw-Bar toggle in the Global section of the Displays pane.",
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Show hidden menu bar items in a separate bar below the menu bar."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Show hidden menu bar items in a separate bar below the menu bar."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar los elementos ocultos de la barra de menús en una barra separada debajo de la barra de menús en esta pantalla."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Show hidden menu bar items in a separate bar below the menu bar."
+          }
+        },
+        "hu" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Show hidden menu bar items in a separate bar below the menu bar."
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Show hidden menu bar items in a separate bar below the menu bar."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Show hidden menu bar items in a separate bar below the menu bar."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Show hidden menu bar items in a separate bar below the menu bar."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Show hidden menu bar items in a separate bar below the menu bar."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Show hidden menu bar items in a separate bar below the menu bar."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pokaż ukryte elementy paska menu w osobnym pasku poniżej paska menu."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Show hidden menu bar items in a separate bar below the menu bar."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Show hidden menu bar items in a separate bar below the menu bar."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Show hidden menu bar items in a separate bar below the menu bar."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gizli menü çubuğu ögelerini menü çubuğunun altındaki ayrı bir çubukta göster."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Show hidden menu bar items in a separate bar below the menu bar."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Show hidden menu bar items in a separate bar below the menu bar."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Show hidden menu bar items in a separate bar below the menu bar."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Show hidden menu bar items in a separate bar below the menu bar."
           }
         }
       }
@@ -39575,6 +41241,377 @@
         }
       }
     },
+    "This will overwrite the settings of %lld display with the global template and may briefly relaunch apps with menu bar items." : {
+      "comment" : "A confirmation message that appears when the user is prompted to apply a global template. The first argument is the number of displays that will be affected. The second argument is the name of the active profile.",
+      "localizations" : {
+        "cs" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "This will overwrite the settings of %lld displays with the global template and may briefly relaunch apps with menu bar items."
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "This will overwrite the settings of %lld displays with the global template and may briefly relaunch apps with menu bar items."
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "This will overwrite the settings of %lld display with the global template and may briefly relaunch apps with menu bar items."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "This will overwrite the settings of %lld displays with the global template and may briefly relaunch apps with menu bar items."
+                }
+              }
+            }
+          }
+        },
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "This will overwrite the settings of %lld display with the global template and may briefly relaunch apps with menu bar items."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "This will overwrite the settings of %lld displays with the global template and may briefly relaunch apps with menu bar items."
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "This will overwrite the settings of %lld display with the global template and may briefly relaunch apps with menu bar items."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "This will overwrite the settings of %lld displays with the global template and may briefly relaunch apps with menu bar items."
+                }
+              }
+            }
+          }
+        },
+        "es" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "This will overwrite the settings of %lld display with the global template and may briefly relaunch apps with menu bar items."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "This will overwrite the settings of %lld displays with the global template and may briefly relaunch apps with menu bar items."
+                }
+              }
+            }
+          }
+        },
+        "fr" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "This will overwrite the settings of %lld display with the global template and may briefly relaunch apps with menu bar items."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "This will overwrite the settings of %lld displays with the global template and may briefly relaunch apps with menu bar items."
+                }
+              }
+            }
+          }
+        },
+        "hu" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "This will overwrite the settings of %lld display with the global template and may briefly relaunch apps with menu bar items."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "This will overwrite the settings of %lld displays with the global template and may briefly relaunch apps with menu bar items."
+                }
+              }
+            }
+          }
+        },
+        "id" : {
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "This will overwrite the settings of %lld displays with the global template and may briefly relaunch apps with menu bar items."
+                }
+              }
+            }
+          }
+        },
+        "it" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "This will overwrite the settings of %lld display with the global template and may briefly relaunch apps with menu bar items."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "This will overwrite the settings of %lld displays with the global template and may briefly relaunch apps with menu bar items."
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "This will overwrite the settings of %lld displays with the global template and may briefly relaunch apps with menu bar items."
+                }
+              }
+            }
+          }
+        },
+        "ko" : {
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "This will overwrite the settings of %lld displays with the global template and may briefly relaunch apps with menu bar items."
+                }
+              }
+            }
+          }
+        },
+        "nl" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "This will overwrite the settings of %lld display with the global template and may briefly relaunch apps with menu bar items."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "This will overwrite the settings of %lld displays with the global template and may briefly relaunch apps with menu bar items."
+                }
+              }
+            }
+          }
+        },
+        "pl" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "This will overwrite the settings of %lld displays with the global template and may briefly relaunch apps with menu bar items."
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "This will overwrite the settings of %lld displays with the global template and may briefly relaunch apps with menu bar items."
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "This will overwrite the settings of %lld display with the global template and may briefly relaunch apps with menu bar items."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "This will overwrite the settings of %lld displays with the global template and may briefly relaunch apps with menu bar items."
+                }
+              }
+            }
+          }
+        },
+        "pt-BR" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "This will overwrite the settings of %lld display with the global template and may briefly relaunch apps with menu bar items."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "This will overwrite the settings of %lld displays with the global template and may briefly relaunch apps with menu bar items."
+                }
+              }
+            }
+          }
+        },
+        "ru" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "This will overwrite the settings of %lld displays with the global template and may briefly relaunch apps with menu bar items."
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "This will overwrite the settings of %lld displays with the global template and may briefly relaunch apps with menu bar items."
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "This will overwrite the settings of %lld display with the global template and may briefly relaunch apps with menu bar items."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "This will overwrite the settings of %lld displays with the global template and may briefly relaunch apps with menu bar items."
+                }
+              }
+            }
+          }
+        },
+        "th" : {
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "This will overwrite the settings of %lld displays with the global template and may briefly relaunch apps with menu bar items."
+                }
+              }
+            }
+          }
+        },
+        "tr" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "This will overwrite the settings of %lld display with the global template and may briefly relaunch apps with menu bar items."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "This will overwrite the settings of %lld displays with the global template and may briefly relaunch apps with menu bar items."
+                }
+              }
+            }
+          }
+        },
+        "uk" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "This will overwrite the settings of %lld displays with the global template and may briefly relaunch apps with menu bar items."
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "This will overwrite the settings of %lld displays with the global template and may briefly relaunch apps with menu bar items."
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "This will overwrite the settings of %lld display with the global template and may briefly relaunch apps with menu bar items."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "This will overwrite the settings of %lld displays with the global template and may briefly relaunch apps with menu bar items."
+                }
+              }
+            }
+          }
+        },
+        "vi" : {
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "This will overwrite the settings of %lld displays with the global template and may briefly relaunch apps with menu bar items."
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans" : {
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "This will overwrite the settings of %lld displays with the global template and may briefly relaunch apps with menu bar items."
+                }
+              }
+            }
+          }
+        },
+        "zh-Hant" : {
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "This will overwrite the settings of %lld displays with the global template and may briefly relaunch apps with menu bar items."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "This will reset all settings to their default values. This action cannot be undone." : {
       "comment" : "A message displayed in an alert when the user confirms resetting all settings.",
       "localizations" : {
@@ -41604,6 +43641,125 @@
         }
       }
     },
+    "Update Active Profile" : {
+      "comment" : "Button in the spacing-change confirmation alert that writes the new spacing into the active profile.",
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uložit pro aktivní profil"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Update Active Profile"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualizar perfil activo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mettre à jour le profil actif"
+          }
+        },
+        "hu" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Update Active Profile"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Update Active Profile"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Update Active Profile"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Update Active Profile"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Update Active Profile"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Update Active Profile"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zaktualizuj aktywny profil"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Atualizar perfil ativo"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Update Active Profile"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "อัปเดตโปรไฟล์ที่ใช้งานอยู่"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktif Profili Güncelle"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Update Active Profile"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Update Active Profile"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Update Active Profile"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Update Active Profile"
+          }
+        }
+      }
+    },
     "Update All" : {
       "comment" : "A menu option to update a profile with the current state of both its layout and configuration.",
       "localizations" : {
@@ -41719,6 +43875,125 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "全部更新"
+          }
+        }
+      }
+    },
+    "Update All Profiles" : {
+      "comment" : "Button in the spacing-change confirmation alert that writes the new spacing into every profile.",
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uložit pro všechny profily"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Update All Profiles"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualizar todos los perfiles"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mettre à jour tous les profils"
+          }
+        },
+        "hu" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Update All Profiles"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Update All Profiles"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Update All Profiles"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Update All Profiles"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Update All Profiles"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Update All Profiles"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zaktualizuj wszystkie profile"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Atualizar todos os perfis"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Update All Profiles"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "อัปเดตโปรไฟล์ทั้งหมด"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tüm Profilleri Güncelle"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Update All Profiles"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Update All Profiles"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Update All Profiles"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Update All Profiles"
           }
         }
       }
@@ -44462,2029 +46737,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "您可以隨時從列表中移除應用程式以撤銷其存取權限。"
-          }
-        }
-      }
-    },
-    "Apply spacing change?" : {
-      "comment" : "Title of the alert shown before applying a menu bar item spacing change.",
-      "localizations" : {
-        "cs" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Použít změnu nastavení rozestupů?"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply spacing change?"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "¿Aplicar el cambio en el espaciado?"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Appliquer les modifications d'espacement ?"
-          }
-        },
-        "hu" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply spacing change?"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply spacing change?"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply spacing change?"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply spacing change?"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply spacing change?"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply spacing change?"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Zastosować zmianę odstępów?"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aplicar mudança de espaçamento?"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply spacing change?"
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ปรับเปลี่ยนระยะห่าง"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aralık değişikliği uygulansın mı?"
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply spacing change?"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply spacing change?"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "确定应用空白变动吗？"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply spacing change?"
-          }
-        }
-      }
-    },
-    "Applying this spacing change will briefly relaunch all apps with menu bar items." : {
-      "comment" : "Alert message variant shown when applying a spacing change for the active menu bar display and no profile is active.",
-      "localizations" : {
-        "cs" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Po změně nastavení rozestupů se krátce restartují aplikace s položkami v řádku nabídek."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Al aplicar este cambio de espaciado, se reiniciarán momentáneamente todas las aplicaciones que tengan elementos en la barra de menús."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "L'enregistrement de cet espacement va brièvement relancer toutes les applications contenues dans la barre des menus."
-          }
-        },
-        "hu" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items."
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items."
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items."
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items."
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Zastosowanie tej zmiany odstępów spowoduje ponowne uruchomienie wszystkich aplikacji z ikonami na pasku menu."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aplicar essa mudança de espaçamento reiniciará brevemente todos os aplicativos com itens na barra de menus."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items."
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "การปรับเปลี่ยนระยะห่างนี้จะทำให้แอปพลิเคชันทั้งหมดที่มีรายการในแถบเมนูรีสตาร์ทชั่วครู่"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bu aralığı uygulamak menü çubuğundaki tüm uygulamaları yeniden başlatır."
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items."
-          }
-        }
-      }
-    },
-    "Applying this spacing change will briefly relaunch all apps with menu bar items. Save the new spacing to the active profile \"%@\", or save it to every profile." : {
-      "comment" : "Alert message variant shown when applying a spacing change for the active menu bar display while a profile is active. %@ is the active profile name.",
-      "localizations" : {
-        "cs" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Po změně nastavení rozestupů se krátce restartují aplikace s položkami v řádku nabídek. Uložte nové nastavení rozložení pro aktivní profil „%@“, nebo pro všechny profily."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items. Save the new spacing to the active profile \"%@\", or save it to every profile."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Al aplicar este cambio de espaciado, se reiniciarán momentáneamente todas las aplicaciones que tengan elementos en la barra de menús. Guarda el nuevo espaciado en el perfil activo %@ o guárdalo en todos los perfiles."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "L'enregistrement de cet espacement va brièvement relancer toutes les applications contenues dans la barre des menus. Enregistrer le nouvel espacement au profil actif \"%@\", ou le sauvegarder sur tous les profils."
-          }
-        },
-        "hu" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items. Save the new spacing to the active profile \"%@\", or save it to every profile."
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items. Save the new spacing to the active profile \"%@\", or save it to every profile."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items. Save the new spacing to the active profile \"%@\", or save it to every profile."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items. Save the new spacing to the active profile \"%@\", or save it to every profile."
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items. Save the new spacing to the active profile \"%@\", or save it to every profile."
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items. Save the new spacing to the active profile \"%@\", or save it to every profile."
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Zastosowanie tej zmiany odstępów spowoduje chwilowe ponowne uruchomienie wszystkich aplikacji z ikonami na pasku menu. Zapisz nowe ustawienie odstępów w aktywnym profilu \"%@\" lub we wszystkich profilach."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aplicar essa mudança de espaçamento reiniciará brevemente todos os aplicativos com itens na barra de menus. Salve o novo espaçamento no perfil ativo \"%@\", ou salve em todos os perfis."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items. Save the new spacing to the active profile \"%@\", or save it to every profile."
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "การเปลี่ยนแปลงระยะห่างนี้จะทำให้แอปพลิเคชันทั้งหมดที่มีรายการในแถบเมนูเปิดใหม่ บันทึกระยะห่างใหม่ลงในโปรไฟล์ที่ใช้งานอยู่ \"%@\" หรือบันทึกไว้ในทุกโปรไฟล์"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bu aralık değişikliği uygulandığında, menü çubuğu ögesi olan tüm uygulamalar kısaca yeniden başlatılacak. Yeni aralığı aktif profil \"%@\" için kaydet veya tüm profiller için kaydet."
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items. Save the new spacing to the active profile \"%@\", or save it to every profile."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items. Save the new spacing to the active profile \"%@\", or save it to every profile."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items. Save the new spacing to the active profile \"%@\", or save it to every profile."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying this spacing change will briefly relaunch all apps with menu bar items. Save the new spacing to the active profile \"%@\", or save it to every profile."
-          }
-        }
-      }
-    },
-    "Save the new spacing to the active profile \"%@\", or save it to every profile." : {
-      "comment" : "Alert message variant shown when applying a spacing change for a non-active display while a profile is active. %@ is the active profile name.",
-      "localizations" : {
-        "cs" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Uložit nové nastavení rozestupů pro aktivní profil „%@“, nebo pro všechny profily."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Save the new spacing to the active profile \"%@\", or save it to every profile."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Guarda el nuevo espaciado en el perfil activo %@ o guárdalo en todos los perfiles."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Enregistrer le nouvel espacement au profil actif \"%@\", ou le sauvegarder sur tous les profils."
-          }
-        },
-        "hu" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Save the new spacing to the active profile \"%@\", or save it to every profile."
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Save the new spacing to the active profile \"%@\", or save it to every profile."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Save the new spacing to the active profile \"%@\", or save it to every profile."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Save the new spacing to the active profile \"%@\", or save it to every profile."
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Save the new spacing to the active profile \"%@\", or save it to every profile."
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Save the new spacing to the active profile \"%@\", or save it to every profile."
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Zapisz nowe odstępy w aktywnym profilu \"%@\" lub we wszystkich profilach."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Salve o novo espaçamento no perfil ativo \"%@\", ou salve em todos os perfis."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Save the new spacing to the active profile \"%@\", or save it to every profile."
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "บันทึกการเว้นวรรคใหม่ลงในโปรไฟล์ที่ใช้งานอยู่ \"%@\" หรือบันทึกไว้ในทุกโปรไฟล์"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Yeni aralığı aktif profil \"%@\" için kaydet veya tüm profiller için kaydet."
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Save the new spacing to the active profile \"%@\", or save it to every profile."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Save the new spacing to the active profile \"%@\", or save it to every profile."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Save the new spacing to the active profile \"%@\", or save it to every profile."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Save the new spacing to the active profile \"%@\", or save it to every profile."
-          }
-        }
-      }
-    },
-    "Update Active Profile" : {
-      "comment" : "Button in the spacing-change confirmation alert that writes the new spacing into the active profile.",
-      "localizations" : {
-        "cs" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Uložit pro aktivní profil"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Update Active Profile"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Actualizar perfil activo"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mettre à jour le profil actif"
-          }
-        },
-        "hu" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Update Active Profile"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Update Active Profile"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Update Active Profile"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Update Active Profile"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Update Active Profile"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Update Active Profile"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Zaktualizuj aktywny profil"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Atualizar perfil ativo"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Update Active Profile"
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "อัปเดตโปรไฟล์ที่ใช้งานอยู่"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aktif Profili Güncelle"
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Update Active Profile"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Update Active Profile"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Update Active Profile"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Update Active Profile"
-          }
-        }
-      }
-    },
-    "Update All Profiles" : {
-      "comment" : "Button in the spacing-change confirmation alert that writes the new spacing into every profile.",
-      "localizations" : {
-        "cs" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Uložit pro všechny profily"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Update All Profiles"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Actualizar todos los perfiles"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mettre à jour tous les profils"
-          }
-        },
-        "hu" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Update All Profiles"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Update All Profiles"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Update All Profiles"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Update All Profiles"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Update All Profiles"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Update All Profiles"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Zaktualizuj wszystkie profile"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Atualizar todos os perfis"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Update All Profiles"
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "อัปเดตโปรไฟล์ทั้งหมด"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tüm Profilleri Güncelle"
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Update All Profiles"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Update All Profiles"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Update All Profiles"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Update All Profiles"
-          }
-        }
-      }
-    },
-    "Always show hidden menu bar items in the menu bar." : {
-      "comment" : "Annotation for the Always-show-hidden-items toggle in the Global section of the Displays pane.",
-      "localizations" : {
-        "cs" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Always show hidden menu bar items in the menu bar."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Always show hidden menu bar items in the menu bar."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mostrar siempre los elementos ocultos de la barra de menús en esta pantalla."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Toujours afficher les éléments cachés de la barre de menu."
-          }
-        },
-        "hu" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Always show hidden menu bar items in the menu bar."
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Always show hidden menu bar items in the menu bar."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Always show hidden menu bar items in the menu bar."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Always show hidden menu bar items in the menu bar."
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Always show hidden menu bar items in the menu bar."
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Always show hidden menu bar items in the menu bar."
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Zawsze pokazuj ukryte elementy paska menu na pasku menu."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Always show hidden menu bar items in the menu bar."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Always show hidden menu bar items in the menu bar."
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Always show hidden menu bar items in the menu bar."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gizli menü çubuğu ögelerini menü çubuğunda her zaman göster."
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Always show hidden menu bar items in the menu bar."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Always show hidden menu bar items in the menu bar."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Always show hidden menu bar items in the menu bar."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Always show hidden menu bar items in the menu bar."
-          }
-        }
-      }
-    },
-    "Apply global settings to all displays?" : {
-      "comment" : "Title of the alert shown before applying the global display template to every known display.",
-      "localizations" : {
-        "cs" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply global settings to all displays?"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply global settings to all displays?"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "¿Aplicar la configuración global a todas las pantallas?"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Appliquer les paramètres globaux à tous les écrans ?"
-          }
-        },
-        "hu" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply global settings to all displays?"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply global settings to all displays?"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply global settings to all displays?"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply global settings to all displays?"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply global settings to all displays?"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply global settings to all displays?"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Zastosować ustawienia globalne do wszystkich wyświetlaczy?"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply global settings to all displays?"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply global settings to all displays?"
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply global settings to all displays?"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Genel ayarlar tüm ekranlara uygulansın mı?"
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply global settings to all displays?"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply global settings to all displays?"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply global settings to all displays?"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply global settings to all displays?"
-          }
-        }
-      }
-    },
-    "Apply the global template above to every connected and previously-seen display. Newly connected displays are also seeded from this template." : {
-      "comment" : "Annotation under the Apply-to-All-Displays button in the Global section of the Displays pane.",
-      "localizations" : {
-        "cs" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply the global template above to every connected and previously-seen display. Newly connected displays are also seeded from this template."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply the global template above to every connected and previously-seen display. Newly connected displays are also seeded from this template."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aplica la plantilla global anterior a todas las pantallas conectadas y que se hayan visto anteriormente. Las pantallas recién conectadas también se configuran a partir de esta plantilla."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply the global template above to every connected and previously-seen display. Newly connected displays are also seeded from this template."
-          }
-        },
-        "hu" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply the global template above to every connected and previously-seen display. Newly connected displays are also seeded from this template."
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply the global template above to every connected and previously-seen display. Newly connected displays are also seeded from this template."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply the global template above to every connected and previously-seen display. Newly connected displays are also seeded from this template."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply the global template above to every connected and previously-seen display. Newly connected displays are also seeded from this template."
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply the global template above to every connected and previously-seen display. Newly connected displays are also seeded from this template."
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply the global template above to every connected and previously-seen display. Newly connected displays are also seeded from this template."
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Zastosuj powyższy szablon globalny do każdego podłączonego i wcześniej widocznego wyświetlacza. Nowo podłączone wyświetlacze są również konfigurowane na podstawie tego szablonu."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply the global template above to every connected and previously-seen display. Newly connected displays are also seeded from this template."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply the global template above to every connected and previously-seen display. Newly connected displays are also seeded from this template."
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply the global template above to every connected and previously-seen display. Newly connected displays are also seeded from this template."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Yukarıdaki genel şablonu bağlı olan ve daha önce bağlanmış tüm ekranlara uygula. Yeni bağlanan ekranlar da bu şablondan türetilir."
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply the global template above to every connected and previously-seen display. Newly connected displays are also seeded from this template."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply the global template above to every connected and previously-seen display. Newly connected displays are also seeded from this template."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply the global template above to every connected and previously-seen display. Newly connected displays are also seeded from this template."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply the global template above to every connected and previously-seen display. Newly connected displays are also seeded from this template."
-          }
-        }
-      }
-    },
-    "Apply to All Displays" : {
-      "comment" : "Button in the Global section of the Displays pane that broadcasts the global template to every known display.",
-      "localizations" : {
-        "cs" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply to All Displays"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply to All Displays"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aplicar a todas las pantallas"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Appliquer à tous les écrans"
-          }
-        },
-        "hu" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply to All Displays"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply to All Displays"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply to All Displays"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply to All Displays"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply to All Displays"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply to All Displays"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Zastosuj do wszystkich wyświetlaczy"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply to All Displays"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply to All Displays"
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply to All Displays"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tüm Ekranlara Uygula"
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply to All Displays"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply to All Displays"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply to All Displays"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Apply to All Displays"
-          }
-        }
-      }
-    },
-    "Applying briefly relaunches apps with menu bar items so they pick up the new spacing." : {
-      "comment" : "Annotation under the spacing slider in the Global section of the Displays pane.",
-      "localizations" : {
-        "cs" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying briefly relaunches apps with menu bar items so they pick up the new spacing."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying briefly relaunches apps with menu bar items so they pick up the new spacing."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Al aplicar, se vuelve a iniciar las aplicaciones con elementos de la barra de menús para que adopten el nuevo espaciado."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying briefly relaunches apps with menu bar items so they pick up the new spacing."
-          }
-        },
-        "hu" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying briefly relaunches apps with menu bar items so they pick up the new spacing."
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying briefly relaunches apps with menu bar items so they pick up the new spacing."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying briefly relaunches apps with menu bar items so they pick up the new spacing."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying briefly relaunches apps with menu bar items so they pick up the new spacing."
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying briefly relaunches apps with menu bar items so they pick up the new spacing."
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying briefly relaunches apps with menu bar items so they pick up the new spacing."
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Zatwierdzenie zmian na chwilę zrestartuje programy w pasku menu, by odświeżyć ich odstępy."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying briefly relaunches apps with menu bar items so they pick up the new spacing."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying briefly relaunches apps with menu bar items so they pick up the new spacing."
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying briefly relaunches apps with menu bar items so they pick up the new spacing."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Uygulama, yeni aralığı algılayabilmeleri için menü çubuğu ögelerine sahip uygulamaları kısa süreliğine yeniden başlatır."
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying briefly relaunches apps with menu bar items so they pick up the new spacing."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying briefly relaunches apps with menu bar items so they pick up the new spacing."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying briefly relaunches apps with menu bar items so they pick up the new spacing."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Applying briefly relaunches apps with menu bar items so they pick up the new spacing."
-          }
-        }
-      }
-    },
-    "Broadcast" : {
-      "comment" : "Label for the row that contains the Apply-to-All-Displays button in the Global section of the Displays pane.",
-      "localizations" : {
-        "cs" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Broadcast"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Broadcast"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Transmisión"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Broadcast"
-          }
-        },
-        "hu" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Broadcast"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Broadcast"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Broadcast"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Broadcast"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Broadcast"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Broadcast"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Transmisja"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Broadcast"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Broadcast"
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Broadcast"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tümüne Uygula"
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Broadcast"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Broadcast"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Broadcast"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Broadcast"
-          }
-        }
-      }
-    },
-    "Global" : {
-      "comment" : "Header of the Global section at the top of the Displays pane.",
-      "localizations" : {
-        "cs" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Global"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Global"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Global"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Global"
-          }
-        },
-        "hu" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Global"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Global"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Global"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Global"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Global"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Global"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Globalne"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Global"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Global"
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Global"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Genel"
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Global"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Global"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "全局"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Global"
-          }
-        }
-      }
-    },
-    "Not available because the %@ Bar is enabled in the global template." : {
-      "comment" : "Annotation shown when the Always-show-hidden-items toggle in the Global section is disabled because Use Thaw Bar is enabled in the global template. %@ is the Thaw display name.",
-      "localizations" : {
-        "cs" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Not available because the %@ Bar is enabled in the global template."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Not available because the %@ Bar is enabled in the global template."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No disponible porque la barra de %@ está activada en esta pantalla."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Not available because the %@ Bar is enabled in the global template."
-          }
-        },
-        "hu" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Not available because the %@ Bar is enabled in the global template."
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Not available because the %@ Bar is enabled in the global template."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Not available because the %@ Bar is enabled in the global template."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Not available because the %@ Bar is enabled in the global template."
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Not available because the %@ Bar is enabled in the global template."
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Not available because the %@ Bar is enabled in the global template."
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Opcja niedostępna ze względu na włączony pasek %@ w szablonie globalnym."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Not available because the %@ Bar is enabled in the global template."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Not available because the %@ Bar is enabled in the global template."
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Not available because the %@ Bar is enabled in the global template."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Genel şablonda %@ Çubuğu etkin olduğu için kullanılamıyor."
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Not available because the %@ Bar is enabled in the global template."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Not available because the %@ Bar is enabled in the global template."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Not available because the %@ Bar is enabled in the global template."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Not available because the %@ Bar is enabled in the global template."
-          }
-        }
-      }
-    },
-    "Show hidden menu bar items in a separate bar below the menu bar." : {
-      "comment" : "Annotation under the Use-Thaw-Bar toggle in the Global section of the Displays pane.",
-      "localizations" : {
-        "cs" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Show hidden menu bar items in a separate bar below the menu bar."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Show hidden menu bar items in a separate bar below the menu bar."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mostrar los elementos ocultos de la barra de menús en una barra separada debajo de la barra de menús en esta pantalla."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Show hidden menu bar items in a separate bar below the menu bar."
-          }
-        },
-        "hu" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Show hidden menu bar items in a separate bar below the menu bar."
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Show hidden menu bar items in a separate bar below the menu bar."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Show hidden menu bar items in a separate bar below the menu bar."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Show hidden menu bar items in a separate bar below the menu bar."
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Show hidden menu bar items in a separate bar below the menu bar."
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Show hidden menu bar items in a separate bar below the menu bar."
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pokaż ukryte elementy paska menu w osobnym pasku poniżej paska menu."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Show hidden menu bar items in a separate bar below the menu bar."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Show hidden menu bar items in a separate bar below the menu bar."
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Show hidden menu bar items in a separate bar below the menu bar."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gizli menü çubuğu ögelerini menü çubuğunun altındaki ayrı bir çubukta göster."
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Show hidden menu bar items in a separate bar below the menu bar."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Show hidden menu bar items in a separate bar below the menu bar."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Show hidden menu bar items in a separate bar below the menu bar."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Show hidden menu bar items in a separate bar below the menu bar."
-          }
-        }
-      }
-    },
-    "This will overwrite the settings of %d display(s) with the global template and may briefly relaunch apps with menu bar items." : {
-      "comment" : "Alert message variant shown before applying the global template to all displays when no profile is active. %d is the number of affected displays.",
-      "localizations" : {
-        "cs" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "This will overwrite the settings of %d display(s) with the global template and may briefly relaunch apps with menu bar items."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "This will overwrite the settings of %d display(s) with the global template and may briefly relaunch apps with menu bar items."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Esto sobrescribirá la configuración de %d pantallas con la plantilla global y puede provocar que las aplicaciones con elementos en la barra de menús se reinicien brevemente."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "This will overwrite the settings of %d display(s) with the global template and may briefly relaunch apps with menu bar items."
-          }
-        },
-        "hu" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "This will overwrite the settings of %d display(s) with the global template and may briefly relaunch apps with menu bar items."
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "This will overwrite the settings of %d display(s) with the global template and may briefly relaunch apps with menu bar items."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "This will overwrite the settings of %d display(s) with the global template and may briefly relaunch apps with menu bar items."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "This will overwrite the settings of %d display(s) with the global template and may briefly relaunch apps with menu bar items."
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "This will overwrite the settings of %d display(s) with the global template and may briefly relaunch apps with menu bar items."
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "This will overwrite the settings of %d display(s) with the global template and may briefly relaunch apps with menu bar items."
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Zastosowanie szablonu globalnego nadpisze ustawienia %d wyświetlaczy. Aplikacje posiadające ikony w pasku menu mogą zostać na chwilę zrestartowane."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "This will overwrite the settings of %d display(s) with the global template and may briefly relaunch apps with menu bar items."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "This will overwrite the settings of %d display(s) with the global template and may briefly relaunch apps with menu bar items."
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "This will overwrite the settings of %d display(s) with the global template and may briefly relaunch apps with menu bar items."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bu işlem, %d ekranın ayarlarını genel şablonla geçersiz kılacaktır ve menü çubuğu ögelerine sahip uygulamaları kısa süreliğine yeniden başlatabilir."
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "This will overwrite the settings of %d display(s) with the global template and may briefly relaunch apps with menu bar items."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "This will overwrite the settings of %d display(s) with the global template and may briefly relaunch apps with menu bar items."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "This will overwrite the settings of %d display(s) with the global template and may briefly relaunch apps with menu bar items."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "This will overwrite the settings of %d display(s) with the global template and may briefly relaunch apps with menu bar items."
-          }
-        }
-      }
-    },
-    "This will overwrite the settings of %d display(s) with the global template and may briefly relaunch apps with menu bar items. Save the global template to the active profile \"%@\", or save it to every profile." : {
-      "comment" : "Alert message variant shown before applying the global template to all displays while a profile is active. %d is the number of affected displays. %@ is the active profile name.",
-      "localizations" : {
-        "cs" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "This will overwrite the settings of %d display(s) with the global template and may briefly relaunch apps with menu bar items. Save the global template to the active profile \"%@\", or save it to every profile."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "This will overwrite the settings of %d display(s) with the global template and may briefly relaunch apps with menu bar items. Save the global template to the active profile \"%@\", or save it to every profile."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Esto sobrescribirá la configuración de %d pantallas con la plantilla global y puede provocar que las aplicaciones con elementos en la barra de menús se reinicien brevemente. Guarda la plantilla global en el perfil activo %@ o guárdala en todos los perfiles."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "This will overwrite the settings of %d display(s) with the global template and may briefly relaunch apps with menu bar items. Save the global template to the active profile \"%@\", or save it to every profile."
-          }
-        },
-        "hu" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "This will overwrite the settings of %d display(s) with the global template and may briefly relaunch apps with menu bar items. Save the global template to the active profile \"%@\", or save it to every profile."
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "This will overwrite the settings of %d display(s) with the global template and may briefly relaunch apps with menu bar items. Save the global template to the active profile \"%@\", or save it to every profile."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "This will overwrite the settings of %d display(s) with the global template and may briefly relaunch apps with menu bar items. Save the global template to the active profile \"%@\", or save it to every profile."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "This will overwrite the settings of %d display(s) with the global template and may briefly relaunch apps with menu bar items. Save the global template to the active profile \"%@\", or save it to every profile."
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "This will overwrite the settings of %d display(s) with the global template and may briefly relaunch apps with menu bar items. Save the global template to the active profile \"%@\", or save it to every profile."
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "This will overwrite the settings of %d display(s) with the global template and may briefly relaunch apps with menu bar items. Save the global template to the active profile \"%@\", or save it to every profile."
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ta operacja nadpisze konfigurację %d wyświetlaczy szablonem globalnym. Aplikacje z ikonami w pasku menu mogą zostać na moment uruchomione ponownie. Zapisz szablon w aktywnym profilu \"%@\" lub w każdym z dostępnych profili."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "This will overwrite the settings of %d display(s) with the global template and may briefly relaunch apps with menu bar items. Save the global template to the active profile \"%@\", or save it to every profile."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "This will overwrite the settings of %d display(s) with the global template and may briefly relaunch apps with menu bar items. Save the global template to the active profile \"%@\", or save it to every profile."
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "This will overwrite the settings of %d display(s) with the global template and may briefly relaunch apps with menu bar items. Save the global template to the active profile \"%@\", or save it to every profile."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bu işlem, %d ekranın ayarlarını genel şablonla geçersiz kılacaktır ve menü çubuğu ögelerine sahip uygulamaları kısa süreliğine yeniden başlatabilir. Genel şablonu aktif \"%@\" profiline kaydet veya her bir profile kaydet."
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "This will overwrite the settings of %d display(s) with the global template and may briefly relaunch apps with menu bar items. Save the global template to the active profile \"%@\", or save it to every profile."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "This will overwrite the settings of %d display(s) with the global template and may briefly relaunch apps with menu bar items. Save the global template to the active profile \"%@\", or save it to every profile."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "This will overwrite the settings of %d display(s) with the global template and may briefly relaunch apps with menu bar items. Save the global template to the active profile \"%@\", or save it to every profile."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "This will overwrite the settings of %d display(s) with the global template and may briefly relaunch apps with menu bar items. Save the global template to the active profile \"%@\", or save it to every profile."
           }
         }
       }
