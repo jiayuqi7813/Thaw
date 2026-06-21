@@ -37,6 +37,6 @@ jobs:
             		console.error(`Error deleting workflow run: ${error.message}`);
             		failedCount++;
             	}
-            	console.log(`Deleted skipped workflow runs: ${deletedCount}`);
-            	console.log(`Failed to delete workflow runs: ${failedCount}`);
             }
+            console.log(`Deleted skipped workflow runs: ${deletedCount}`);
+            console.log(`Failed to delete workflow runs: ${failedCount}`);
