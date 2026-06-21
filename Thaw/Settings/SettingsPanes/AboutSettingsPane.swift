@@ -30,7 +30,9 @@ struct AboutSettingsPane: View {
         IceSection(options: [.isBordered]) {
             VStack(spacing: 24) {
                 appIconAndCopyrightSection
-                updatesSection
+                if #unavailable(macOS 27) {
+                    updatesSection
+                }
             }
             .padding(.vertical, 8)
         }
@@ -99,6 +101,17 @@ struct AboutSettingsPane: View {
                     .buttonStyle(.plain)
                     .foregroundStyle(.secondary)
                     .help("Copy version info")
+                }
+
+                if #available(macOS 27, *) {
+                    Text("macOS 27 — unsupported preview")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.tertiary)
+                        .help(
+                            "Optional build for trying macOS 27 support early. "
+                                + "Not distributed through Thaw's update channels; "
+                                + "bugs found here may not be addressed."
+                        )
                 }
 
                 Text(Constants.copyrightString)
