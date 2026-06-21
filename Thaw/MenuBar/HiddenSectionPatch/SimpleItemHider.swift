@@ -381,11 +381,17 @@ final class SimpleItemHider: ObservableObject {
         sectionAssignment[identifier] ?? .visible
     }
 
-    /// The section for a live item. System anchors are always visible even if
-    /// stale defaults say otherwise.
+    /// The section for a live item. System anchors and any item Thaw can't
+    /// conceal are always visible even if stale defaults say otherwise.
     func section(for item: MenuBarItem) -> MenuBarSection.Name {
         if item.tag.isLayoutAnchoredSystemItem ||
             Self.isOwnAppItem(item)
+        {
+            return .visible
+        }
+        if #available(macOS 27, *),
+           item.tag.isNonConcealableSystemItem,
+           !item.tag.isControlCenterGovernable
         {
             return .visible
         }
@@ -421,12 +427,17 @@ final class SimpleItemHider: ObservableObject {
     /// `MenuBarItem`; it can identify Thaw-owned generic `Item-0` entries even
     /// when their persisted identifier is not the stable control-item title.
     func setSection(_ section: MenuBarSection.Name, item: MenuBarItem) {
-        guard !Self.isProtectedAssignmentItem(item) else {
+        // Reject control/anchored/own items, and any item that can't be hidden
+        // being dropped into a non-visible section (Apple system modules on
+        // macOS 27): they stay visible. Dropping one back to .visible is always
+        // allowed so an existing stale assignment can be cleared.
+        let cannotHideHere = section != .visible && !item.canBeHidden
+        guard !Self.isProtectedAssignmentItem(item), !cannotHideHere else {
             if sectionAssignment.removeValue(forKey: item.uniqueIdentifier) != nil {
                 persistAssignment()
                 refresh()
             }
-            diagLog.warning("ignored protected section assignment for \(item.uniqueIdentifier)")
+            diagLog.warning("ignored section assignment for protected/non-hideable item \(item.uniqueIdentifier)")
             return
         }
         setSection(section, identifier: item.uniqueIdentifier)
@@ -522,6 +533,14 @@ final class SimpleItemHider: ObservableObject {
         snapshots[identifier]
     }
 
+    /// Tags of every assigned item that has a retained snapshot. The image cache
+    /// preserves these so a concealed item that briefly drops out of the live
+    /// item cache (between conceal and the snapshot re-add) doesn't lose its
+    /// last-good icon to the stale-entry cleanup, leaving a blank Hidden slot.
+    var assignedSnapshotTags: Set<MenuBarItemTag> {
+        Set(sectionAssignment.keys.compactMap { snapshots[$0]?.tag })
+    }
+
     /// Re-applies the current assignment against the live item cache, and
     /// refreshes the retained snapshots.
     func refresh() {
@@ -532,7 +551,11 @@ final class SimpleItemHider: ObservableObject {
             allItems
                 .filter {
                     ($0.tag.isLayoutAnchoredSystemItem ||
-                        Self.isOwnAppItem($0)) &&
+                        Self.isOwnAppItem($0) ||
+                        // macOS 27: a non-concealable system module can't live in a
+                        // hidden section — drop a stale assignment so it returns to
+                        // visible (e.g. one persisted before this rule existed).
+                        !$0.canBeHidden) &&
                         sectionAssignment[$0.uniqueIdentifier] != nil
                 }
                 .map(\.uniqueIdentifier)

@@ -59,6 +59,16 @@ struct MenuBarItemTag: Hashable, CustomStringConvertible {
         isSystemItem || namespace.description.hasPrefix("com.apple.")
     }
 
+    /// A Boolean value that indicates whether this item is a Control Center
+    /// module Thaw CAN hide individually via its per-host visibility pref
+    /// (Wi-Fi/Bluetooth/AirDrop/NowPlaying/User/Focus — see
+    /// ``ControlCenterModuleManager``). These are exceptions to
+    /// ``isNonConcealableSystemItem``: the assertion can't conceal them, but the
+    /// CC-pref path can, so they REMAIN hideable.
+    var isControlCenterGovernable: Bool {
+        ControlCenterModuleManager.moduleKeysByMenuExtraTitle[title] != nil
+    }
+
     /// A Boolean value that indicates whether this item should be rendered as a
     /// fixed system anchor in the layout UI.
     ///
@@ -104,7 +114,17 @@ struct MenuBarItemTag: Hashable, CustomStringConvertible {
     /// A Boolean value that indicates whether the item identified
     /// by this tag can be hidden.
     var canBeHidden: Bool {
-        !isLayoutAnchoredSystemItem &&
+        // macOS 27: items Thaw can't actually conceal (Apple system modules whose
+        // bundle keeps anchored siblings visible — Sound, Clock, Control Center,
+        // Spotlight, Siri…) must not be assignable to a hidden section. Trying to
+        // hide them caused bounce-back and divider thrash; they stay visible (and
+        // remain reorderable there). EXCEPTION: Control-Center-governable modules
+        // (Wi-Fi/Bluetooth/AirDrop/NowPlaying/User/Focus) CAN be hidden via the
+        // CC-pref path, so they stay hideable.
+        if #available(macOS 27, *), isNonConcealableSystemItem, !isControlCenterGovernable {
+            return false
+        }
+        return !isLayoutAnchoredSystemItem &&
             !MenuBarItemTag.nonHideableItems.contains(where: { $0.namespace == namespace && $0.title == title }) &&
             !(namespace.isUUID && title == "AudioVideoModule")
     }

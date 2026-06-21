@@ -318,6 +318,14 @@ final class MenuBarItemManager: ObservableObject {
     /// Persisted per-section item order. Maps section key to an ordered list of
     /// `uniqueIdentifier` strings (right-to-left, matching cache array order).
     private var savedSectionOrder = [String: [String]]()
+
+    /// Item-set signature (sorted `namespace:title`) of the last cache-cycle
+    /// macOS 27 hidden-divider enforcement that FAILED. While the set is
+    /// unchanged, re-attempting the same unachievable divider move just reflows
+    /// the bar → "windowID change" → re-cache → retry: a cursor-hijacking loop
+    /// (e.g. after a visible-section reorder leaves the divider unreachable). Skip
+    /// the move for an identical set until it changes or a reveal forces it.
+    private var lastFailedDividerSignature: String?
     /// Placement preference for newly detected menu bar items.
     @Published private(set) var newItemsPlacement = NewItemsPlacement.defaultValue
 
@@ -1691,7 +1699,12 @@ extension MenuBarItemManager {
                 return true
             }
             let isMacOS27LayoutAnchor = !Constants.supportsSectionHiding && item.tag.isLayoutAnchoredSystemItem
-            if !item.canBeHidden, !isMacOS27LayoutAnchor {
+            // macOS 27: non-concealable system items (Sound/Spotlight/Siri…) are
+            // now `canBeHidden == false`, but they must still appear in the layout
+            // (Visible, reorderable) — without this they'd be dropped from the
+            // cache and vanish from the Visible bar.
+            let isMacOS27ForcedVisibleSystemItem = !Constants.supportsSectionHiding && item.tag.isNonConcealableSystemItem
+            if !item.canBeHidden, !isMacOS27LayoutAnchor, !isMacOS27ForcedVisibleSystemItem {
                 return false
             }
             if item.isSystemClone {
@@ -3904,7 +3917,8 @@ extension MenuBarItemManager {
         ) {
             await enforceControlItemOrder(
                 controlItems: controlItems,
-                items: revealedItems
+                items: revealedItems,
+                force: true
             )
         }
 
@@ -5746,7 +5760,8 @@ extension MenuBarItemManager {
     /// Enforces the spatial section boundaries represented by control items.
     private func enforceControlItemOrder(
         controlItems: ControlItemPair,
-        items: [MenuBarItem]
+        items: [MenuBarItem],
+        force: Bool = false
     ) async {
         let hidden = controlItems.hidden
 
@@ -5758,6 +5773,25 @@ extension MenuBarItemManager {
                 sectionAssignment: sectionAssignment,
                 controlItems: controlItems
             ) else {
+                // Divider already correct → clear any stuck-failure latch.
+                lastFailedDividerSignature = nil
+                return
+            }
+
+            // If the same item set already failed to position the divider, don't
+            // re-attempt on a routine cache cycle: the move only reflows the bar
+            // (→ "windowID change" → re-cache → retry), hijacking the cursor in a
+            // loop. A reveal (`force`) or a genuine item add/remove (signature
+            // change) still gets a fresh attempt. Signature is namespace:title so
+            // an instance-index reshuffle from a reorder doesn't defeat it.
+            let signature = items
+                .map { "\($0.tag.namespace):\($0.tag.title)" }
+                .sorted()
+                .joined(separator: "|")
+            if !force, signature == lastFailedDividerSignature {
+                MenuBarItemManager.diagLog.debug(
+                    "macOS 27: skipping hidden-divider enforcement; same item set already failed"
+                )
                 return
             }
 
@@ -5771,7 +5805,9 @@ extension MenuBarItemManager {
                     skipInputPause: true,
                     allowSectionBoundaryTargetOnMacOS27: true
                 )
+                lastFailedDividerSignature = nil
             } catch {
+                lastFailedDividerSignature = signature
                 MenuBarItemManager.diagLog.error(
                     "Error enforcing macOS 27 hidden divider boundary: \(error)"
                 )
@@ -6054,13 +6090,24 @@ extension MenuBarItemManager {
             return
         }
 
-        hider.applyProfileLayout(
-            itemSectionMap: itemSectionMap,
-            itemOrder: itemOrder
-        )
+        // On macOS 27 the hider's `sectionAssignment` is the authority for section
+        // membership (it drives the assertion and self-persists via
+        // Thaw.simpleSectionAssignment). Only an explicit profile apply should
+        // overwrite it. The `.savedOrder` re-apply — fired on every windowID change,
+        // e.g. when an item reappears after a layout-bar drag moved it
+        // hidden→visible — must NOT push the lagging `savedSectionOrder` back onto
+        // the hider, or the just-dragged item bounces straight back to its old
+        // section. The cache-cycle mirror keeps `savedSectionOrder` in sync FROM the
+        // hider instead.
+        if source == .profile {
+            hider.applyProfileLayout(
+                itemSectionMap: itemSectionMap,
+                itemOrder: itemOrder
+            )
 
-        savedSectionOrder = itemOrder
-        persistSavedSectionOrder()
+            savedSectionOrder = itemOrder
+            persistSavedSectionOrder()
+        }
 
         let items = await MenuBarItem.getMenuBarItems(option: .activeSpace)
         MenuBarItemManager.diagLog.info(
@@ -6222,7 +6269,7 @@ extension MenuBarItemManager {
             throw LayoutResetError.missingControlItems
         }
 
-        await enforceControlItemOrder(controlItems: controlItems, items: items)
+        await enforceControlItemOrder(controlItems: controlItems, items: items, force: true)
 
         return try await resetLayoutWithControlItems(controlItems: controlItems, items: items)
     }
