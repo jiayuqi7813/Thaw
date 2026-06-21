@@ -9,3 +9,4 @@
 //  Objective-C declarations exposed to Swift in the Thaw app target.
 
 #import "VirtualDisplay/ThawVirtualDisplay.h"
+// (macOS 27 runtime import removed)
