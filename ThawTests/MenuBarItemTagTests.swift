@@ -422,6 +422,26 @@ final class MenuBarItemTagTests: XCTestCase {
         XCTAssertFalse(tag.canBeHidden)
     }
 
+    func testMacOS27SectionManagementPolicyCentralizesSystemExceptions() throws {
+        guard #available(macOS 27, *) else {
+            throw XCTSkip("Assertion-backed section policy is macOS 27-specific")
+        }
+
+        let spotlight = MenuBarItemTag(namespace: .string("com.apple.campo"), title: "Spotlight")
+        let wifi = MenuBarItemTag(namespace: .menuBarAgent, title: "com.apple.menuextra.wifi")
+        let app = MenuBarItemTag.appItem(bundleID: "com.example.app", title: "Status")
+
+        XCTAssertEqual(spotlight.sectionManagementPolicy, .forcedVisible)
+        XCTAssertFalse(spotlight.canBeHidden)
+        XCTAssertTrue(spotlight.sectionManagementPolicy.isVisibleInLayout)
+
+        XCTAssertEqual(wifi.sectionManagementPolicy, .hideable)
+        XCTAssertTrue(wifi.canBeHidden)
+
+        XCTAssertEqual(app.sectionManagementPolicy, .hideable)
+        XCTAssertTrue(app.canBeHidden)
+    }
+
     // MARK: - Control Item Tests
 
     func testHiddenControlItemIsControlItem() {
@@ -983,6 +1003,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         XCTAssertEqual(sanitized, [appID: .hidden])
     }
 
+    @MainActor
     func testAssignmentFromProfileLayoutUsesSectionMapAndFallsBackToOrder() {
         let hiddenApp = "com.example.alpha:Alpha"
         let visibleApp = "com.example.beta:Beta"
@@ -1022,7 +1043,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         let gamma = item(tag: gammaTag, x: 48, windowID: 42)
 
         XCTAssertFalse(
-            MenuBarItemManager.macOS27LiveOrderSatisfiesDestination(
+            LayoutPlanner.liveOrderSatisfiesDestination(
                 items: [alpha, beta, gamma],
                 item: alpha,
                 destination: .leftOfItem(gamma)
@@ -1033,7 +1054,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         let movedAlpha = item(tag: alphaTag, x: 24, windowID: 40)
         let movedGamma = item(tag: gammaTag, x: 48, windowID: 42)
         XCTAssertTrue(
-            MenuBarItemManager.macOS27LiveOrderSatisfiesDestination(
+            LayoutPlanner.liveOrderSatisfiesDestination(
                 items: [movedBeta, movedAlpha, movedGamma],
                 item: alpha,
                 destination: .leftOfItem(gamma)
@@ -1062,14 +1083,14 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         let orderedItems = [hidden, divider, visible]
 
         XCTAssertEqual(
-            MenuBarItemManager.macOS27SectionBoundaryDestination(
+            LayoutPlanner.sectionBoundaryDestination(
                 for: .hidden,
                 controlItems: controls
             ),
             .leftOfItem(divider)
         )
         XCTAssertEqual(
-            MenuBarItemManager.macOS27SectionBoundaryDestination(
+            LayoutPlanner.sectionBoundaryDestination(
                 for: .visible,
                 controlItems: controls
             ),
@@ -1077,7 +1098,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         )
 
         XCTAssertTrue(
-            MenuBarItemManager.macOS27LiveOrderSatisfiesSectionBoundary(
+            LayoutPlanner.liveOrderSatisfiesSectionBoundary(
                 items: orderedItems,
                 item: hidden,
                 section: .hidden,
@@ -1085,7 +1106,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
             )
         )
         XCTAssertTrue(
-            MenuBarItemManager.macOS27LiveOrderSatisfiesSectionBoundary(
+            LayoutPlanner.liveOrderSatisfiesSectionBoundary(
                 items: orderedItems,
                 item: visible,
                 section: .visible,
@@ -1093,7 +1114,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
             )
         )
         XCTAssertFalse(
-            MenuBarItemManager.macOS27LiveOrderSatisfiesSectionBoundary(
+            LayoutPlanner.liveOrderSatisfiesSectionBoundary(
                 items: orderedItems,
                 item: visible,
                 section: .hidden,
@@ -1101,7 +1122,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
             )
         )
         XCTAssertFalse(
-            MenuBarItemManager.macOS27LiveOrderSatisfiesSectionBoundary(
+            LayoutPlanner.liveOrderSatisfiesSectionBoundary(
                 items: orderedItems,
                 item: hidden,
                 section: .visible,
@@ -1125,7 +1146,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         )
 
         XCTAssertEqual(
-            MenuBarItemManager.macOS27DividerMoveDestination(
+            LayoutPlanner.dividerMoveDestination(
                 items: [thaw, divider, hidden],
                 sectionAssignment: [hidden.uniqueIdentifier: .hidden],
                 controlItems: controls
@@ -1139,13 +1160,59 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
             windowID: 63
         )
         XCTAssertNil(
-            MenuBarItemManager.macOS27DividerMoveDestination(
+            LayoutPlanner.dividerMoveDestination(
                 items: [correctlyPlacedDivider, thaw, hidden],
                 sectionAssignment: [hidden.uniqueIdentifier: .hidden],
                 controlItems: .init(
                     hidden: correctlyPlacedDivider,
                     alwaysHidden: nil
                 )
+            )
+        )
+    }
+
+    func testMacOS27AchievableOrderDoesNotCrossFixedAnchors() {
+        let alpha = appItem(bundleID: "com.example.alpha", title: "Alpha", x: 0, windowID: 70)
+        let clock = item(tag: .clock, x: 24, windowID: 71)
+        let beta = appItem(bundleID: "com.example.beta", title: "Beta", x: 48, windowID: 72)
+        let gamma = appItem(bundleID: "com.example.gamma", title: "Gamma", x: 72, windowID: 73)
+
+        let segments = LayoutPlanner.achievableOrderSegments(
+            items: [alpha, clock, beta, gamma],
+            desiredOrder: [gamma.uniqueIdentifier, beta.uniqueIdentifier, alpha.uniqueIdentifier]
+        )
+
+        XCTAssertEqual(
+            segments.map { $0.map(\.uniqueIdentifier) },
+            [[alpha.uniqueIdentifier], [gamma.uniqueIdentifier, beta.uniqueIdentifier]]
+        )
+    }
+
+    func testMacOS27DirectDragTargetsNeighborInsideAnchorSegment() {
+        let alpha = appItem(bundleID: "com.example.alpha", title: "Alpha", x: 0, windowID: 80)
+        let beta = appItem(bundleID: "com.example.beta", title: "Beta", x: 24, windowID: 81)
+        let clock = item(tag: .clock, x: 48, windowID: 82)
+        let gamma = appItem(bundleID: "com.example.gamma", title: "Gamma", x: 72, windowID: 83)
+
+        let destination = LayoutPlanner.achievableDestination(
+            items: [alpha, beta, clock, gamma],
+            item: alpha,
+            desiredOrder: [beta.uniqueIdentifier, gamma.uniqueIdentifier, alpha.uniqueIdentifier]
+        )
+
+        XCTAssertEqual(destination, .rightOfItem(beta))
+    }
+
+    func testMacOS27DividerDoesNotPlanAcrossFixedAnchor() {
+        let divider = item(tag: .hiddenControlItem, x: 0, windowID: 90)
+        let clock = item(tag: .clock, x: 24, windowID: 91)
+        let visible = appItem(bundleID: "com.example.visible", title: "Visible", x: 48, windowID: 92)
+
+        XCTAssertNil(
+            LayoutPlanner.dividerMoveDestination(
+                items: [divider, clock, visible],
+                sectionAssignment: [:],
+                controlItems: .init(hidden: divider, alwaysHidden: nil)
             )
         )
     }
