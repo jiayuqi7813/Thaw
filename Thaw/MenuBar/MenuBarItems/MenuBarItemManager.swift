@@ -6,6 +6,7 @@
 //  Copyright (Thaw) © 2026 Toni Förster
 //  Licensed under the GNU GPLv3
 
+@preconcurrency import AXSwift
 import Cocoa
 @preconcurrency import Combine
 @preconcurrency import CoreGraphics
@@ -1383,6 +1384,12 @@ extension MenuBarItemManager {
         /// transient sourcePID resolution errors (e.g. stale AX data after moves).
         private(set) var cachedItemPIDs = [CGWindowID: pid_t]()
 
+        /// Window identifiers of the system clone windows seen in the most
+        /// recent cache cycle. cacheItemsIfNeeded filters these out of its
+        /// change comparison so a transient clone appearing or vanishing
+        /// doesn't read as a layout change and trigger a recache.
+        private(set) var cachedCloneWindowIDs = Set<CGWindowID>()
+
         /// Runs the given async closure as a task and waits for it to
         /// complete before returning.
         ///
@@ -1400,6 +1407,11 @@ extension MenuBarItemManager {
             cachedItemWindowIDs = itemWindowIDs
         }
 
+        /// Updates the set of cached system clone window identifiers.
+        func updateCachedCloneWindowIDs(_ ids: Set<CGWindowID>) {
+            cachedCloneWindowIDs = ids
+        }
+
         /// Updates the mapping from window identifiers to source process identifiers.
         func updateCachedItemPIDs(_ pids: [CGWindowID: pid_t]) {
             cachedItemPIDs = pids
@@ -1409,6 +1421,11 @@ extension MenuBarItemManager {
         func clearCachedItemWindowIDs() {
             cachedItemWindowIDs.removeAll()
             cachedItemPIDs.removeAll()
+            // Clear clone IDs alongside the main set so the two don't drift.
+            // Leaving stale clone IDs here would let cacheItemsIfNeeded filter
+            // a recycled windowID out of its comparison before the recache
+            // that follows this reset repopulates the set.
+            cachedCloneWindowIDs.removeAll()
         }
     }
 
@@ -1879,6 +1896,22 @@ extension MenuBarItemManager {
 
         MenuBarItemManager.diagLog.debug("cacheItemsRegardless: getMenuBarItems returned \(items.count) items")
 
+        // Drop System Status Item Clone windows before any downstream
+        // processing. These are transient duplicates the WindowServer
+        // spawns during screen capture and menu bar animations. Each one
+        // carries a fresh windowID and a nil source PID, and resolves to
+        // an unstable namespace, so they must never be cached, assigned to
+        // a section, placed via planUnmanagedPlacement, or moved. Removing
+        // them here also keeps their windowIDs out of the stored set
+        // below, so a clone appearing or vanishing can't trip the
+        // windowID-change trigger that dispatches a bulk re-layout.
+        let cloneWindowIDs = Set(items.filter(\.isSystemClone).map(\.windowID))
+        if !cloneWindowIDs.isEmpty {
+            let cloneDescriptions = items.filter(\.isSystemClone).map(\.tag.description)
+            MenuBarItemManager.diagLog.debug("cacheItemsRegardless: dropping \(cloneWindowIDs.count) system clone window(s): \(cloneDescriptions)")
+            items.removeAll(where: \.isSystemClone)
+        }
+
         // Reconcile resolved sourcePIDs against previously known values to
         // prevent transient resolution errors (e.g. stale AX data after item
         // moves) from corrupting item identities. SourcePIDCache does spatial
@@ -1950,8 +1983,15 @@ extension MenuBarItemManager {
             MenuBarItemManager.diagLog.error("cacheItemsRegardless: getMenuBarItems returned ZERO items even after retry; this is the root cause of 'Loading menu bar items' being stuck")
         }
 
-        let itemWindowIDs = currentItemWindowIDs ?? items.reversed().map(\.windowID)
+        // currentItemWindowIDs comes straight from the bridging window
+        // list and may still contain clone IDs; items has already been
+        // filtered, so strip any clone IDs to keep the stored set in sync
+        // with the managed item set. The fallback branch is clone-free
+        // because items is filtered.
+        let itemWindowIDs = (currentItemWindowIDs ?? items.reversed().map(\.windowID))
+            .filter { !cloneWindowIDs.contains($0) }
         cacheActor.updateCachedItemWindowIDs(itemWindowIDs)
+        cacheActor.updateCachedCloneWindowIDs(cloneWindowIDs)
 
         await MainActor.run {
             MenuBarItemTag.Namespace.pruneUUIDCache(keeping: Set(itemWindowIDs))
@@ -2223,7 +2263,16 @@ extension MenuBarItemManager {
     /// the hidden and always-hidden sections are correctly ordered,
     /// arranging them into valid positions if needed.
     func cacheItemsIfNeeded() async {
-        let itemWindowIDs = Bridging.getMenuBarWindowList(option: [.itemsOnly, .activeSpace])
+        let rawWindowIDs = Bridging.getMenuBarWindowList(option: [.itemsOnly, .activeSpace])
+        // Exclude windowIDs already known to be system clones so their
+        // churn doesn't read as a layout change. A brand-new clone whose
+        // windowID hasn't been learned yet still triggers one recache,
+        // which resolves it, records it, and drops it; from then on its
+        // presence and removal are ignored.
+        let cloneIDs = cacheActor.cachedCloneWindowIDs
+        let itemWindowIDs = cloneIDs.isEmpty
+            ? rawWindowIDs
+            : rawWindowIDs.filter { !cloneIDs.contains($0) }
         let cachedIDs = cacheActor.cachedItemWindowIDs
         if cachedIDs != itemWindowIDs {
             MenuBarItemManager.diagLog.debug("cacheItemsIfNeeded: window IDs changed (\(cachedIDs.count) cached vs \(itemWindowIDs.count) current), triggering recache")
@@ -3257,6 +3306,16 @@ extension MenuBarItemManager {
         watchdogTimeout: DispatchTimeInterval? = nil,
         maxMoveAttempts: Int = 8
     ) async throws {
+        // System clone windows are transient WindowServer duplicates that
+        // must never be moved. Refuse here as a final safety net so no
+        // planning path can drag a phantom and displace real items. The
+        // planners filter clones earlier; this backstops every move caller.
+        // A no-op is correct: the clone has no managed position to restore
+        // and will vanish on its own, so there's nothing to fail or retry.
+        guard !item.isSystemClone else {
+            MenuBarItemManager.diagLog.warning("Skipping move for \(item.logString) - system status item clone")
+            return
+        }
         guard item.isMovable else {
             throw EventError.itemNotMovable(item)
         }
@@ -3520,6 +3579,101 @@ extension MenuBarItemManager {
         }
     }
 
+    /// Activates a menu bar item by opening its menu, choosing the correct
+    /// path based on whether the item is currently on screen.
+    ///
+    /// On-screen items are clicked in place. Off-screen items (in the hidden
+    /// or always-hidden section) are routed through temporarilyShow, which
+    /// moves, clicks, and rehides the item internally.
+    ///
+    /// - Parameters:
+    ///   - item: The menu bar item to activate.
+    ///   - displayID: The display whose menu bar hosts a temporary reveal for
+    ///     off-screen items.
+    func activate(item: MenuBarItem, on displayID: CGDirectDisplayID?) async {
+        if Bridging.isWindowOnScreen(item.windowID) {
+            // Electron/Chromium tray items (e.g. Claude) ignore Thaw's synthetic
+            // mouse click, so open those via an Accessibility press. Every other
+            // app responds to the normal click, which also preserves its native
+            // open/close toggle and works with popover-style menus (e.g. Cap,
+            // Droppy) that a stray AX interaction would disturb.
+            if isElectronItem(item), pressItemViaAccessibility(item) {
+                MenuBarItemManager.diagLog.info("Activated \(item.logString) via AX press")
+                return
+            }
+            do {
+                try await click(item: item, with: .left)
+            } catch {
+                MenuBarItemManager.diagLog.error("Failed to activate \(item.logString): \(error)")
+            }
+        } else {
+            await temporarilyShow(item: item, clickingWith: .left, on: displayID)
+        }
+    }
+
+    /// Returns whether the item's owning app is an Electron app, detected by the
+    /// presence of the bundled Electron framework. Such apps ignore synthetic
+    /// mouse clicks on their tray icon and must be opened via an AX press.
+    private func isElectronItem(_ item: MenuBarItem) -> Bool {
+        // Fall back to ownerPID so this works during startup before sourcePID
+        // has been resolved.
+        let pid = item.sourcePID ?? item.ownerPID
+        guard let bundleURL = NSRunningApplication(processIdentifier: pid)?.bundleURL else {
+            return false
+        }
+        let electronFramework = bundleURL.appendingPathComponent(
+            "Contents/Frameworks/Electron Framework.framework"
+        )
+        return FileManager.default.fileExists(atPath: electronFramework.path)
+    }
+
+    /// Attempts to open the item's menu by performing an Accessibility press on
+    /// its status item element. Returns false (so the caller can fall back to
+    /// a synthetic click) when the element cannot be resolved or the press fails.
+    private func pressItemViaAccessibility(_ item: MenuBarItem) -> Bool {
+        // Fall back to ownerPID so this works during startup before sourcePID
+        // has been resolved.
+        let pid = item.sourcePID ?? item.ownerPID
+        guard
+            let runningApp = NSRunningApplication(processIdentifier: pid),
+            let app = AXHelpers.application(for: runningApp),
+            let extrasMenuBar = AXHelpers.extrasMenuBar(for: app)
+        else {
+            return false
+        }
+
+        let children = AXHelpers.children(for: extrasMenuBar)
+        guard !children.isEmpty else {
+            return false
+        }
+
+        // A single status item is unambiguous. With several, match the one whose
+        // AX frame lines up with this item's window so the right menu opens.
+        let target: UIElement
+        if children.count == 1 {
+            target = children[0]
+        } else {
+            // Use the item's live window bounds so the nearest-child match is not
+            // thrown off by a stale cached position (which would make an Electron
+            // item fall back to the synthetic click it ignores).
+            let itemCenter = (Bridging.getWindowBounds(for: item.windowID) ?? item.bounds).center
+            guard
+                let best = children.min(by: { lhs, rhs in
+                    let lhsDistance = AXHelpers.frame(for: lhs)?.center.distance(to: itemCenter) ?? .greatestFiniteMagnitude
+                    let rhsDistance = AXHelpers.frame(for: rhs)?.center.distance(to: itemCenter) ?? .greatestFiniteMagnitude
+                    return lhsDistance < rhsDistance
+                }),
+                let bestFrame = AXHelpers.frame(for: best),
+                bestFrame.center.distance(to: itemCenter) <= 10
+            else {
+                return false
+            }
+            target = best
+        }
+
+        return AXHelpers.press(target)
+    }
+
     /// Clicks a menu bar item with the given mouse button.
     ///
     /// - Parameters:
@@ -3652,6 +3806,20 @@ extension MenuBarItemManager {
                     return current.isOnScreen
                 }
                 if let app = current.owningApplication {
+                    // The captured window is the popup we just opened, so trust its
+                    // on-screen state rather than requiring the app to be active in
+                    // two cases the isActive check gets wrong:
+                    //   - Menu-bar agent apps (.accessory) can never report active,
+                    //     so their popover (e.g. BetterDisplay) would look hidden
+                    //     the instant it opens.
+                    //   - Some apps (e.g. Claude/Electron) place their menu at a
+                    //     non-standard window level, and it is our programmatic
+                    //     trigger, not the user, that opened it, so the app is
+                    //     not frontmost. A menu-sized window distinguishes this
+                    //     from an incidental small window.
+                    if app.activationPolicy == .accessory || current.bounds.height > 40 {
+                        return current.isOnScreen
+                    }
                     return app.isActive && current.isOnScreen
                 }
                 return current.isOnScreen
@@ -3670,26 +3838,37 @@ extension MenuBarItemManager {
         }
 
         /// Checks whether the item's owning application has any visible
-        /// popup-menu window on screen.
+        /// menu window on screen.
         ///
-        /// Only matches the pop-up menu level (the level macOS uses for
-        /// menus opened from menu bar items). Status-level and main-menu
-        /// level windows are excluded because those are the menu bar items
-        /// themselves; including the temporarily-shown item we're
-        /// tracking; not popups created by clicking them. A liberal
-        /// "above normal" match was previously used as a catch-all, but
-        /// it matched floating panels, modal levels, and other unrelated
-        /// app windows, keeping `isShowingInterface` true indefinitely
-        /// and preventing rehide.
+        /// Matches the pop-up menu level (the level macOS uses for menus opened
+        /// from menu bar items). Some apps (e.g. DisplayLink) instead draw their
+        /// menu as a status- or main-menu-level window owned by the app rather
+        /// than at pop-up level, so those levels are also matched, but only when
+        /// the window is taller than a menu bar item, so the status item itself
+        /// (which sits in the menu bar) is not mistaken for an open menu. A
+        /// liberal "above normal" match was previously used as a catch-all, but
+        /// it matched floating panels, modal levels, and other unrelated app
+        /// windows, keeping `isShowingInterface` true indefinitely and
+        /// preventing rehide.
         private func appHasVisiblePopup() -> Bool {
             let windows = WindowInfo.createWindows(option: .onScreen)
             let popUpLevel = CGWindowLevelForKey(.popUpMenuWindow)
+            let statusLevel = CGWindowLevelForKey(.statusWindow)
+            let mainMenuLevel = CGWindowLevelForKey(.mainMenuWindow)
             return windows.contains { window in
                 guard window.ownerPID == sourcePID else {
                     return false
                 }
                 let level = CGWindowLevel(Int32(window.layer))
-                return level == popUpLevel || level == popUpLevel - 1
+                if level == popUpLevel || level == popUpLevel - 1 {
+                    return true
+                }
+                // Menu bar items are at most ~menu-bar height; a real menu drawn
+                // at status/main-menu level is taller, which distinguishes it.
+                if level == statusLevel || level == mainMenuLevel {
+                    return window.bounds.height > 40
+                }
+                return false
             }
         }
 
@@ -4073,34 +4252,42 @@ extension MenuBarItemManager {
         let idsBeforeClick = Set(Bridging.getWindowList(option: .onScreen))
         let clickPID = clickItem.sourcePID ?? clickItem.ownerPID
 
-        do {
-            // Single attempt: the item is already at a known-good position with
-            // fresh bounds. If it fails, fall through to the fallback path below
-            // rather than spending 3× the semaphore timeout here.
-            try await click(item: clickItem, with: mouseButton, skipInputPause: true, maxAttempts: 1)
-        } catch {
-            MenuBarItemManager.diagLog.error("Error clicking item (first attempt): \(error); attempting fallback click")
-
-            // Fallback: re-fetch the item from the live window list so the
-            // click targets a fresh MenuBarItem with current windowID and
-            // bounds, rather than the potentially stale pre-click struct.
-            let fallbackItems = await MenuBarItem.getMenuBarItems(on: resolvedDisplayID, option: .onScreen)
-            let fallbackItem = fallbackItems.first(where: { $0.windowID == clickItem.windowID }) ??
-                fallbackItems.first(where: {
-                    $0.tag.matchesIgnoringWindowID(clickItem.tag) &&
-                        ($0.sourcePID ?? $0.ownerPID) == (clickItem.sourcePID ?? clickItem.ownerPID)
-                }) ?? clickItem
-
-            // We stay inside temporarilyShow so that idsBeforeClick and context
-            // remain in scope; shownInterfaceWindow can still be captured if
-            // the fallback succeeds, keeping isShowingInterface accurate for
-            // the rehide logic.
+        // Electron/Chromium tray items ignore the synthetic click, so open their
+        // menu via an Accessibility press once revealed, mirroring the on-screen
+        // path. Other apps (and right-clicks) use the synthetic click below. The
+        // popup window capture that follows is unaffected by which path opened it.
+        if mouseButton == .left, isElectronItem(clickItem), pressItemViaAccessibility(clickItem) {
+            MenuBarItemManager.diagLog.info("Activated \(clickItem.logString) via AX press")
+        } else {
             do {
-                try await click(item: fallbackItem, with: mouseButton, skipInputPause: true)
+                // Single attempt: the item is already at a known-good position with
+                // fresh bounds. If it fails, fall through to the fallback path below
+                // rather than spending 3× the semaphore timeout here.
+                try await click(item: clickItem, with: mouseButton, skipInputPause: true, maxAttempts: 1)
             } catch {
-                MenuBarItemManager.diagLog.error("Fallback click also failed for \(item.logString): \(error)")
-                // Icon is visible but both click attempts failed.
-                return .movedButClickFailed
+                MenuBarItemManager.diagLog.error("Error clicking item (first attempt): \(error); attempting fallback click")
+
+                // Fallback: re-fetch the item from the live window list so the
+                // click targets a fresh MenuBarItem with current windowID and
+                // bounds, rather than the potentially stale pre-click struct.
+                let fallbackItems = await MenuBarItem.getMenuBarItems(on: resolvedDisplayID, option: .onScreen)
+                let fallbackItem = fallbackItems.first(where: { $0.windowID == clickItem.windowID }) ??
+                    fallbackItems.first(where: {
+                        $0.tag.matchesIgnoringWindowID(clickItem.tag) &&
+                            ($0.sourcePID ?? $0.ownerPID) == (clickItem.sourcePID ?? clickItem.ownerPID)
+                    }) ?? clickItem
+
+                // We stay inside temporarilyShow so that idsBeforeClick and context
+                // remain in scope; shownInterfaceWindow can still be captured if
+                // the fallback succeeds, keeping isShowingInterface accurate for
+                // the rehide logic.
+                do {
+                    try await click(item: fallbackItem, with: mouseButton, skipInputPause: true)
+                } catch {
+                    MenuBarItemManager.diagLog.error("Fallback click also failed for \(item.logString): \(error)")
+                    // Icon is visible but both click attempts failed.
+                    return .movedButClickFailed
+                }
             }
         }
 
@@ -5530,6 +5717,12 @@ extension MenuBarItemManager {
 
         // Discover current items and build current flat sequence (right-to-left).
         var items = await MenuBarItem.getMenuBarItems(option: .activeSpace)
+        // Drop transient System Status Item Clone windows before planning.
+        // partitionUnmanagedUIDs would otherwise classify a clone as an
+        // unmanaged item and anchor it into a section, dragging a phantom
+        // and reshuffling the bar. This fetch is independent of the cache
+        // path, so it needs its own filter.
+        items.removeAll(where: \.isSystemClone)
         guard var itemsCopy = Optional(items),
               let controlItems = ControlItemPair(
                   items: &itemsCopy,
