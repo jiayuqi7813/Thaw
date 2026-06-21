@@ -57,6 +57,44 @@ final class VirtualDisplay {
         return VirtualDisplay(handle: handle, displayID: displayID)
     }
 
+    /// The per-call result of one reanchorRealDisplayAsMain transaction, so the
+    /// caller can verify success and log the codes from the field.
+    struct ReanchorResult {
+        let beginOK: Bool
+        let originReal: CGError
+        let originPhantom: CGError
+        let complete: CGError
+
+        var success: Bool { beginOK && complete == .success }
+    }
+
+    /// Anchors realMain at the global origin (the origin defines the main display)
+    /// and parks this phantom immediately to realMain's right, in one display
+    /// configuration transaction. Returns the per-call error codes.
+    ///
+    /// macOS chooses where a freshly added display lands and, on some saved
+    /// arrangements (e.g. a machine that has had an external/AirPlay display), it
+    /// places the phantom at the origin and makes it the main display a moment
+    /// after it comes online; the menu bar and windows then jump onto the tiny
+    /// phantom and the screen visibly snaps small until teardown. A single call
+    /// right after creation can therefore fire before the phantom has taken main
+    /// and do nothing, so the caller re-asserts this in a verify loop for the
+    /// phantom's lifetime rather than assuming one call sticks. macOS clamps the
+    /// phantom adjacent to the real display regardless of how large an offset is
+    /// requested, so the real display's width is used as the offset. realMain must
+    /// be captured before the phantom is created, while it is still the only one.
+    func reanchorRealDisplayAsMain(_ realMain: CGDirectDisplayID) -> ReanchorResult {
+        var configRef: CGDisplayConfigRef?
+        guard CGBeginDisplayConfiguration(&configRef) == .success, let configRef else {
+            return ReanchorResult(beginOK: false, originReal: .failure, originPhantom: .failure, complete: .failure)
+        }
+        let originReal = CGConfigureDisplayOrigin(configRef, realMain, 0, 0)
+        let offset = Int32(clamping: CGDisplayPixelsWide(realMain))
+        let originPhantom = CGConfigureDisplayOrigin(configRef, displayID, offset, 0)
+        let complete = CGCompleteDisplayConfiguration(configRef, .forSession)
+        return ReanchorResult(beginOK: true, originReal: originReal, originPhantom: originPhantom, complete: complete)
+    }
+
     /// Removes the virtual display. Idempotent.
     func invalidate() {
         guard isValid else {

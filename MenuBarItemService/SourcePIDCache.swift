@@ -366,7 +366,13 @@ final class SourcePIDCache {
                 let children = AXHelpers.children(for: bar)
                 for child in children {
                     totalChildrenChecked += 1
-                    guard AXHelpers.isEnabled(child),
+                    // Skip only children the app marks explicitly disabled. A
+                    // missing AXEnabled attribute (nil) is treated as enabled:
+                    // some status items hosted by Control Center (The Clock's
+                    // among them) never publish AXEnabled, and treating absent as
+                    // disabled would drop an otherwise exact positional match and
+                    // leave the item unresolved.
+                    guard AXHelpers.enabledAttribute(child) != false,
                           let childFrame = AXHelpers.frame(for: child)
                     else {
                         continue
@@ -509,38 +515,53 @@ final class SourcePIDCache {
             let unresolvedWindowInfos = allWindows.filter { unresolvedWindows.contains($0.windowID) }
             for window in unresolvedWindowInfos {
                 let target = window.bounds.center
-                var bestDistance = CGFloat.greatestFiniteMagnitude
-                var bestLabel = "(none)"
-                var bestFrame: CGRect?
+                // Collect every extras-bar child across all apps as a candidate,
+                // not just the single closest, so the diagnostic shows whether the
+                // nearest match is unique or whether a competing child sits within
+                // the match radius. Paired with each candidate's enabled state and
+                // distance, this is usually enough to see why an item failed to
+                // resolve (wrong distance, missing AXEnabled, or ambiguity).
+                var candidates: [(distance: CGFloat, label: String, frame: CGRect, enabled: Bool?)] = []
                 for app in apps {
                     guard let bar = app.getOrCreateExtrasMenuBar() else { continue }
-                    let children = AXHelpers.children(for: bar)
-                    for child in children {
+                    let label = app.bundleIdentifier ?? app.localizedName ?? "pid=\(app.processIdentifier)"
+                    for child in AXHelpers.children(for: bar) {
                         guard let frame = AXHelpers.frame(for: child) else { continue }
-                        let d = frame.center.distance(to: target)
-                        if d < bestDistance {
-                            bestDistance = d
-                            bestLabel = app.bundleIdentifier ?? app.localizedName ?? "pid=\(app.processIdentifier)"
-                            bestFrame = frame
-                        }
+                        candidates.append((frame.center.distance(to: target), label, frame, AXHelpers.enabledAttribute(child)))
                     }
                 }
+                let nearest = candidates.sorted { $0.distance < $1.distance }
+                let best = nearest.first
                 let cgOwner = window.owningApplication.map { app in
                     "\(app.bundleIdentifier ?? app.localizedName ?? "?"):pid=\(app.processIdentifier)"
                 } ?? "nil"
+                // closestAXEnabled distinguishes a missing AXEnabled attribute (nil)
+                // from an explicitly disabled child, and nearest lists the top
+                // candidates with their owning app and enabled state, so a future
+                // unresolved item can be diagnosed from a single log line.
+                let nearestDesc = nearest.prefix(3).map {
+                    "\($0.label)@\(String(format: "%.1f", $0.distance))(enabled=\($0.enabled.map { "\($0)" } ?? "nil"))"
+                }.joined(separator: ", ")
                 SourcePIDCache.diagLog.debug(
-                    "SourcePIDCache diag unresolved: windowID=\(window.windowID) title=\(window.title ?? "nil") bounds=\(window.bounds) center=\(target) | cgOwner=\(cgOwner) ownerName=\(window.ownerName ?? "nil") | closestAXFrame=\(bestFrame.map { "\($0)" } ?? "nil") in app=\(bestLabel) distance=\(bestDistance)"
+                    "SourcePIDCache diag unresolved: windowID=\(window.windowID) title=\(window.title ?? "nil") bounds=\(window.bounds) center=\(target) | cgOwner=\(cgOwner) ownerName=\(window.ownerName ?? "nil") | closestAXFrame=\(best.map { "\($0.frame)" } ?? "nil") in app=\(best?.label ?? "(none)") distance=\(best?.distance ?? .greatestFiniteMagnitude) closestAXEnabled=\(best?.enabled.map { "\($0)" } ?? "nil") | nearest=[\(nearestDesc)]"
                 )
             }
 
             for app in apps {
                 guard let bar = app.getOrCreateExtrasMenuBar() else { continue }
                 let children = AXHelpers.children(for: bar)
-                let frames = children.compactMap { AXHelpers.frame(for: $0) }
-                guard !frames.isEmpty else { continue }
+                // Include each child's raw enabled value (nil = attribute absent)
+                // next to its frame, so a child the matching pass excluded as
+                // explicitly disabled is visible here.
+                let childDescs = children.compactMap { child -> String? in
+                    guard let frame = AXHelpers.frame(for: child) else { return nil }
+                    let enabled = AXHelpers.enabledAttribute(child).map { "\($0)" } ?? "nil"
+                    return "(x=\(frame.minX),y=\(frame.minY),w=\(frame.width),h=\(frame.height),enabled=\(enabled))"
+                }
+                guard !childDescs.isEmpty else { continue }
                 let label = app.bundleIdentifier ?? app.localizedName ?? "pid=\(app.processIdentifier)"
                 SourcePIDCache.diagLog.debug(
-                    "SourcePIDCache diag app=\(label) extrasBar children=\(children.count) frames=\(frames.map { "(x=\($0.minX),y=\($0.minY),w=\($0.width),h=\($0.height))" }.joined(separator: " "))"
+                    "SourcePIDCache diag app=\(label) extrasBar children=\(children.count) frames=\(childDescs.joined(separator: " "))"
                 )
             }
         }
