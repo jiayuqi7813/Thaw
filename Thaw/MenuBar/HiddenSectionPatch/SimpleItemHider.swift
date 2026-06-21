@@ -384,14 +384,8 @@ final class SimpleItemHider: ObservableObject {
     /// The section for a live item. System anchors and any item Thaw can't
     /// conceal are always visible even if stale defaults say otherwise.
     func section(for item: MenuBarItem) -> MenuBarSection.Name {
-        if item.tag.isLayoutAnchoredSystemItem ||
+        if item.sectionManagementPolicy.isForcedVisible ||
             Self.isOwnAppItem(item)
-        {
-            return .visible
-        }
-        if #available(macOS 27, *),
-           item.tag.isNonConcealableSystemItem,
-           !item.tag.isControlCenterGovernable
         {
             return .visible
         }
