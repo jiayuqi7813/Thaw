@@ -7524,8 +7524,16 @@ extension MenuBarItemManager {
         previous: Set<CGWindowID>,
         current: Set<CGWindowID>,
         previousDisplayID: CGDirectDisplayID?,
-        currentDisplayID: CGDirectDisplayID?
+        currentDisplayID: CGDirectDisplayID?,
+        supportsLegacySectionHiding: Bool = true
     ) -> Bool {
+        // macOS 27's AX provider synthesizes IDs from logical item identity,
+        // and control items are removed from `items` before this gate runs.
+        // Comparing that managed-item set with the earlier all-item snapshot
+        // makes the extracted divider look like a quit on every cache cycle.
+        // Logical identity and assignment divergence own restore detection on
+        // that backend; retain the real-window disappearance signal on ≤26.
+        guard supportsLegacySectionHiding else { return false }
         // First cycle: no prior frame to diff against.
         guard !previous.isEmpty else { return false }
         // The active menu bar display moved to another screen. With separate
@@ -7605,7 +7613,8 @@ extension MenuBarItemManager {
             previous: previousWindowIDSet,
             current: currentWindowIDSet,
             previousDisplayID: previousDisplayID,
-            currentDisplayID: currentDisplayID
+            currentDisplayID: currentDisplayID,
+            supportsLegacySectionHiding: MenuBarBackendFactory.current.supportsLegacySectionHiding
         )
         let layoutDiverged = windowIDsChanged
             ? false
