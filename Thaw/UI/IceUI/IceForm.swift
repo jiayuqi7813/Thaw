@@ -44,56 +44,25 @@ struct IceForm<Content: View>: View {
     }
 
     var body: some View {
-        GeometryReader { geometry in
-            ScrollView {
-                contentLayout.frame(
-                    minWidth: geometry.size.width,
-                    minHeight: geometry.size.height,
-                    alignment: .top
-                )
-            }
-            .background(Color.clear)
-            .scrollContentBackground(.hidden)
-        }
-        .focusSection()
-        .accessibilityElement(children: .contain)
-    }
-
-    private var contentLayout: some View {
-        VStack(alignment: alignment, spacing: spacing) {
+        // Native SwiftUI grouped form. The Liquid Glass card chrome, scrolling,
+        // row insets, separators, header styling, and control sizing all come
+        // from the OS — `IceForm`/``IceSection`` are thin wrappers so call sites
+        // stay unchanged. `alignment`/`padding`/`spacing` are retained for API
+        // compatibility but are now governed by the native form style.
+        Form {
             content
         }
-        .labeledContentStyle(IceFormLabeledContentStyle())
-        .toggleStyle(IceFormToggleStyle())
-        .padding(padding)
-        .onFrameChange(update: $contentFrame)
-    }
-}
-
-private struct IceFormLabeledContentStyle: LabeledContentStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        LabeledContent {
-            configuration.content
-                .layoutPriority(1)
-        } label: {
-            configuration.label
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .layoutPriority(0)
-        }
-    }
-}
-
-private struct IceFormToggleStyle: ToggleStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        Toggle(configuration)
-            .toggleStyle(.switch)
-            .controlSize(.mini)
+        .formStyle(.grouped)
+        .focusSection()
+        .accessibilityElement(children: .contain)
     }
 }
 
 extension EdgeInsets {
-    /// The default padding for an ``IceForm``.
-    static let iceFormDefaultPadding: EdgeInsets = .init(top: 0, leading: 20, bottom: 20, trailing: 20)
+    /// The default padding for an ``IceForm``. The top inset separates the
+    /// scrolling content from the window header/toolbar so the section cards'
+    /// rounded corners and shadows clear the header band instead of being cut.
+    static let iceFormDefaultPadding: EdgeInsets = .init(top: 24, leading: 20, bottom: 20, trailing: 20)
 }
 
 extension CGFloat {
