@@ -9,8 +9,6 @@
 import SwiftUI
 
 struct IceForm<Content: View>: View {
-    @State private var contentFrame = CGRect.zero
-
     private let alignment: HorizontalAlignment
     private let padding: EdgeInsets
     private let spacing: CGFloat
