@@ -537,6 +537,8 @@ final class MenuBarOverlayPanel: NSPanel, @unchecked Sendable {
 // MARK: - Content View
 
 private final class MenuBarOverlayPanelContentView: NSView {
+    private static let diagLog = DiagLog(category: "MenuBarOverlayPanel.Pill")
+
     @Published private var fullConfiguration: MenuBarAppearanceConfigurationV2 =
         .defaultConfiguration
 
@@ -815,6 +817,19 @@ private final class MenuBarOverlayPanelContentView: NSView {
                     from: items,
                     hider: hider
                 )
+
+                // Multi-display split-pill diagnostics: compare the raw item span
+                // against the computed pill span for THIS display, so a smaller-
+                // than-expected or missing pill can be traced to item filtering /
+                // coordinate space rather than guessed at.
+                let itemSpan = Self.spanDescription(items.map(\.bounds))
+                let pillSpan = Self.spanDescription(bounds)
+                Self.diagLog.notice(
+                    "split-pill[display=\(displayID)] items=\(items.count) itemSpan=\(itemSpan) " +
+                    "pillRects=\(bounds.count) pillSpan=\(pillSpan) " +
+                    "screenFrame=\(NSStringFromRect(overlayPanel?.owningScreen.frame ?? .zero))"
+                )
+
                 cachedAXItemBounds = bounds
                 if !bounds.isEmpty {
                     lastNonEmptyAXItemBounds = bounds
@@ -831,6 +846,19 @@ private final class MenuBarOverlayPanelContentView: NSView {
     /// to the same live cluster. Must span the Thaw chevron between assigned-
     /// Hidden modules (left) and visible-section modules (right). Stale ghost
     /// frames in the empty hidden reservation sit much farther left.
+    /// Compact "minX...maxX w=width" description of a set of rects' horizontal
+    /// span, for multi-display split-pill diagnostics.
+    private static func spanDescription(_ rects: [CGRect]) -> String {
+        let nonEmpty = rects.filter { !$0.isEmpty }
+        guard
+            let minX = nonEmpty.map(\.minX).min(),
+            let maxX = nonEmpty.map(\.maxX).max()
+        else {
+            return "none"
+        }
+        return "\(Int(minX))...\(Int(maxX)) w=\(Int(maxX - minX))"
+    }
+
     /// Bounds that the split trailing pill should wrap on macOS 27.
     @available(macOS 27, *)
     private static func trailingPillBounds(
@@ -1301,6 +1329,7 @@ private final class MenuBarOverlayPanelContentView: NSView {
         in rect: CGRect,
         shouldInset: Bool,
         leadingEndCap: MenuBarEndCap,
+        screenOriginX: CGFloat,
         appearanceManager: MenuBarAppearanceManager
     ) -> CGRect {
         guard applicationMenuFrame.width > 0 else { return .zero }
@@ -1320,9 +1349,12 @@ private final class MenuBarOverlayPanelContentView: NSView {
             return 20
         }()
 
-        var rightX = applicationMenuFrame.maxX + trailingPadding
+        // `applicationMenuFrame` and `trailingContentMinX` are GLOBAL screen
+        // coordinates; convert to the panel's local view space (origin at the
+        // owning screen) so the leading pill is correct on non-primary displays.
+        var rightX = (applicationMenuFrame.maxX - screenOriginX) + trailingPadding
         if let trailingContentMinX {
-            rightX = min(rightX, trailingContentMinX - 4)
+            rightX = min(rightX, (trailingContentMinX - screenOriginX) - 4)
         }
 
         return CGRect(
@@ -1378,8 +1410,16 @@ private final class MenuBarOverlayPanelContentView: NSView {
         }()
         let trailingOutset: CGFloat = shouldInset ? 4 : 7
 
-        let leftX = contentMinX - leadingOutset
-        let rightX = contentMaxX + trailingOutset
+        // AX item bounds are GLOBAL screen coordinates; the pill is drawn in the
+        // panel's view space whose origin is the owning screen. Subtract the
+        // screen origin so the trailing pill lands correctly on non-primary
+        // displays. A side-by-side second display has frame.minX > 0 — without
+        // this its pill is drawn off-screen (no pill), and an offset main
+        // display's pill is shifted and clipped (looks smaller). The leading
+        // pill already works in local space via `rect.minX`.
+        let screenOriginX = screenFrame.minX
+        let leftX = contentMinX - leadingOutset - screenOriginX
+        let rightX = contentMaxX + trailingOutset - screenOriginX
 
         return CGRect(
             x: leftX,
@@ -1426,6 +1466,7 @@ private final class MenuBarOverlayPanelContentView: NSView {
                 in: rect,
                 shouldInset: shouldInset,
                 leadingEndCap: info.leading.leadingEndCap,
+                screenOriginX: screen.frame.minX,
                 appearanceManager: appearanceManager
             )
         }()
