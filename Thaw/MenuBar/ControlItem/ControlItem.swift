@@ -93,8 +93,48 @@ final class ControlItem: NSObject {
 
     /// Storage for a control item's underlying status item.
     private final class StatusItemStorage {
+        /// The Objective-C selector for AppKit's control-event target API.
+        ///
+        /// Xcode 26's SDK does not declare this API, even though macOS 27 uses
+        /// it to deliver semantic status-item activation. Resolve it at runtime
+        /// so distribution builds can continue using the older SDK.
+        private static let addTargetSelector = NSSelectorFromString("addTarget:action:forControlEvents:")
+
+        /// Raw value of `NSControl.Event.primaryActionTriggered` in macOS 27.
+        private static let primaryActionTriggeredEvent: UInt = 1 << 13
+
         let statusItem: NSStatusItem
         let constraint: NSLayoutConstraint?
+
+        /// Registers the macOS 27 semantic primary action when AppKit exposes
+        /// the control-event API at runtime.
+        @available(macOS 27, *)
+        private static func registerPrimaryAction(
+            for button: NSStatusBarButton,
+            controlItem: ControlItem
+        ) -> Bool {
+            let selector = addTargetSelector
+            guard button.responds(to: selector) else {
+                return false
+            }
+
+            typealias AddTargetImp = @convention(c) (
+                AnyObject,
+                Selector,
+                AnyObject?,
+                Selector,
+                UInt
+            ) -> Void
+            let implementation = unsafeBitCast(button.method(for: selector), to: AddTargetImp.self)
+            implementation(
+                button,
+                selector,
+                controlItem,
+                #selector(controlItem.performPrimaryAction),
+                primaryActionTriggeredEvent
+            )
+            return true
+        }
 
         /// Creates a new storage instance.
         @MainActor
@@ -121,15 +161,13 @@ final class ControlItem: NSObject {
                     self.constraint = nil
                 }
 
-                if #available(macOS 27, *), controlItem.identifier == .visible {
+                if #available(macOS 27, *),
+                   controlItem.identifier == .visible,
+                   Self.registerPrimaryAction(for: button, controlItem: controlItem)
+                {
                     // MenuBarAgent forwards semantic primary activation, but
                     // not the status button's secondary-click gesture. The HID
                     // event path handles that gesture using the live icon frame.
-                    button.addTarget(
-                        controlItem,
-                        action: #selector(controlItem.performPrimaryAction),
-                        for: .primaryActionTriggered
-                    )
                 } else {
                     button.target = controlItem
                     button.action = #selector(controlItem.performAction)
