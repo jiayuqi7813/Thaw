@@ -57,8 +57,8 @@ runs:
 
         create-dmg \
           --volname "$vol_name" \
-          --background "Resources/background@2x.png" \
-          --window-size 582 300 \
+          --background "Resources/background_27@2x.png" \
+          --window-size 582 373 \
           --icon-size 100 \
           --hide-extension "$APP_NAME" \
           --icon "$APP_NAME" 150 150 \
