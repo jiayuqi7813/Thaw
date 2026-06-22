@@ -537,8 +537,6 @@ final class MenuBarOverlayPanel: NSPanel, @unchecked Sendable {
 // MARK: - Content View
 
 private final class MenuBarOverlayPanelContentView: NSView {
-    private static let diagLog = DiagLog(category: "MenuBarOverlayPanel.Pill")
-
     @Published private var fullConfiguration: MenuBarAppearanceConfigurationV2 =
         .defaultConfiguration
 
@@ -817,19 +815,6 @@ private final class MenuBarOverlayPanelContentView: NSView {
                     from: items,
                     hider: hider
                 )
-
-                // Multi-display split-pill diagnostics: compare the raw item span
-                // against the computed pill span for THIS display, so a smaller-
-                // than-expected or missing pill can be traced to item filtering /
-                // coordinate space rather than guessed at.
-                let itemSpan = Self.spanDescription(items.map(\.bounds))
-                let pillSpan = Self.spanDescription(bounds)
-                Self.diagLog.notice(
-                    "split-pill[display=\(displayID)] items=\(items.count) itemSpan=\(itemSpan) " +
-                    "pillRects=\(bounds.count) pillSpan=\(pillSpan) " +
-                    "screenFrame=\(NSStringFromRect(overlayPanel?.owningScreen.frame ?? .zero))"
-                )
-
                 cachedAXItemBounds = bounds
                 if !bounds.isEmpty {
                     lastNonEmptyAXItemBounds = bounds
@@ -846,19 +831,6 @@ private final class MenuBarOverlayPanelContentView: NSView {
     /// to the same live cluster. Must span the Thaw chevron between assigned-
     /// Hidden modules (left) and visible-section modules (right). Stale ghost
     /// frames in the empty hidden reservation sit much farther left.
-    /// Compact "minX...maxX w=width" description of a set of rects' horizontal
-    /// span, for multi-display split-pill diagnostics.
-    private static func spanDescription(_ rects: [CGRect]) -> String {
-        let nonEmpty = rects.filter { !$0.isEmpty }
-        guard
-            let minX = nonEmpty.map(\.minX).min(),
-            let maxX = nonEmpty.map(\.maxX).max()
-        else {
-            return "none"
-        }
-        return "\(Int(minX))...\(Int(maxX)) w=\(Int(maxX - minX))"
-    }
-
     /// Bounds that the split trailing pill should wrap on macOS 27.
     @available(macOS 27, *)
     private static func trailingPillBounds(
