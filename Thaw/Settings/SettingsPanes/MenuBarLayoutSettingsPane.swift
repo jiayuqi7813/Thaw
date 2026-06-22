@@ -36,6 +36,9 @@ struct MenuBarLayoutSettingsPane: View {
         } else {
             IceForm(spacing: 20) {
                 header
+                if #available(macOS 27, *) {
+                    nonHideableItemsNotice
+                }
                 layoutBars
                 resetControls
             }
@@ -59,7 +62,34 @@ struct MenuBarLayoutSettingsPane: View {
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.secondary)
             }
+            .multilineTextAlignment(.center)
+            // Native Form rows are leading-aligned; keep this intro centered.
+            .frame(maxWidth: .infinity, alignment: .center)
         }
+    }
+
+    /// On macOS 27 the anchored modules hosted by `com.apple.MenuBarAgent`
+    /// (Control Center and the Clock) can't be concealed by the visibility
+    /// assertion, so they stay in Visible and can't be dragged to Hidden. Other
+    /// MenuBarAgent modules (Wi-Fi, Bluetooth, AirDrop, Sound…) *are* hideable
+    /// through Control Center, so they're deliberately not named here. Warn the
+    /// user so a stuck item doesn't read as a bug. Styled as a pill to match the
+    /// toolbar's experimental macOS 27 badge.
+    @available(macOS 27, *)
+    private var nonHideableItemsNotice: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 5) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.yellow)
+            Text("On macOS 27, some macOS items — such as Spotlight, Siri, and Sound — can't be hidden and always stay in the Visible section.")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Capsule().fill(.yellow.opacity(0.15)))
+        // It's its own pill; don't let the grouped Form draw a card behind it.
+        .listRowBackground(Color.clear)
     }
 
     private var layoutBars: some View {
