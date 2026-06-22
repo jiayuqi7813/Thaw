@@ -53,7 +53,7 @@ struct DisplaySettingsPane: View {
 
     var body: some View {
         IceForm {
-            IceSection {
+            IceSection("Global") {
                 globalSection()
             }
             IceSection {
@@ -63,9 +63,7 @@ struct DisplaySettingsPane: View {
                 Text("When a display transition requires Thaw to apply a different menu bar spacing, Thaw relaunches apps with menu bar items. Relaunching apps may cause unsaved input, progress, or transient app state to be lost.")
             }
             ForEach(displaySettings.allDisplays()) { display in
-                IceSection {
-                    displayRow(for: display)
-                }
+                displaySection(for: display)
             }
         }
         .alert(
@@ -109,6 +107,37 @@ struct DisplaySettingsPane: View {
                 Text("All profiles").tag(SpacingProfileSaveScope.allProfiles)
             }
             .annotation("When a profile is active, choose whether spacing changes save to just the active profile or to every profile.")
+        }
+    }
+
+    @ViewBuilder
+    private func displaySection(for display: DisplaySettingsManager.DisplayInfo) -> some View {
+        IceSection {
+            displayHeader(for: display)
+        } content: {
+            displayRow(for: display)
+        }
+    }
+
+    @ViewBuilder
+    private func displayHeader(for display: DisplaySettingsManager.DisplayInfo) -> some View {
+        HStack(spacing: 6) {
+            Text(display.name)
+            if display.hasNotch {
+                Text("Notch")
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(.quaternary)
+                    .clipShape(Capsule())
+            }
+            if !display.isConnected {
+                Text("Disconnected")
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(.quaternary)
+                    .clipShape(Capsule())
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -158,30 +187,6 @@ struct DisplaySettingsPane: View {
                 }
             }
         )
-
-        HStack {
-            Spacer()
-            Text(display.name)
-                .font(.headline)
-            if display.hasNotch {
-                Text("Notch")
-                    .font(.caption)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(.quaternary)
-                    .clipShape(Capsule())
-            }
-            if !display.isConnected {
-                Text("Disconnected")
-                    .font(.caption)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(.quaternary)
-                    .clipShape(Capsule())
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-        }
 
         Toggle("Always show hidden items", isOn: alwaysShowHiddenItems)
             .disabled(useIceBar.wrappedValue)
@@ -515,13 +520,6 @@ struct DisplaySettingsPane: View {
             get: { displaySettings.globalConfiguration.gridColumns },
             set: { displaySettings.globalConfiguration = displaySettings.globalConfiguration.withGridColumns($0) }
         )
-
-        HStack {
-            Spacer()
-            Text("Global")
-                .font(.headline)
-            Spacer()
-        }
 
         Toggle("Always show hidden items", isOn: alwaysShowHiddenItems)
             .disabled(useIceBar.wrappedValue)
