@@ -124,17 +124,21 @@ struct CalloutBox<Content: View, Icon: View, ForegroundStyle: ShapeStyle>: View 
     }
 
     var body: some View {
-        IceGroupBox {
-            Label {
-                content
-            } icon: {
-                icon
-            }
-            .font(font)
-            .foregroundStyle(foregroundStyle)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: Alignment(horizontal: alignment, vertical: .center))
+        // A callout is informational text (a tip/warning), not a control group.
+        // In the native grouped Form it reads as plain text rather than a glass
+        // card, so it doesn't look like a second "glass pill" between sections.
+        // `listRowBackground(.clear)` also drops the section card behind it when
+        // it sits as a Form/List row (no-op elsewhere).
+        Label {
+            content
+        } icon: {
+            icon
         }
+        .font(font)
+        .foregroundStyle(foregroundStyle)
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, alignment: Alignment(horizontal: alignment, vertical: .center))
+        .listRowBackground(Color.clear)
     }
 }
 
