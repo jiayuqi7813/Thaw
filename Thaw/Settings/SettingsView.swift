@@ -14,22 +14,6 @@ struct SettingsView: View {
     let appState: AppState
     @ObservedObject var navigationState: AppNavigationState
 
-    private var allSections: [SettingsNavigationIdentifier] {
-        SettingsNavigationIdentifier.allCases
-    }
-
-    private var currentSectionIndex: Int? {
-        allSections.firstIndex(of: navigationState.settingsNavigationIdentifier)
-    }
-
-    private var isFirstSection: Bool {
-        currentSectionIndex == 0
-    }
-
-    private var isLastSection: Bool {
-        currentSectionIndex == allSections.count - 1
-    }
-
     var body: some View {
         NavigationSplitView {
             sidebar
@@ -39,20 +23,6 @@ struct SettingsView: View {
         }
         .navigationTitle(navigationState.settingsNavigationIdentifier.localized)
         .toolbar {
-            ToolbarItem(placement: .navigation) {
-                ControlGroup {
-                    Button(action: navigateBack) {
-                        Label("Back", systemImage: "chevron.left")
-                    }
-                    .disabled(isFirstSection)
-
-                    Button(action: navigateForward) {
-                        Label("Forward", systemImage: "chevron.right")
-                    }
-                    .disabled(isLastSection)
-                }
-                .controlGroupStyle(.navigation)
-            }
             if #available(macOS 27, *) {
                 ToolbarItem(placement: .automatic) {
                     experimentalMacOS27Pill
@@ -133,15 +103,5 @@ struct SettingsView: View {
         case .about:
             AboutSettingsPane(updatesManager: appState.updatesManager)
         }
-    }
-
-    private func navigateBack() {
-        guard let index = currentSectionIndex, index > 0 else { return }
-        navigationState.settingsNavigationIdentifier = allSections[index - 1]
-    }
-
-    private func navigateForward() {
-        guard let index = currentSectionIndex, index < allSections.count - 1 else { return }
-        navigationState.settingsNavigationIdentifier = allSections[index + 1]
     }
 }
