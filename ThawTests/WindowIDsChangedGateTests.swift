@@ -38,6 +38,21 @@ final class WindowIDsChangedGateTests: XCTestCase {
         )
     }
 
+    /// macOS 27 uses stable AX identities rather than real window IDs. Control
+    /// items are removed from the managed-item list before restore detection,
+    /// so their apparent disappearance must not trigger a saved-layout apply.
+    func testMacOS27IgnoresMissingSyntheticControlItemWindowID() {
+        XCTAssertFalse(
+            MenuBarItemManager.windowIDsChanged(
+                previous: [10, 11, 12], // managed items plus the hidden divider
+                current: [10, 11], // managed items after control-item extraction
+                previousDisplayID: d1,
+                currentDisplayID: d1,
+                supportsLegacySectionHiding: false
+            )
+        )
+    }
+
     /// Same display, every previous window still present (pure additions are
     /// owned by another path): must not fire.
     func testSameDisplayNoMissingWindowDoesNotFire() {
