@@ -19,23 +19,21 @@ struct AboutSettingsPane: View {
     @State private var iconIsHovering = false
 
     var body: some View {
-        IceForm {
-            mainContent
-            Spacer()
+        // The About page isn't a settings form: it centers the app identity in
+        // the page and pins the action bar to the bottom. (A `Spacer` can't do
+        // that inside a native grouped `Form`, which is why it left empty space
+        // and floated the buttons up.)
+        VStack(spacing: 24) {
+            Spacer(minLength: 0)
+            appIconAndCopyrightSection
+            if #unavailable(macOS 27) {
+                updatesSection
+            }
+            Spacer(minLength: 0)
             bottomBar
         }
-    }
-
-    private var mainContent: some View {
-        IceSection(options: [.isBordered]) {
-            VStack(spacing: 24) {
-                appIconAndCopyrightSection
-                if #unavailable(macOS 27) {
-                    updatesSection
-                }
-            }
-            .padding(.vertical, 8)
-        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(24)
     }
 
     private func copyVersionInfo(_ text: LocalizedStringResource) {
@@ -123,11 +121,18 @@ struct AboutSettingsPane: View {
     }
 
     private var updatesSection: some View {
-        IceSection(options: .hasDividers) {
-            automaticallyCheckForUpdates
-            automaticallyDownloadUpdates
-            updateChannel
-            checkForUpdates
+        // IceGroupBox (not IceSection) so it renders a card outside the native
+        // Form context the About page no longer uses.
+        IceGroupBox {
+            VStack(spacing: 12) {
+                automaticallyCheckForUpdates
+                Divider()
+                automaticallyDownloadUpdates
+                Divider()
+                updateChannel
+                Divider()
+                checkForUpdates
+            }
         }
         .frame(maxWidth: 600)
     }
@@ -177,7 +182,9 @@ struct AboutSettingsPane: View {
     }
 
     private var bottomBar: some View {
-        IceSection(options: [.isBordered]) {
+        // IceGroupBox (not IceSection) so the action bar still draws its card
+        // now that the About page lays itself out instead of using a Form.
+        IceGroupBox {
             HStack(spacing: 0) {
                 Button("Quit \(Constants.displayName)") {
                     NSApp.terminate(nil)
