@@ -601,6 +601,16 @@ private final class MenuBarOverlayPanelContentView: NSView {
     /// Hidden does not briefly fall back to a full-width pill.
     private var lastNonEmptyAXItemBounds: [CGRect] = []
 
+    /// The Thaw chevron's AX frame while concealed, kept separately from
+    /// ``cachedAXItemBounds`` rather than folded into it. That shared array
+    /// also feeds `computeLeadingPathBounds`'s `trailingContentMinX` clamp;
+    /// appending the chevron there once pulled the clamp far left and painted
+    /// over real status items (the leading pill's "cutout" shrank). Used only
+    /// to widen the trailing pill's own bounds so it wraps the chevron too.
+    /// `.zero` while revealing Hidden, where the chevron is already a normal
+    /// candidate in `cachedAXItemBounds`.
+    private var cachedChevronFrame: CGRect = .zero
+
     /// Last successfully drawn split-pill rectangles. Used while geometry is
     /// frozen or when a transitional AX read would intersect / fall back to full.
     private var lastStableLeadingPathBounds: CGRect = .zero
@@ -819,6 +829,11 @@ private final class MenuBarOverlayPanelContentView: NSView {
                 if !bounds.isEmpty {
                     lastNonEmptyAXItemBounds = bounds
                 }
+                let isRevealingHidden = hider?.revealedSection == .hidden
+                    || hider?.revealedSection == .alwaysHidden
+                cachedChevronFrame = isRevealingHidden
+                    ? .zero
+                    : (items.first(where: { $0.tag.matchesVisibleControlItem })?.bounds ?? .zero)
                 needsDisplay = true
             }
             splitPillGeometryFrozen = false
@@ -857,7 +872,7 @@ private final class MenuBarOverlayPanelContentView: NSView {
             return candidates
         }
 
-        let clusterGap = if let visibleControl = items.first(where: { $0.tag == .visibleControlItem }),
+        let clusterGap = if let visibleControl = items.first(where: { $0.tag.matchesVisibleControlItem }),
                             !visibleControl.bounds.isEmpty
         {
             max(
@@ -868,7 +883,7 @@ private final class MenuBarOverlayPanelContentView: NSView {
             Constants.MenuBarTuning.trailingPillClusterMaximumGap
         }
 
-        let chevronFrame = items.first(where: { $0.tag == .visibleControlItem })?.bounds
+        let chevronFrame = items.first(where: { $0.tag.matchesVisibleControlItem })?.bounds
         return rightmostContiguousCluster(
             from: candidates,
             maxGap: clusterGap,
@@ -943,7 +958,7 @@ private final class MenuBarOverlayPanelContentView: NSView {
         isRevealingAlwaysHidden: Bool
     ) -> Bool {
         let isHiddenSectionDivider = item.isControlItem
-            && item.tag != .visibleControlItem
+            && !item.tag.matchesVisibleControlItem
         guard !item.isSystemClone,
               !isHiddenSectionDivider,
               item.isOnScreen,
@@ -957,7 +972,7 @@ private final class MenuBarOverlayPanelContentView: NSView {
         }
 
         if isRevealingHidden {
-            if item.tag == .visibleControlItem {
+            if item.tag.matchesVisibleControlItem {
                 return true
             }
             if hider.section(for: item) == .alwaysHidden, !isRevealingAlwaysHidden {
@@ -972,7 +987,7 @@ private final class MenuBarOverlayPanelContentView: NSView {
         // which stretched the pill far left over empty space. Drop anything
         // assigned to a hidden section that CAN be concealed; keep non-concealable
         // system modules (Sound/Wi-Fi/Spotlight…) — they stay on screen and render.
-        if item.tag == .visibleControlItem {
+        if item.tag.matchesVisibleControlItem {
             return false
         }
         if hider.section(for: item) != .visible, !item.isNonConcealableSystemItem {
@@ -1380,7 +1395,18 @@ private final class MenuBarOverlayPanelContentView: NSView {
             }
             return 7
         }()
-        let trailingOutset: CGFloat = shouldInset ? 4 : 7
+        let trailingOutset: CGFloat = {
+            if shouldInset {
+                return 4
+            }
+            // macOS 27: the legacy 7 pt outset is narrower than the rounded cap
+            // radius, so the right cap clips the rightmost item (the Clock).
+            // Mirror the inner margin so the cap clears it.
+            if #available(macOS 27, *) {
+                return Constants.MenuBarTuning.trailingPillTrailingOuterMargin
+            }
+            return 7
+        }()
 
         // AX item bounds are GLOBAL screen coordinates; the pill is drawn in the
         // panel's view space whose origin is the owning screen. Subtract the
@@ -1443,7 +1469,14 @@ private final class MenuBarOverlayPanelContentView: NSView {
             )
         }()
         let computedTrailingPathBounds: CGRect = {
-            let itemBounds = trailingContentItemBounds()
+            var itemBounds = trailingContentItemBounds()
+            // Widens only the trailing pill's own span, not the leading pill's
+            // `trailingContentMinX` clamp computed above from the unmodified
+            // bounds — see `cachedChevronFrame`'s doc comment for why those
+            // must stay separate.
+            if !cachedChevronFrame.isEmpty {
+                itemBounds.append(cachedChevronFrame)
+            }
             return computeTrailingPathBounds(
                 itemBounds: itemBounds,
                 in: rect,
