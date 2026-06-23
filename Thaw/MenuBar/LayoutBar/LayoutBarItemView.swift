@@ -65,7 +65,7 @@ final class LayoutBarItemView: LayoutBarArrangedView {
         super.init(frame: CGRect(origin: .zero, size: Self.preferredSize(for: item, image: initialImage)))
         unregisterDraggedTypes()
 
-        isEnabled = item.isMovable
+        isEnabled = LayoutBarPaddingView.acceptsLayoutDrag(of: item) && item.isMovable
 
         configureCancellables()
     }
@@ -128,7 +128,7 @@ final class LayoutBarItemView: LayoutBarArrangedView {
                 }
                 .store(in: &c)
 
-            if item.tag == .visibleControlItem,
+            if item.tag.matchesVisibleControlItem,
                let controlItem = appState.menuBarManager.section(withName: .visible)?.controlItem
             {
                 controlItem.$state
@@ -237,7 +237,7 @@ final class LayoutBarItemView: LayoutBarArrangedView {
     }
 
     private static func makePlaceholderImage(for item: MenuBarItem, appState: AppState) -> NSImage? {
-        if item.tag == .visibleControlItem {
+        if item.tag.matchesVisibleControlItem {
             let icon = appState.settings.general.iceIcon
             let state = appState.menuBarManager.section(withName: .visible)?.controlItem.state ?? .hideSection
             return switch state {
@@ -312,7 +312,7 @@ final class LayoutBarItemView: LayoutBarArrangedView {
     }
 
     private func currentPlaceholderImage() -> NSImage? {
-        if item.tag == .visibleControlItem, let appState {
+        if item.tag.matchesVisibleControlItem, let appState {
             return Self.makePlaceholderImage(for: item, appState: appState)
         }
         return placeholderImage
