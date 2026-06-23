@@ -24,6 +24,13 @@ final class LayoutBarPaddingView: NSView {
     private var containerLeadingInsetConstraint: NSLayoutConstraint?
     private var notchObservers = Set<AnyCancellable>()
 
+    /// Whether an item may be used as a layout-bar drag source on macOS 27.
+    /// The visible Thaw control is a real movable status item; the zero-width
+    /// divider controls remain structural and must never be reordered.
+    static func acceptsLayoutDrag(of item: MenuBarItem) -> Bool {
+        !item.isControlItem || item.tag.matchesVisibleControlItem
+    }
+
     private func layoutWatchdogDuration() -> Duration? {
         switch MenuBarItemManager.layoutWatchdogTimeout {
         case let .seconds(s):
@@ -126,7 +133,7 @@ final class LayoutBarPaddingView: NSView {
         }
 
         if case let .item(draggingItem) = draggingSource.kind,
-           draggingItem.tag == .visibleControlItem,
+           draggingItem.tag.matchesVisibleControlItem,
            container.section != .visible
         {
             let alert = NSAlert()
@@ -171,7 +178,9 @@ final class LayoutBarPaddingView: NSView {
             }
 
             let sourceContainer = draggingSource.oldContainerInfo?.container
-            guard case let .item(item) = draggingSource.kind, !item.isControlItem else {
+            guard case let .item(item) = draggingSource.kind,
+                  Self.acceptsLayoutDrag(of: item)
+            else {
                 container.canSetArrangedViews = true
                 sourceContainer?.canSetArrangedViews = true
                 draggingSource.oldContainerInfo = nil
@@ -224,16 +233,21 @@ final class LayoutBarPaddingView: NSView {
                             desiredOrder: desiredIDs
                         ).flatMap { $0 }
 
-                        if let destination = LayoutPlanner.achievableDestination(
+                        let destination = LayoutPlanner.achievableDestination(
                             items: liveItems,
                             item: item,
                             desiredOrder: desiredIDs
-                        ) {
+                        ) ?? visibleThawControlNeighborDestination(
+                            for: item,
+                            at: index
+                        )
+
+                        if let destination {
                             move(
                                 item: item,
                                 to: destination,
                                 sourceContainer: sourceContainer,
-                                sectionOrderToCommit: achievableItems
+                                sectionOrderToCommit: orderedItems
                             )
                         } else {
                             // The requested order is either already live or would
@@ -266,7 +280,6 @@ final class LayoutBarPaddingView: NSView {
                         draggingSource.oldContainerInfo = nil
                         return true
                     }
-
                 }
 
                 // Concealed sections only persist layout-bar order; the items
@@ -543,13 +556,38 @@ final class LayoutBarPaddingView: NSView {
         }
     }
 
-    private func orderedLayoutItems() -> [MenuBarItem] {
+    /// Builds the ordered item list from the layout bar's current visual
+    /// arrangement. The visible Thaw control (`Thaw.ControlItem.Visible`) is
+    /// included so a layout-bar drag can commit the icon's new slot; hidden
+    /// section dividers stay structural and are omitted.
+    static func layoutItemsForPersistence(from arrangedViews: [LayoutBarArrangedView]) -> [MenuBarItem] {
         arrangedViews.compactMap { view in
-            if case let .item(item) = view.kind, !item.isControlItem {
-                return item
+            guard case let .item(item) = view.kind else { return nil }
+            if item.isControlItem {
+                return item.tag.matchesVisibleControlItem ? item : nil
             }
-            return nil
+            return item
         }
+    }
+
+    private func orderedLayoutItems() -> [MenuBarItem] {
+        Self.layoutItemsForPersistence(from: arrangedViews)
+    }
+
+    /// Fallback move target for the visible Thaw control when the planner
+    /// cannot derive a destination from persisted order alone.
+    private func visibleThawControlNeighborDestination(
+        for item: MenuBarItem,
+        at index: Int
+    ) -> MenuBarItemManager.MoveDestination? {
+        guard item.tag.matchesVisibleControlItem else { return nil }
+        if let target = nearestItem(toRightOf: index, requiringMovable: true) {
+            return .leftOfItem(target)
+        }
+        if let target = nearestItem(toLeftOf: index, requiringMovable: true) {
+            return .rightOfItem(target)
+        }
+        return nil
     }
 
     private func nearestItem(toRightOf index: Int, requiringMovable: Bool = false) -> MenuBarItem? {
