@@ -180,10 +180,31 @@ struct MenuBarItemTag: Hashable, CustomStringConvertible {
         namespace.isMenuBarHostingNamespace && MarkerPairResolver.isGenericControlCenterTitle(title)
     }
 
+    /// Whether this tag's namespace identifies Thaw itself (not a third-party app).
+    var isThawOwnedNamespace: Bool {
+        switch namespace {
+        case .thaw:
+            return true
+        case let .string(bundleID):
+            return Constants.isThawOwnedBundleIdentifier(bundleID)
+        case .null, .uuid:
+            return false
+        }
+    }
+
+    /// Whether this tag is Thaw's visible-section chevron, including
+    /// MenuBarHost-style AX namespaces on macOS 27.
+    var matchesVisibleControlItem: Bool {
+        title == ControlItem.Identifier.visible.rawValue && isThawOwnedNamespace
+    }
+
     /// A Boolean value that indicates whether the item identified
     /// by this tag is a control item owned by Ice.
     var isControlItem: Bool {
-        MenuBarItemTag.controlItems.contains(where: { $0.namespace == namespace && $0.title == title }) ||
+        if isThawOwnedNamespace, title.hasPrefix("Thaw.ControlItem.") {
+            return true
+        }
+        return MenuBarItemTag.controlItems.contains(where: { $0.namespace == namespace && $0.title == title }) ||
             title.contains(".Spacer.")
     }
 
@@ -246,6 +267,15 @@ struct MenuBarItemTag: Hashable, CustomStringConvertible {
     /// matches this tag, ignoring their window identifiers.
     func matchesIgnoringWindowID(_ other: MenuBarItemTag) -> Bool {
         namespace == other.namespace && title == other.title && instanceIndex == other.instanceIndex
+    }
+
+    /// Returns whether this tag identifies the same logical item as `other`,
+    /// including Thaw's visible control across namespace aliases.
+    func matchesIdentity(of other: MenuBarItemTag) -> Bool {
+        if matchesVisibleControlItem, other.matchesVisibleControlItem {
+            return true
+        }
+        return matchesIgnoringWindowID(other)
     }
 
     /// A stable string identifier that uniquely identifies this tag
