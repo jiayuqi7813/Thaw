@@ -105,39 +105,57 @@ enum MenuBarItemAXProvider {
                     }
                 }
 
-                // Title resolution: prefer AXIdentifier (set programmatically) over
-                // AXTitle (display text). If neither is present on the container
-                // element, scan one level deeper — Thaw sets the identifier on the
-                // NSStatusBarButton, which in some AX-tree configurations is a child
-                // of the container rather than the container itself.
-                let resolvedTitle = AXHelpers.identifier(for: child)?.nonEmpty
+                // Keep stable identity metadata separate from the live display
+                // title. Scan one level deeper because some apps publish these
+                // attributes on the status-bar button rather than its container.
+                let identifier = AXHelpers.identifier(for: child)?.nonEmpty
                     ?? AXHelpers.children(for: child)
                         .lazy
                         .compactMap { AXHelpers.identifier(for: $0)?.nonEmpty }
                         .first
-                    ?? AXHelpers.title(for: child)?.nonEmpty
-                let title = resolvedTitle ?? "Item-\(fallbackIndex)"
-                if resolvedTitle == nil {
+                let accessibilityDescription = AXHelpers.description(for: child)?.nonEmpty
+                    ?? AXHelpers.children(for: child)
+                        .lazy
+                        .compactMap { AXHelpers.description(for: $0)?.nonEmpty }
+                        .first
+                let axTitle = AXHelpers.title(for: child)?.nonEmpty
+                let fallbackTitle = "Item-\(fallbackIndex)"
+                let displayTitle = axTitle ?? accessibilityDescription ?? identifier ?? fallbackTitle
+                if axTitle == nil, accessibilityDescription == nil, identifier == nil {
                     fallbackIndex += 1
                 }
+                let identityTitle = identityTitle(
+                    namespace: namespace,
+                    identifier: identifier,
+                    accessibilityDescription: accessibilityDescription,
+                    displayTitle: displayTitle
+                )
 
                 // Direct attribution: the owning process is the app that
                 // published this child (fall back to the element's own PID).
                 let ownerPID = AXHelpers.pid(for: child) ?? runningApp.processIdentifier
 
                 if runningApp.bundleIdentifier == ourBundleID {
-                    diagLog.debug("menuBarItems: Thaw item — title='\(title)' frame=\(frame) ownerPID=\(ownerPID)")
+                    diagLog.debug("menuBarItems: Thaw item — title='\(identityTitle)' frame=\(frame) ownerPID=\(ownerPID)")
                 }
 
                 if Defaults.bool(forKey: .diagnosticAssessmentModeSceneProbes),
                    runningApp.bundleIdentifier == "com.apple.MenuBarAgent"
                 {
                     diagnosticChildDescriptions.append(
-                        "\(title) frame=\(NSStringFromRect(frame)) ownerPID=\(ownerPID)"
+                        "\(identityTitle) frame=\(NSStringFromRect(frame)) ownerPID=\(ownerPID)"
                     )
                 }
 
-                raw.append(RawItem(namespace: namespace, title: title, bounds: frame, ownerPID: ownerPID))
+                raw.append(
+                    RawItem(
+                        namespace: namespace,
+                        identityTitle: identityTitle,
+                        displayTitle: displayTitle,
+                        bounds: frame,
+                        ownerPID: ownerPID
+                    )
+                )
             }
 
             if Defaults.bool(forKey: .diagnosticAssessmentModeSceneProbes),
@@ -160,7 +178,8 @@ enum MenuBarItemAXProvider {
     /// A pre-tag item collected from the AX walk.
     private struct RawItem {
         let namespace: MenuBarItemTag.Namespace
-        let title: String
+        let identityTitle: String
+        let displayTitle: String
         let bounds: CGRect
         let ownerPID: pid_t
     }
@@ -177,14 +196,14 @@ enum MenuBarItemAXProvider {
         items.reserveCapacity(sorted.count)
 
         for entry in sorted {
-            let key = "\(entry.namespace):\(entry.title)"
+            let key = "\(entry.namespace):\(entry.identityTitle)"
             let instanceIndex = indexByKey[key, default: 0]
             indexByKey[key] = instanceIndex + 1
 
-            let windowID = syntheticWindowID(namespace: entry.namespace, title: entry.title, instanceIndex: instanceIndex)
+            let windowID = syntheticWindowID(namespace: entry.namespace, title: entry.identityTitle, instanceIndex: instanceIndex)
             let tag = MenuBarItemTag(
                 namespace: entry.namespace,
-                title: entry.title,
+                title: entry.identityTitle,
                 windowID: windowID,
                 instanceIndex: instanceIndex
             )
@@ -196,7 +215,7 @@ enum MenuBarItemAXProvider {
                     // Attribution is direct under AX: owner == source.
                     sourcePID: entry.ownerPID,
                     bounds: entry.bounds,
-                    title: entry.title,
+                    title: entry.displayTitle,
                     isOnScreen: true
                 )
             )
@@ -219,6 +238,37 @@ enum MenuBarItemAXProvider {
         default:
             return .string(bundleID)
         }
+    }
+
+    /// Chooses the stable tag title independently from the text shown in the
+    /// menu bar. iStat Menus updates `AXTitle` as metrics change, which must not
+    /// create a new persisted item identity on every refresh.
+    static func identityTitle(
+        namespace: MenuBarItemTag.Namespace,
+        identifier: String?,
+        accessibilityDescription: String?,
+        displayTitle: String
+    ) -> String {
+        if let identifier = identifier?.nonEmpty {
+            return identifier
+        }
+
+        guard namespace == .string("com.bjango.istatmenus.status") else {
+            return displayTitle
+        }
+        if let accessibilityDescription = accessibilityDescription?.nonEmpty {
+            return accessibilityDescription
+        }
+
+        // Last-resort compatibility for iStat versions that expose only a
+        // changing title. Replace numeric samples, then canonicalize data units
+        // whose scale changes with the sample (KB/s -> MB/s). Metric labels stay
+        // intact, so separate CPU, memory, upload, and download items remain
+        // distinguishable without treating a unit transition as a new item.
+        return displayTitle
+            .replacing(/[-+]?\d+(?:[.,]\d+)?/, with: "#")
+            .replacing(/#\s*[KMGTPE]?[Bb]\/s/, with: "# B/s")
+            .replacing(/#\s*[KMGTPE]?[Bb]/, with: "# B")
     }
 
     private static func namespace(for app: NSRunningApplication) -> MenuBarItemTag.Namespace {
