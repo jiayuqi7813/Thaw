@@ -1610,9 +1610,13 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                     containsTagMatchingIgnoringWindowID(assignedSnapshotTags, target: key)
             }
 
-            // Additional cleanup: Remove entries with invalid window information,
-            // but again preserve recently-failed items.
-            _ = validateAndCleanupInvalidEntries(preserving: recentlyFailedTags)
+            // Additional cleanup must preserve the same transiently valid sets
+            // as the filter above. Otherwise an assigned snapshot can survive
+            // that filter and then be evicted immediately here while its live
+            // item is between concealment and cache re-addition.
+            _ = validateAndCleanupInvalidEntries(
+                preserving: recentlyFailedTags.union(assignedSnapshotTags)
+            )
 
             // Mark all newly captured images as most recently used
             for tag in newImages.keys {
