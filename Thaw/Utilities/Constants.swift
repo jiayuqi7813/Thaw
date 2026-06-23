@@ -82,6 +82,12 @@ enum Constants {
         /// radius (~half the menu-bar height, ≈11 pt) plus visible breathing
         /// room, so it sits well past the legacy 7 pt CGS outset.
         static let trailingPillLeadingInnerMargin: CGFloat = 20
+        /// Outer (trailing) breathing room for the split trailing pill on
+        /// macOS 27 — the mirror of ``trailingPillLeadingInnerMargin``. The right
+        /// rounded cap (radius ≈ half the menu-bar height) curves in over the
+        /// rightmost item (the Clock) at the legacy 7 pt outset, so the pill
+        /// looks like it stops short of covering it. Clear the cap radius.
+        static let trailingPillTrailingOuterMargin: CGFloat = 20
         static let visibleControlClusterBridgePadding: CGFloat = 32
         static let syntheticDragDropInset: CGFloat = 2
         static let syntheticDragSettleDelay: Duration = .milliseconds(250)
