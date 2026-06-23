@@ -453,7 +453,10 @@ extension Collection<MenuBarItem> {
     /// Returns the first index where the menu bar item matching the specified
     /// tag appears in the collection.
     func firstIndex(matching tag: MenuBarItemTag) -> Index? {
-        firstIndex { $0.tag == tag }
+        if tag.matchesVisibleControlItem {
+            return firstIndex { $0.tag.matchesVisibleControlItem }
+        }
+        return firstIndex { $0.tag == tag }
     }
 }
 
@@ -855,7 +858,15 @@ extension NSScreen {
             return nil
         }
 
-        return applicationMenuFrame
+        // AX can return the app-menu union in display-local coordinates (origin at
+        // the screen's left edge). Status-item bounds stay in global screen space,
+        // so anchor the menu frame to this screen's origin before split-pill math.
+        return CGRect(
+            x: frame.minX,
+            y: applicationMenuFrame.minY,
+            width: applicationMenuFrame.width,
+            height: applicationMenuFrame.height
+        )
     }
 }
 
@@ -1032,7 +1043,10 @@ extension RangeReplaceableCollection where Element == MenuBarItem {
 extension Sequence<MenuBarItem> {
     /// Returns the first menu bar item that matches the specified tag.
     func first(matching tag: MenuBarItemTag) -> MenuBarItem? {
-        first { $0.tag == tag }
+        if tag.matchesVisibleControlItem {
+            return first { $0.tag.matchesVisibleControlItem }
+        }
+        return first { $0.tag == tag }
     }
 }
 
