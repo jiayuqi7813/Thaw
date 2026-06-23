@@ -405,6 +405,18 @@ final class HIDEventManager: ObservableObject {
             appState.settings.displaySettings.isAlwaysShowEnabledOnAnyDisplay
     }
 
+    /// Returns whether hover handling may proceed for the current section
+    /// state. The permission latch suppresses a new reveal after an explicit
+    /// click/hotkey action, but must not suppress conceal-on-leave; hiding the
+    /// section is what resets that latch for the next hover cycle.
+    static nonisolated func shouldProcessHover(
+        showOnHover: Bool,
+        showOnHoverAllowed: Bool,
+        sectionIsHidden: Bool
+    ) -> Bool {
+        showOnHover && (!sectionIsHidden || showOnHoverAllowed)
+    }
+
     /// Maximum width a normal menu bar item can have. Windows wider than
     /// this are expanded section-divider control items used to push hidden
     /// items off-screen and must be excluded from the bounds lookup.
@@ -760,13 +772,6 @@ extension HIDEventManager {
     // MARK: Handle Show On Click
 
     private func handleShowOnClick(appState: AppState, screen: NSScreen, clickLocation: CGPoint, modifierFlags: NSEvent.ModifierFlags, isDoubleClick: Bool = false) {
-        // macOS 27: plain clicks are handled by the control item menu, and there
-        // is no legacy off-screen reflow to reveal. Running this here only calls
-        // no-op section.show()/toggle(), burning the main thread on every click.
-        // Skip it entirely.
-        guard MenuBarBackendFactory.current.supportsLegacySectionHiding else {
-            return
-        }
         guard appState.settings.general.showOnClick else {
             return
         }
@@ -978,12 +983,6 @@ extension HIDEventManager {
         appState: AppState,
         screen: NSScreen
     ) {
-        // macOS 27: assigned hidden items are kept concealed by SimpleItemHider.
-        // Nothing is temporarily shown by this event path, so the legacy
-        // section.hide() call is a no-op that only spams the log.
-        guard MenuBarBackendFactory.current.supportsLegacySectionHiding else {
-            return
-        }
         guard
             appState.settings.general.autoRehide,
             case .smart = appState.settings.general.rehideStrategy
@@ -1377,27 +1376,20 @@ extension HIDEventManager {
     // MARK: Handle Show On Hover
 
     private func handleShowOnHover(appState: AppState, screen: NSScreen) {
-        // macOS 27: there is no off-screen section to reveal/hide on hover.
-        // This runs on the throttled mouse-moved tap, so leaving it active means
-        // every mouse move near the menu bar schedules no-op section work and
-        // burns the main thread. Skip it.
-        guard MenuBarBackendFactory.current.supportsLegacySectionHiding else {
-            return
-        }
-        // Make sure the "ShowOnHover" feature is enabled and allowed.
-        guard
-            appState.settings.general.showOnHover,
-            appState.menuBarManager.showOnHoverAllowed
-        else {
-            return
-        }
-
         // Only continue if we have a hidden section (we should).
         guard
             let hiddenSection = appState.menuBarManager.section(
                 withName: .hidden
             )
         else {
+            return
+        }
+
+        guard Self.shouldProcessHover(
+            showOnHover: appState.settings.general.showOnHover,
+            showOnHoverAllowed: appState.menuBarManager.showOnHoverAllowed,
+            sectionIsHidden: hiddenSection.isHidden
+        ) else {
             return
         }
 
@@ -1548,11 +1540,6 @@ extension HIDEventManager {
         appState: AppState,
         screen: NSScreen
     ) {
-        // macOS 27: no off-screen section to reveal/hide; section.show()/hide()
-        // here are no-ops. Skip so scrolling over the menu bar doesn't spam.
-        guard MenuBarBackendFactory.current.supportsLegacySectionHiding else {
-            return
-        }
         guard
             appState.settings.general.showOnScroll,
             isMouseInsideEmptyMenuBarSpace(appState: appState, screen: screen),
