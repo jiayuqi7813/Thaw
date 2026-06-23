@@ -14,6 +14,26 @@ import XCTest
 /// with the documented defaults so the planner tests built on top of them stay
 /// stable.
 final class MenuBarTestFixturesTests: XCTestCase {
+    func testHoverPermissionBlocksRevealWhileSectionIsHidden() {
+        XCTAssertFalse(
+            HIDEventManager.shouldProcessHover(
+                showOnHover: true,
+                showOnHoverAllowed: false,
+                sectionIsHidden: true
+            )
+        )
+    }
+
+    func testHoverPermissionDoesNotBlockConcealWhileSectionIsVisible() {
+        XCTAssertTrue(
+            HIDEventManager.shouldProcessHover(
+                showOnHover: true,
+                showOnHoverAllowed: false,
+                sectionIsHidden: false
+            )
+        )
+    }
+
     func testAppItemTagBuildsExpectedNamespaceAndTitle() {
         let tag = MenuBarItemTag.appItem(bundleID: "com.example.app", title: "Status")
         XCTAssertEqual(String(describing: tag.namespace), "com.example.app")
