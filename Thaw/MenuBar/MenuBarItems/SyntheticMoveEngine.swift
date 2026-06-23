@@ -2,6 +2,7 @@
 //  SyntheticMoveEngine.swift
 //  Project: Thaw
 //
+//  Copyright (Ice) © 2023–2025 Jordan Baird
 //  Copyright (Thaw) © 2026 Toni Förster
 //  Licensed under the GNU GPLv3
 
@@ -10,6 +11,8 @@ import Cocoa
 /// Executes MenuBarAgent reorders through a synthetic Command-drag.
 ///
 /// The engine owns gesture timing, AX-snapshot reuse, and verification. Its
+/// caller owns cursor hiding and restoration so cursor state remains balanced
+/// through the shared watchdog-backed ``MouseHelpers`` implementation. The
 /// interface accepts the two environment operations that vary in tests/runtime:
 /// event-source creation and live item enumeration.
 @MainActor
@@ -119,8 +122,6 @@ struct SyntheticMoveEngine {
         to end: CGPoint,
         source: CGEventSource
     ) async {
-        let tap: CGEventTapLocation = .cghidEventTap
-
         func post(_ type: CGEventType, _ location: CGPoint) {
             guard let event = CGEvent(
                 mouseEventSource: source,
@@ -129,7 +130,7 @@ struct SyntheticMoveEngine {
                 mouseButton: .left
             ) else { return }
             event.flags = .maskCommand
-            event.post(tap: tap)
+            event.post(tap: .cghidEventTap)
         }
 
         func pause(_ milliseconds: Int) async {
