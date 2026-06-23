@@ -2,6 +2,7 @@
 //  LayoutPlanner.swift
 //  Project: Thaw
 //
+//  Copyright (Ice) © 2023–2025 Jordan Baird
 //  Copyright (Thaw) © 2026 Toni Förster
 //  Licensed under the GNU GPLv3
 
@@ -13,6 +14,19 @@ import Foundation
 enum LayoutPlanner {
     typealias MoveDestination = MenuBarItemManager.MoveDestination
     typealias ControlItemPair = MenuBarItemManager.ControlItemPair
+
+    /// Whether an item can participate in physical ordering for a section on
+    /// macOS 27. Apple-hosted items such as Sound and Spotlight cannot be
+    /// concealed by the assessment-mode assertion. If they remain assigned to
+    /// a concealed section, treating them as orderable creates an impossible
+    /// move across Thaw's section divider and an endless retry loop.
+    static func isEligibleForSectionOrder(
+        _ item: MenuBarItem,
+        section: MenuBarSection.Name
+    ) -> Bool {
+        guard !item.isSystemClone, !item.isControlItem else { return false }
+        return section == .visible || !item.isNonConcealableSystemItem
+    }
 
     static func liveOrderSatisfiesDestination(
         items: [MenuBarItem],
@@ -58,7 +72,9 @@ enum LayoutPlanner {
                 }
                 continue
             }
-            if item.isMovable, !item.isControlItem {
+            if item.isMovable,
+               !item.isControlItem || item.tag.matchesVisibleControlItem
+            {
                 currentSegment.append(item)
             }
         }
@@ -106,9 +122,9 @@ enum LayoutPlanner {
         let desiredSegments = achievableOrderSegments(items: items, desiredOrder: desiredOrder)
 
         for (current, desired) in zip(currentSegments, desiredSegments) {
-            guard current.contains(where: { $0.tag.matchesIgnoringWindowID(item.tag) }),
+            guard current.contains(where: { $0.tag.matchesIdentity(of: item.tag) }),
                   current.map(\.uniqueIdentifier) != desired.map(\.uniqueIdentifier),
-                  let desiredIndex = desired.firstIndex(where: { $0.tag.matchesIgnoringWindowID(item.tag) })
+                  let desiredIndex = desired.firstIndex(where: { $0.tag.matchesIdentity(of: item.tag) })
             else {
                 continue
             }
@@ -192,7 +208,7 @@ enum LayoutPlanner {
         let segmentEnd = rightBarrier ?? orderedItems.endIndex
 
         let visibleAnchor = orderedItems[segmentStart ..< segmentEnd].first { item in
-            guard item.isMovable, !item.isControlItem || item.tag == .visibleControlItem else {
+            guard item.isMovable, !item.isControlItem || item.tag.matchesVisibleControlItem else {
                 return false
             }
             return sectionAssignment[item.uniqueIdentifier] == nil
