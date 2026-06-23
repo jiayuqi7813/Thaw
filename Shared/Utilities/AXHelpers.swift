@@ -115,6 +115,12 @@ enum AXHelpers {
         queue.sync { try? element.attribute(.identifier) }
     }
 
+    /// The element's accessibility description. Some status-item apps expose
+    /// a stable semantic label here while `AXTitle` contains live metric text.
+    static func description(for element: UIElement) -> String? {
+        queue.sync { try? element.attribute(.description) }
+    }
+
     static func pid(for element: UIElement) -> pid_t? {
         queue.sync {
             var pid: pid_t = 0
