@@ -75,6 +75,33 @@ final class PlanLeftmostMoveTests: XCTestCase {
         }
     }
 
+    /// macOS 27 sections are assignment-backed and the divider is synthetic;
+    /// the Thaw icon may sit anywhere physically without requiring recovery.
+    func testMacOS27ThawIconLeftOfSyntheticDividerDoesNotRelocate() {
+        let thaw = leftmostItem(
+            tag: .visibleControlItem,
+            x: 100,
+            windowID: 708
+        )
+
+        let decision = LayoutSolver.planLeftmostMove(
+            items: [thaw],
+            observation: LayoutSolver.LeftmostObservation(
+                hiddenBounds: hiddenBounds,
+                sectionByWindowID: [thaw.windowID: .visible],
+                previousWindowIDs: []
+            ),
+            savedSectionOrder: [:],
+            knownItemIdentifiers: [],
+            hiddenTags: [],
+            alwaysHiddenTags: [],
+            effectiveNewItemsSection: .hidden,
+            supportsLegacySectionHiding: false
+        )
+
+        XCTAssertEqual(decision, .noop(reason: .noNewCandidate))
+    }
+
     /// A non-hideable system indicator (camera / mic / screen recording)
     /// left of the divider triggers the system-item recovery branch.
     func testNonHideableSystemItemTriggersSystemItemBranch() {
