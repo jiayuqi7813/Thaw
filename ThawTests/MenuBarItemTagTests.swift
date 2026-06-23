@@ -459,6 +459,16 @@ final class MenuBarItemTagTests: XCTestCase {
         XCTAssertTrue(visible.isControlItem)
     }
 
+    func testMenuBarHostVisibleControlItemIsControlItemAndMovable() {
+        let hostVisible = MenuBarItemTag(
+            namespace: .string("\(Constants.bundleIdentifier).MenuBarHost"),
+            title: ControlItem.Identifier.visible.rawValue
+        )
+        XCTAssertTrue(hostVisible.isControlItem)
+        XCTAssertTrue(hostVisible.matchesVisibleControlItem)
+        XCTAssertTrue(hostVisible.isMovable)
+    }
+
     func testRegularItemIsNotControlItem() {
         let tag = MenuBarItemTag(
             namespace: .string("com.example.app"),
@@ -683,6 +693,195 @@ final class MenuBarItemTagTests: XCTestCase {
 // MARK: - macOS 27 Layout Anchor Tests
 
 final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
+    @available(macOS 27, *)
+    func testIStatIdentityPrefersStableAccessibilityDescription() {
+        let namespace = MenuBarItemTag.Namespace.string("com.bjango.istatmenus.status")
+
+        XCTAssertEqual(
+            MenuBarItemAXProvider.identityTitle(
+                namespace: namespace,
+                identifier: nil,
+                accessibilityDescription: "CPU",
+                displayTitle: "CPU 9%"
+            ),
+            "CPU"
+        )
+    }
+
+    @available(macOS 27, *)
+    func testIStatIdentityNormalizesChangingMetricValuesWithoutDescription() {
+        let namespace = MenuBarItemTag.Namespace.string("com.bjango.istatmenus.status")
+
+        let first = MenuBarItemAXProvider.identityTitle(
+            namespace: namespace,
+            identifier: nil,
+            accessibilityDescription: nil,
+            displayTitle: "CPU 10%"
+        )
+        let second = MenuBarItemAXProvider.identityTitle(
+            namespace: namespace,
+            identifier: nil,
+            accessibilityDescription: nil,
+            displayTitle: "CPU 8%"
+        )
+
+        XCTAssertEqual(first, second)
+    }
+
+    @available(macOS 27, *)
+    func testIStatIdentityNormalizesChangingTransferUnitsWithoutDescription() {
+        let namespace = MenuBarItemTag.Namespace.string("com.bjango.istatmenus.status")
+
+        let kilobytes = MenuBarItemAXProvider.identityTitle(
+            namespace: namespace,
+            identifier: nil,
+            accessibilityDescription: nil,
+            displayTitle: "Upload 154 KB/s, Download 10 KB/s"
+        )
+        let megabytes = MenuBarItemAXProvider.identityTitle(
+            namespace: namespace,
+            identifier: nil,
+            accessibilityDescription: nil,
+            displayTitle: "Upload 95 KB/s, Download 1.2 MB/s"
+        )
+
+        XCTAssertEqual(kilobytes, megabytes)
+    }
+
+    @MainActor
+    func testMacOS27RelocationUsesAXBoundsForSyntheticWindowID() throws {
+        guard #available(macOS 27, *) else {
+            throw XCTSkip("macOS 27 AX bounds are OS-specific")
+        }
+
+        let bounds = CGRect(x: 120, y: 0, width: 42, height: 24)
+        XCTAssertEqual(
+            MenuBarItemManager.relocationBounds(
+                itemBounds: bounds,
+                windowServerBounds: nil,
+                supportsLegacySectionHiding: false
+            ),
+            bounds
+        )
+        XCTAssertNil(
+            MenuBarItemManager.relocationBounds(
+                itemBounds: bounds,
+                windowServerBounds: nil,
+                supportsLegacySectionHiding: true
+            )
+        )
+    }
+
+    @MainActor
+    func testLayoutItemsForPersistenceIncludesVisibleThawControl() throws {
+        guard #available(macOS 27, *) else {
+            throw XCTSkip("macOS 27 layout dragging is OS-specific")
+        }
+
+        let alpha = item(
+            tag: .appItem(bundleID: "com.example.alpha", title: "Alpha", windowID: 1600),
+            x: 100,
+            windowID: 1600
+        )
+        let thaw = item(tag: .visibleControlItem, x: 140, windowID: 1601)
+        let hiddenDivider = item(tag: .hiddenControlItem, x: 80, windowID: 1602)
+
+        let views: [LayoutBarArrangedView] = [
+            TestLayoutArrangedView(item: alpha),
+            TestLayoutArrangedView(item: thaw),
+            TestLayoutArrangedView(item: hiddenDivider),
+        ]
+
+        let ordered = LayoutBarPaddingView.layoutItemsForPersistence(from: views)
+
+        XCTAssertEqual(ordered.map(\.uniqueIdentifier), [alpha.uniqueIdentifier, thaw.uniqueIdentifier])
+    }
+
+    @MainActor
+    func testLayoutDragAcceptsVisibleThawControlButRejectsDividerControl() throws {
+        guard #available(macOS 27, *) else {
+            throw XCTSkip("macOS 27 layout dragging is OS-specific")
+        }
+
+        let visibleControl = item(
+            tag: .visibleControlItem,
+            x: 120,
+            windowID: 1500
+        )
+        let hiddenControl = item(
+            tag: .hiddenControlItem,
+            x: 80,
+            windowID: 1501
+        )
+
+        XCTAssertTrue(LayoutBarPaddingView.acceptsLayoutDrag(of: visibleControl))
+        XCTAssertFalse(LayoutBarPaddingView.acceptsLayoutDrag(of: hiddenControl))
+    }
+
+    @MainActor
+    func testMacOS27CacheSignatureDetectsGeometryReorder() throws {
+        guard #available(macOS 27, *) else {
+            throw XCTSkip("macOS 27 AX ordering is OS-specific")
+        }
+
+        let alphaLeft = appItem(bundleID: "com.example.alpha", title: "Alpha", x: 100, windowID: 1510)
+        let betaRight = appItem(bundleID: "com.example.beta", title: "Beta", x: 140, windowID: 1511)
+        let alphaRight = appItem(bundleID: "com.example.alpha", title: "Alpha", x: 140, windowID: 1510)
+        let betaLeft = appItem(bundleID: "com.example.beta", title: "Beta", x: 100, windowID: 1511)
+
+        let original = MenuBarItemManager.macOS27ItemSignature([alphaLeft, betaRight])
+        let sameGeometryShuffled = MenuBarItemManager.macOS27ItemSignature([betaRight, alphaLeft])
+        let reordered = MenuBarItemManager.macOS27ItemSignature([alphaRight, betaLeft])
+
+        XCTAssertEqual(original, sameGeometryShuffled)
+        XCTAssertNotEqual(original, reordered)
+    }
+
+    @MainActor
+    func testMacOS27VisibleThawControlGetsAchievableReorderDestination() throws {
+        guard #available(macOS 27, *) else {
+            throw XCTSkip("macOS 27 layout dragging is OS-specific")
+        }
+
+        let alpha = appItem(bundleID: "com.example.alpha", title: "Alpha", x: 100, windowID: 1520)
+        let thaw = item(tag: .visibleControlItem, x: 140, windowID: 1521)
+        let beta = appItem(bundleID: "com.example.beta", title: "Beta", x: 180, windowID: 1522)
+
+        let destination = LayoutPlanner.achievableDestination(
+            items: [alpha, thaw, beta],
+            item: thaw,
+            desiredOrder: [thaw.uniqueIdentifier, alpha.uniqueIdentifier, beta.uniqueIdentifier]
+        )
+
+        guard case let .leftOfItem(target) = destination else {
+            return XCTFail("expected Thaw to move left of Alpha")
+        }
+        XCTAssertEqual(target.uniqueIdentifier, alpha.uniqueIdentifier)
+    }
+
+    @MainActor
+    func testAssigningLiveItemToHiddenRetainsImmediateSnapshot() throws {
+        guard #available(macOS 27, *) else {
+            throw XCTSkip("SimpleItemHider snapshots are macOS 27-specific")
+        }
+
+        let shottr = appItem(
+            bundleID: "cc.ffitch.shottr",
+            title: "Item-0",
+            x: 120,
+            windowID: 1519
+        )
+
+        let snapshots = SimpleItemHider.updatedSnapshots(
+            [:],
+            afterAssigning: shottr,
+            to: .hidden
+        )
+
+        XCTAssertEqual(snapshots[shottr.uniqueIdentifier]?.tag, shottr.tag)
+        XCTAssertEqual(snapshots[shottr.uniqueIdentifier]?.bounds, shottr.bounds)
+    }
+
     @MainActor
     func testVisibleOrderingUsesLiveOrderForMenuBarAgentItems() throws {
         guard #available(macOS 27, *) else {
@@ -874,7 +1073,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
     }
 
     @MainActor
-    func testPersistableVisibleOrderExcludesThawOwnedItems() throws {
+    func testPersistableVisibleOrderIncludesVisibleControlButExcludesOtherThawOwnedItems() throws {
         guard #available(macOS 27, *) else {
             throw XCTSkip("SimpleItemHider reveal is macOS 27-specific")
         }
@@ -896,7 +1095,14 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
             in: .visible
         )
 
-        XCTAssertEqual(identifiers, [app.uniqueIdentifier])
+        XCTAssertEqual(identifiers, [thaw.uniqueIdentifier, app.uniqueIdentifier])
+
+        let hiddenIdentifiers = SimpleItemHider.persistableOrderIdentifiers(
+            from: [thaw, hostThaw, app],
+            in: .hidden
+        )
+
+        XCTAssertEqual(hiddenIdentifiers, [app.uniqueIdentifier])
     }
 
     @MainActor
@@ -1188,6 +1394,24 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         )
     }
 
+    func testMacOS27ConcealedSectionOrderExcludesNonConcealableSystemItems() {
+        let sound = systemItem(
+            title: "com.apple.menuextra.sound",
+            x: 100,
+            windowID: 75
+        )
+        let network = appItem(
+            bundleID: "com.bjango.istatmenus.status",
+            title: "Upload #, Download #",
+            x: 50,
+            windowID: 76
+        )
+
+        XCTAssertFalse(LayoutPlanner.isEligibleForSectionOrder(sound, section: .hidden))
+        XCTAssertTrue(LayoutPlanner.isEligibleForSectionOrder(network, section: .hidden))
+        XCTAssertTrue(LayoutPlanner.isEligibleForSectionOrder(sound, section: .visible))
+    }
+
     func testMacOS27DirectDragTargetsNeighborInsideAnchorSegment() {
         let alpha = appItem(bundleID: "com.example.alpha", title: "Alpha", x: 0, windowID: 80)
         let beta = appItem(bundleID: "com.example.beta", title: "Beta", x: 24, windowID: 81)
@@ -1252,5 +1476,22 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
             windowID: windowID,
             bounds: CGRect(x: x, y: 0, width: 20, height: 22)
         )
+    }
+}
+
+@MainActor
+private final class TestLayoutArrangedView: LayoutBarArrangedView {
+    private let itemKind: Kind
+
+    override var kind: Kind { itemKind }
+
+    init(item: MenuBarItem) {
+        self.itemKind = .item(item)
+        super.init(frame: .zero)
+    }
+
+    @available(*, unavailable)
+    required init?(coder _: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
     }
 }
