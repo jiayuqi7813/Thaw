@@ -239,7 +239,8 @@ enum LayoutSolver {
         knownItemIdentifiers: Set<String>,
         hiddenTags: Set<MenuBarItemTag>,
         alwaysHiddenTags: Set<MenuBarItemTag>,
-        effectiveNewItemsSection: MenuBarSection.Name
+        effectiveNewItemsSection: MenuBarSection.Name,
+        supportsLegacySectionHiding: Bool = true
     ) -> LeftmostMove {
         // Items sitting left of the hidden divider. This is a legacy reflow
         // planner, so use legacy movability rather than macOS 27's broader
@@ -249,7 +250,7 @@ enum LayoutSolver {
             .filter {
                 $0.bounds.maxX <= observation.hiddenBounds.minX &&
                     $0.tag.isMovableInLegacySectionLayout &&
-                    (!$0.isControlItem || $0.tag == .visibleControlItem)
+                    (!$0.isControlItem || $0.tag.matchesVisibleControlItem)
             }
             .sorted { $0.bounds.minX < $1.bounds.minX }
 
@@ -257,20 +258,27 @@ enum LayoutSolver {
             return .noop(reason: .noLeftmostItems)
         }
 
-        // Path 1: Thaw icon.
-        if let thawIcon = leftmostItems.first(where: { $0.tag == .visibleControlItem }) {
-            return .thawIcon(thawIcon)
-        }
+        // Paths 1–2 repair protected items that fell left of a real legacy
+        // section divider. macOS 27 uses assignment-backed sections and its
+        // divider may be zero-width/synthetic, so physical position relative
+        // to that marker says nothing about visibility. Retrying these moves
+        // there creates a recache loop and prevents fresh order publication.
+        if supportsLegacySectionHiding {
+            // Path 1: Thaw icon.
+            if let thawIcon = leftmostItems.first(where: { $0.tag.matchesVisibleControlItem }) {
+                return .thawIcon(thawIcon)
+            }
 
-        // Path 2: non-hideable system item (camera / mic / screen recording).
-        // Excludes transient Control Center items (Live Activities,
-        // iPhone Mirroring); those live deeply off-screen and cannot be
-        // dragged successfully, so retrying every cache cycle would
-        // burn the eventSemaphore for ~4 s per attempt.
-        if let systemItem = leftmostItems.first(where: {
-            !$0.canBeHiddenInLegacySectionLayout && !$0.isTransientControlCenterItem
-        }) {
-            return .systemItem(systemItem)
+            // Path 2: non-hideable system item (camera / mic / screen recording).
+            // Excludes transient Control Center items (Live Activities,
+            // iPhone Mirroring); those live deeply off-screen and cannot be
+            // dragged successfully, so retrying every cache cycle would
+            // burn the eventSemaphore for ~4 s per attempt.
+            if let systemItem = leftmostItems.first(where: {
+                !$0.canBeHiddenInLegacySectionLayout && !$0.isTransientControlCenterItem
+            }) {
+                return .systemItem(systemItem)
+            }
         }
 
         // Path 3: hideable candidate selection.
