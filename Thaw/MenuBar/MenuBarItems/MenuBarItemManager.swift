@@ -144,6 +144,36 @@ final class MenuBarItemManager: ObservableObject {
     /// Timestamp of the most recent menu bar item move operation.
     private var lastMoveOperationTimestamp: ContinuousClock.Instant?
 
+    /// Timestamps of recent macOS 27 section-order move failures, keyed by
+    /// `"<item identity>|<destination>"`. An anchored system item (e.g.
+    /// Sound, Control Center) can sit between two items that a saved order
+    /// wants adjacent, making the move permanently unachievable via the
+    /// synthetic Command-drag. Without this backoff, applySavedLayout's
+    /// layout-divergence check re-detects the never-resolved divergence
+    /// every cache cycle (~2s) and re-dispatches the same doomed move
+    /// forever, hijacking the cursor on a tight loop and disrupting the
+    /// dragged item's own AX/rendering state.
+    private var recentMacOS27MoveFailures = [String: ContinuousClock.Instant]()
+
+    /// How long to suppress retrying a macOS 27 section-order move after it
+    /// fails, before giving the achievable-order solver another chance.
+    private static let macOS27MoveFailureBackoff: Duration = .seconds(30)
+
+    /// Builds the backoff key for a planned macOS 27 section-order move.
+    ///
+    /// Uses `uniqueIdentifier` rather than `logString` for both items: the
+    /// latter embeds the item's transient windowID, which would defeat the
+    /// backoff the moment either item's synthetic windowID churns between
+    /// cycles even though the logical move being retried hasn't changed.
+    private static func macOS27MoveFailureKey(item: MenuBarItem, destination: MoveDestination) -> String {
+        let side: String
+        switch destination {
+        case .leftOfItem: side = "leftOf"
+        case .rightOfItem: side = "rightOf"
+        }
+        return "\(item.uniqueIdentifier)|\(side)|\(destination.targetItem.uniqueIdentifier)"
+    }
+
     /// Cached timeouts for move operations.
     private var moveOperationTimeouts = [MenuBarItemTag: Duration]()
 
@@ -170,6 +200,12 @@ final class MenuBarItemManager: ObservableObject {
     private var knownItemIdentifiers = Set<String>()
     /// Suppresses the next automatic relocation of newly seen leftmost items.
     private var suppressNextNewLeftmostItemRelocation = false
+
+    /// Signature of the last macOS 27 divider move that failed. While the layout
+    /// is unchanged, `enforceControlItemOrder` skips re-attempting the identical
+    /// (unachievable) move so it doesn't loop every cache cycle — the source of
+    /// the idle "cursor pulled to the menu bar / icons shuffling" thrash.
+    private var lastFailedDividerSignature: String?
 
     deinit {
         rehideTimer?.invalidate()
@@ -1395,6 +1431,42 @@ final class MenuBarItemManager: ObservableObject {
 // MARK: - Cache Gate
 
 extension MenuBarItemManager {
+    /// Selects the bounds source used to validate an automatic relocation.
+    /// macOS 27 items have synthetic window IDs, so their AX bounds are the
+    /// source of truth and a WindowServer lookup is neither valid nor useful.
+    static func relocationBounds(
+        itemBounds: CGRect,
+        windowServerBounds: CGRect?,
+        supportsLegacySectionHiding: Bool
+    ) -> CGRect? {
+        if supportsLegacySectionHiding {
+            return windowServerBounds
+        }
+        guard itemBounds.origin.x != -1,
+              itemBounds.width > 0,
+              itemBounds.height > 0
+        else {
+            return nil
+        }
+        return itemBounds
+    }
+
+    /// Stable macOS 27 cache signature in live visual order. AX enumeration can
+    /// arrive in arbitrary array order, so geometry determines order and the
+    /// identifier breaks ties. Unlike an alphabetically sorted identity set,
+    /// this changes when the user Command-drags existing items in the menu bar.
+    static func macOS27ItemSignature(_ items: [MenuBarItem]) -> [String] {
+        items
+            .filter { !$0.isSystemClone }
+            .sorted { lhs, rhs in
+                if lhs.bounds.midX == rhs.bounds.midX {
+                    return lhs.uniqueIdentifier < rhs.uniqueIdentifier
+                }
+                return lhs.bounds.midX < rhs.bounds.midX
+            }
+            .map(\.uniqueIdentifier)
+    }
+
     /// Serializes cache operations to prevent races between concurrent
     /// `cacheItemsRegardless` calls. When a relocation move is in flight,
     /// a concurrent call could snapshot item positions before the move
@@ -1773,15 +1845,20 @@ extension MenuBarItemManager {
         var invalidCount = 0
         var noSectionCount = 0
 
-        // Track which tags have already been cached to avoid duplicates.
+        // Track which items have already been cached to avoid duplicates.
         // macOS can briefly report two windows for the same item during
-        // or shortly after a move operation (e.g. layout reset). We keep
-        // the first occurrence, which is the rightmost (items are reversed
-        // from the Window Server order).
-        var seenTags = Set<MenuBarItemTag>()
+        // or shortly after a move operation (e.g. layout reset), each with
+        // a different windowID. We dedupe on uniqueIdentifier (which
+        // excludes windowID) rather than the full tag, since on macOS 27
+        // windowIDs are synthetic and churn even within a single
+        // enumeration pass; keying on the full tag would let both
+        // windowIDs through and double-cache the same logical item. We
+        // keep the first occurrence, which is the rightmost (items are
+        // reversed from the Window Server order).
+        var seenIdentifiers = Set<String>()
 
         for item in items where context.isValidForCaching(item) {
-            guard seenTags.insert(item.tag).inserted else {
+            guard seenIdentifiers.insert(item.uniqueIdentifier).inserted else {
                 MenuBarItemManager.diagLog.debug("uncheckedCacheItems: skipping duplicate tag \(item.logString)")
                 continue
             }
@@ -2128,13 +2205,7 @@ extension MenuBarItemManager {
             // Keep the stable-identity signature in sync with every recache so
             // cacheItemsIfNeeded's macOS 27 gate doesn't immediately re-fire
             // after a recache triggered by some other path (app launch, etc.).
-            // SORTED so the signature is order-independent: macOS 27's AX
-            // enumeration returns items in an unstable order, and on 27 the cache
-            // is re-bucketed by SimpleItemHider assignment (not enumeration
-            // order), so a pure reorder must NOT read as a change — otherwise the
-            // gate recaches on every tick (a feedback storm that re-captures the
-            // bar and makes it glitch). Must match cacheItemsIfNeeded exactly.
-            cacheActor.updateCachedItemSignature(items.map(\.uniqueIdentifier).sorted())
+            cacheActor.updateCachedItemSignature(Self.macOS27ItemSignature(items))
         }
 
         await MainActor.run {
@@ -2247,7 +2318,20 @@ extension MenuBarItemManager {
         // determined (transient bounds during in-flight moves) fall
         // through to the drop path, preserving the original
         // conservative behaviour for ambiguous cases.
-        if let activeLayout = activeProfileLayout,
+        //
+        // macOS 27 gate: this heuristic assumes a windowID change signals an
+        // app relaunch, which only holds when windowIDs are CGS-stable. On 27
+        // every item's windowID is a synthetic FNV hash that churns on every
+        // AX enumeration even when nothing relaunched (see
+        // cacheItemsIfNeeded's stable-signature gate). Without this guard, a
+        // profile item that's genuinely stuck in the wrong section (its
+        // synthetic move keeps failing) gets dropped from
+        // profileSortedItemIdentifiers on every tick from the windowID churn
+        // alone, which re-arms scheduleProfileResort every tick and retries
+        // the same impossible move forever — a perpetual synthetic
+        // Command-drag storm that warps/hides the cursor system-wide.
+        if MenuBarBackendFactory.current.supportsLegacySectionHiding,
+           let activeLayout = activeProfileLayout,
            !activeProfileItemIdentifiers.isEmpty,
            !previousWindowIDs.isEmpty
         {
@@ -2452,10 +2536,7 @@ extension MenuBarItemManager {
             // recache on a stable identity signature (owner + title, clones
             // excluded) instead, so it fires only on a real add/remove/reorder.
             let items = await MenuBarItem.getMenuBarItems(option: .activeSpace)
-            // Sorted: order-independent so an unstable AX enumeration order
-            // doesn't read as a change and trigger an endless recache storm.
-            // Must match how cacheItemsRegardless stores the signature.
-            let signature = items.filter { !$0.isSystemClone }.map(\.uniqueIdentifier).sorted()
+            let signature = Self.macOS27ItemSignature(items)
             let cachedSignature = cacheActor.cachedItemSignature
             if cachedSignature != signature {
                 MenuBarItemManager.diagLog.debug("cacheItemsIfNeeded: item identities changed (\(cachedSignature.count) cached vs \(signature.count) current), triggering recache")
@@ -3834,12 +3915,30 @@ extension MenuBarItemManager {
                 if let revealedSection, hider.revealedSection != revealedSection { return }
 
                 let sectionItems = liveItems.filter {
-                    !$0.isSystemClone && !$0.isControlItem && hider.section(for: $0) == section
+                    LayoutPlanner.isEligibleForSectionOrder($0, section: section) &&
+                        hider.section(for: $0) == section
                 }
                 guard let plannedMove = LayoutPlanner.nextAchievableOrderMove(
                     items: sectionItems,
                     desiredOrder: desiredOrder
                 ) else {
+                    break
+                }
+
+                // Some Apple system extras (e.g. Sound) are classified as
+                // movable but empirically reject the synthetic Command-drag
+                // every time. Without this backoff, the same doomed move gets
+                // replanned and retried on every cache cycle (~2s) forever,
+                // since the failure never resolves the divergence that
+                // triggered it — a perpetual cursor-warp/hide loop that also
+                // disrupts the dragged item's own AX state.
+                let failureKey = Self.macOS27MoveFailureKey(item: plannedMove.item, destination: plannedMove.destination)
+                if let lastFailure = recentMacOS27MoveFailures[failureKey],
+                   ContinuousClock.now - lastFailure < Self.macOS27MoveFailureBackoff
+                {
+                    MenuBarItemManager.diagLog.debug(
+                        "Skipping recently-failed macOS 27 section order move for \(plannedMove.item.logString) \(plannedMove.destination.logString)"
+                    )
                     break
                 }
 
@@ -3856,10 +3955,12 @@ extension MenuBarItemManager {
                         watchdogTimeout: Self.layoutWatchdogTimeout,
                         maxMoveAttempts: plannedMove.item.isNonConcealableSystemItem ? 1 : 8
                     )
+                    recentMacOS27MoveFailures.removeValue(forKey: failureKey)
                     MenuBarItemManager.diagLog.info(
                         "Applied macOS 27 achievable order in \(section.logString) for \(plannedMove.item.logString)"
                     )
                 } catch {
+                    recentMacOS27MoveFailures[failureKey] = .now
                     MenuBarItemManager.diagLog.error(
                         "Failed to apply macOS 27 section order for \(plannedMove.item.logString): \(error)"
                     )
@@ -3906,6 +4007,12 @@ extension MenuBarItemManager {
                 await MenuBarItem.getMenuBarItems(option: .activeSpace)
             }
         )
+        // postMoveEvents (the legacy windowID-addressed path) stamps
+        // lastMoveOperationTimestamp itself; this synthetic-drag path is the
+        // only mover on macOS 27, so without this, applySavedLayout's 5s
+        // re-apply cooldown never arms here and divergence re-dispatches on
+        // every cache cycle instead.
+        defer { lastMoveOperationTimestamp = .now }
         try await engine.move(item: item, to: destination, maxAttempts: maxAttempts)
     }
 }
@@ -5172,7 +5279,8 @@ extension MenuBarItemManager {
             knownItemIdentifiers: knownItemIdentifiers,
             hiddenTags: hiddenTags,
             alwaysHiddenTags: alwaysHiddenTags,
-            effectiveNewItemsSection: effectiveNewItemsSection
+            effectiveNewItemsSection: effectiveNewItemsSection,
+            supportsLegacySectionHiding: MenuBarBackendFactory.current.supportsLegacySectionHiding
         )
 
         switch decision {
@@ -5218,7 +5326,15 @@ extension MenuBarItemManager {
             // Skip items with no valid bounds (transient clone windows
             // etc.). This live check stays in the orchestrator because
             // it requires Bridging.
-            guard Bridging.getWindowBounds(for: candidate.windowID) != nil else {
+            let supportsLegacySectionHiding = MenuBarBackendFactory.current.supportsLegacySectionHiding
+            let windowServerBounds = supportsLegacySectionHiding
+                ? Bridging.getWindowBounds(for: candidate.windowID)
+                : nil
+            guard Self.relocationBounds(
+                itemBounds: candidate.bounds,
+                windowServerBounds: windowServerBounds,
+                supportsLegacySectionHiding: supportsLegacySectionHiding
+            ) != nil else {
                 MenuBarItemManager.diagLog.warning("Skipping relocation for \(candidate.logString); no valid bounds, likely transient")
                 return false
             }
@@ -5421,10 +5537,29 @@ extension MenuBarItemManager {
     }
 
     /// Enforces the spatial section boundaries represented by control items.
+    /// A stable, **order-independent** signature of the current item *set* plus
+    /// the divider's intended destination. Sorted alphabetically on purpose: a
+    /// failed synthetic drag often still shuffles items, so an order-based
+    /// signature would change every pass and defeat the thrash guard. Only a
+    /// genuine layout change (item added or removed, or a different destination
+    /// target) alters this signature and clears the guard.
+    private static func dividerSignature(
+        items: [MenuBarItem],
+        destination: MoveDestination
+    ) -> String {
+        let ids = items
+            .filter { !$0.isSystemClone }
+            .map { "\($0.tag.namespace):\($0.tag.title)" }
+            .sorted()
+            .joined(separator: "|")
+        let target = destination.targetItem.tag
+        return "\(ids)→\(target.namespace):\(target.title)"
+    }
+
     private func enforceControlItemOrder(
         controlItems: ControlItemPair,
         items: [MenuBarItem],
-        force _: Bool = false
+        force: Bool = false
     ) async {
         let hidden = controlItems.hidden
 
@@ -5436,6 +5571,22 @@ extension MenuBarItemManager {
                 sectionAssignment: sectionAssignment,
                 controlItems: controlItems
             ) else {
+                // Nothing to enforce — clear the thrash guard so a future genuine
+                // divergence is allowed to retry.
+                lastFailedDividerSignature = nil
+                return
+            }
+
+            // Divider-thrash guard: when a divider move can't be achieved (e.g.
+            // anchored system items sit between the divider and its target), the
+            // destination keeps coming back every cache cycle. Without this guard
+            // each cycle re-fires the synthetic drag — that's the runaway loop
+            // that pulls the cursor toward the menu bar and shuffles icons while
+            // the user is idle. If the same move already failed and nothing about
+            // the layout changed since, skip it. Forced callers (reveal/reset)
+            // bypass the guard so a deliberate action always re-enforces.
+            let signature = Self.dividerSignature(items: items, destination: destination)
+            if !force, signature == lastFailedDividerSignature {
                 return
             }
 
@@ -5449,7 +5600,9 @@ extension MenuBarItemManager {
                     skipInputPause: true,
                     allowSectionBoundaryTargetOnMacOS27: true
                 )
+                lastFailedDividerSignature = nil
             } catch {
+                lastFailedDividerSignature = signature
                 MenuBarItemManager.diagLog.error(
                     "Error enforcing macOS 27 hidden divider boundary: \(error)"
                 )
