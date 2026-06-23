@@ -309,8 +309,9 @@ final class SimpleItemHider: ObservableObject {
         diagLog.info("setSectionOrder(\(section.rawValue)); \(identifiers.count) item(s)")
     }
 
-    /// Records a section order from live layout items, dropping control items
-    /// and fixed system anchors before persistence.
+    /// Records a section order from live layout items, dropping structural
+    /// control items and fixed system anchors before persistence. The movable
+    /// visible Thaw control remains part of visible order.
     func setSectionOrder(from items: [MenuBarItem], for section: MenuBarSection.Name) {
         setSectionOrder(Self.persistableOrderIdentifiers(from: items, in: section), for: section)
     }
@@ -318,9 +319,15 @@ final class SimpleItemHider: ObservableObject {
     /// Returns the identifiers Thaw is allowed to persist for a section order.
     static func persistableOrderIdentifiers(
         from items: [MenuBarItem],
-        in _: MenuBarSection.Name
+        in section: MenuBarSection.Name
     ) -> [String] {
         items.compactMap { item in
+            if section == .visible,
+               item.tag.title == ControlItem.Identifier.visible.rawValue,
+               item.tag.namespace == .thaw
+            {
+                return item.uniqueIdentifier
+            }
             guard !item.isControlItem,
                   !item.tag.isLayoutAnchoredSystemItem,
                   !isOwnAppItem(item)
@@ -458,6 +465,15 @@ final class SimpleItemHider: ObservableObject {
             diagLog.warning("ignored section assignment for protected/non-hideable item \(item.uniqueIdentifier)")
             return
         }
+        // Retain the exact live item before setSection(identifier:) refreshes
+        // the restriction. The refresh can conceal the owning app immediately,
+        // removing this item from AX and itemCache before refresh() gets another
+        // chance to snapshot it.
+        snapshots = Self.updatedSnapshots(
+            snapshots,
+            afterAssigning: item,
+            to: section
+        )
         setSection(section, identifier: item.uniqueIdentifier)
     }
 
@@ -544,6 +560,23 @@ final class SimpleItemHider: ObservableObject {
     /// macOS 27 re-bucketing in `MenuBarItemManager`). Keyed by
     /// ``MenuBarItem/uniqueIdentifier``.
     private var snapshots: [String: MenuBarItem] = [:]
+
+    /// Applies the snapshot side of a live-item section assignment. This is a
+    /// separate transition so the assign-before-conceal ordering stays covered
+    /// without invoking the system visibility assertion in tests.
+    static func updatedSnapshots(
+        _ existing: [String: MenuBarItem],
+        afterAssigning item: MenuBarItem,
+        to section: MenuBarSection.Name
+    ) -> [String: MenuBarItem] {
+        var updated = existing
+        if section == .visible {
+            updated.removeValue(forKey: item.uniqueIdentifier)
+        } else {
+            updated[item.uniqueIdentifier] = item
+        }
+        return updated
+    }
 
     /// The retained snapshot for an assigned item, if one was captured this
     /// session (while the item was still visible).
