@@ -31,10 +31,14 @@ enum LayoutPlanner {
     static func liveOrderSatisfiesDestination(
         items: [MenuBarItem],
         item: MenuBarItem,
-        destination: MoveDestination
+        destination: MoveDestination,
+        experimentalSystemItemHiding: Bool = false
     ) -> Bool {
         let orderedItems = items
-            .filter { !$0.isSystemClone && !$0.tag.isLayoutAnchoredSystemItem }
+            .filter { !$0.isSystemClone }
+            .filter {
+                experimentalSystemItemHiding || !$0.tag.isLayoutAnchoredSystemItem
+            }
             .sorted(by: visualOrder)
         let target = destination.targetItem
         guard !item.tag.matchesIgnoringWindowID(target.tag),
@@ -54,7 +58,8 @@ enum LayoutPlanner {
     /// segments. Items never move through a fixed system anchor.
     static func achievableOrderSegments(
         items: [MenuBarItem],
-        desiredOrder: [String]
+        desiredOrder: [String],
+        experimentalSystemItemHiding: Bool = false
     ) -> [[MenuBarItem]] {
         let orderedItems = items.filter { !$0.isSystemClone }.sorted(by: visualOrder)
         let desiredRank = Dictionary(
@@ -65,14 +70,16 @@ enum LayoutPlanner {
         var physicalSegments = [[MenuBarItem]]()
         var currentSegment = [MenuBarItem]()
         for item in orderedItems {
-            if item.tag.isLayoutAnchoredSystemItem {
+            if item.tag.isLayoutAnchoredSystemItem,
+               !item.isMovable(experimentalSystemItemHiding: experimentalSystemItemHiding)
+            {
                 if !currentSegment.isEmpty {
                     physicalSegments.append(currentSegment)
                     currentSegment.removeAll(keepingCapacity: true)
                 }
                 continue
             }
-            if item.isMovable,
+            if item.isMovable(experimentalSystemItemHiding: experimentalSystemItemHiding),
                !item.isControlItem || item.tag.matchesVisibleControlItem
             {
                 currentSegment.append(item)
@@ -93,10 +100,19 @@ enum LayoutPlanner {
 
     static func nextAchievableOrderMove(
         items: [MenuBarItem],
-        desiredOrder: [String]
+        desiredOrder: [String],
+        experimentalSystemItemHiding: Bool = false
     ) -> (item: MenuBarItem, destination: MoveDestination)? {
-        let currentSegments = achievableOrderSegments(items: items, desiredOrder: [])
-        let desiredSegments = achievableOrderSegments(items: items, desiredOrder: desiredOrder)
+        let currentSegments = achievableOrderSegments(
+            items: items,
+            desiredOrder: [],
+            experimentalSystemItemHiding: experimentalSystemItemHiding
+        )
+        let desiredSegments = achievableOrderSegments(
+            items: items,
+            desiredOrder: desiredOrder,
+            experimentalSystemItemHiding: experimentalSystemItemHiding
+        )
 
         for (current, desired) in zip(currentSegments, desiredSegments) {
             guard current.map(\.uniqueIdentifier) != desired.map(\.uniqueIdentifier), desired.count > 1 else {
@@ -105,7 +121,12 @@ enum LayoutPlanner {
             for index in 1 ..< desired.count {
                 let item = desired[index]
                 let destination = MoveDestination.rightOfItem(desired[index - 1])
-                if !liveOrderSatisfiesDestination(items: items, item: item, destination: destination) {
+                if !liveOrderSatisfiesDestination(
+                    items: items,
+                    item: item,
+                    destination: destination,
+                    experimentalSystemItemHiding: experimentalSystemItemHiding
+                ) {
                     return (item, destination)
                 }
             }
@@ -116,10 +137,19 @@ enum LayoutPlanner {
     static func achievableDestination(
         items: [MenuBarItem],
         item: MenuBarItem,
-        desiredOrder: [String]
+        desiredOrder: [String],
+        experimentalSystemItemHiding: Bool = false
     ) -> MoveDestination? {
-        let currentSegments = achievableOrderSegments(items: items, desiredOrder: [])
-        let desiredSegments = achievableOrderSegments(items: items, desiredOrder: desiredOrder)
+        let currentSegments = achievableOrderSegments(
+            items: items,
+            desiredOrder: [],
+            experimentalSystemItemHiding: experimentalSystemItemHiding
+        )
+        let desiredSegments = achievableOrderSegments(
+            items: items,
+            desiredOrder: desiredOrder,
+            experimentalSystemItemHiding: experimentalSystemItemHiding
+        )
 
         for (current, desired) in zip(currentSegments, desiredSegments) {
             guard current.contains(where: { $0.tag.matchesIdentity(of: item.tag) }),
@@ -187,7 +217,8 @@ enum LayoutPlanner {
     static func dividerMoveDestination(
         items: [MenuBarItem],
         sectionAssignment: [String: MenuBarSection.Name],
-        controlItems: ControlItemPair
+        controlItems: ControlItemPair,
+        experimentalSystemItemHiding: Bool = false
     ) -> MoveDestination? {
         let divider = controlItems.hidden
         guard divider.isOnScreen else { return nil }
@@ -198,17 +229,23 @@ enum LayoutPlanner {
         }) else { return nil }
 
         let leftBarrier = orderedItems[..<dividerIndex].lastIndex(where: {
-            $0.tag.isLayoutAnchoredSystemItem
+            $0.tag.isLayoutAnchoredSystemItem &&
+                !$0.isMovable(experimentalSystemItemHiding: experimentalSystemItemHiding)
         })
         let afterDivider = orderedItems.index(after: dividerIndex)
         let rightBarrier = afterDivider < orderedItems.endIndex
-            ? orderedItems[afterDivider...].firstIndex(where: { $0.tag.isLayoutAnchoredSystemItem })
+            ? orderedItems[afterDivider...].firstIndex(where: {
+                $0.tag.isLayoutAnchoredSystemItem &&
+                    !$0.isMovable(experimentalSystemItemHiding: experimentalSystemItemHiding)
+            })
             : nil
         let segmentStart = leftBarrier.map { orderedItems.index(after: $0) } ?? orderedItems.startIndex
         let segmentEnd = rightBarrier ?? orderedItems.endIndex
 
         let visibleAnchor = orderedItems[segmentStart ..< segmentEnd].first { item in
-            guard item.isMovable, !item.isControlItem || item.tag.matchesVisibleControlItem else {
+            guard item.isMovable(experimentalSystemItemHiding: experimentalSystemItemHiding),
+                  !item.isControlItem || item.tag.matchesVisibleControlItem
+            else {
                 return false
             }
             return sectionAssignment[item.uniqueIdentifier] == nil
