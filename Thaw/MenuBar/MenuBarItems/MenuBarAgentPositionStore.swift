@@ -147,6 +147,96 @@ enum MenuBarAgentPositionStore {
         return true
     }
 
+    // MARK: Batch order
+
+    /// Reorders an entire section's items in one preference write instead of the
+    /// per-pair, per-restart reconcile loop.
+    ///
+    /// `desiredOrder` is the section's target left-to-right sequence (item
+    /// `uniqueIdentifier`s). The achievable arrangement is computed by
+    /// ``LayoutPlanner/achievableOrderSegments(items:desiredOrder:)``, which
+    /// partitions the bar at fixed system anchors and orders the movable items
+    /// within each independent segment — so an impossible cross-anchor move is
+    /// never attempted.
+    ///
+    /// Within each segment the solver **permutes the items' own existing
+    /// weights**: it collects the current weights of the segment's resolvable
+    /// items and reassigns them in the segment's direction so the items land in
+    /// desired order. Reusing the segment's existing weight values (rather than
+    /// inventing new ones) keeps every item between the same surrounding anchors
+    /// by construction, sidestepping the anchored-item churn entirely. A
+    /// segment's axis direction (whether a smaller weight sits left or right) is
+    /// read from the items' current geometry, so a reversed axis self-corrects.
+    ///
+    /// Returns the `uniqueIdentifier`s whose weight changed (empty when the order
+    /// already holds or nothing resolved). The single write + single nudge happen
+    /// only when there is at least one change; the caller polls for the agent to
+    /// re-sort and leaves any residual (unresolved items, reversed guesses) to
+    /// the per-pair reconcile loop.
+    @discardableResult
+    static func applyOrder(
+        desiredOrder: [String],
+        liveItems: [MenuBarItem],
+        environment: Environment = .live
+    ) -> [String] {
+        guard desiredOrder.count > 1 else { return [] }
+
+        let positions = environment.readPositions()
+        let keys = Array(positions.keys)
+        var updated = positions
+        var changed = [String]()
+
+        let segments = LayoutPlanner.achievableOrderSegments(
+            items: liveItems,
+            desiredOrder: desiredOrder
+        )
+
+        for segment in segments {
+            // Resolvable items in this segment, paired with key + current weight,
+            // kept in the segment's desired left-to-right order.
+            let resolvable: [(item: MenuBarItem, key: String, weight: Int)] = segment.compactMap { item in
+                guard
+                    let key = resolveKey(for: item, existingKeys: keys),
+                    let weight = positions[key]
+                else { return nil }
+                return (item, key, weight)
+            }
+            guard resolvable.count > 1 else { continue }
+
+            // Slots = the segment's own weights. Assign them in the axis
+            // direction inferred from current geometry: ascending slot values to
+            // the desired sequence when smaller weights currently sit left.
+            let slots = resolvable.map(\.weight).sorted()
+            let assignment = ascendingAxis(for: resolvable) ? slots : slots.reversed()
+
+            for (target, weight) in zip(resolvable, assignment) where target.weight != weight {
+                updated[target.key] = weight
+                changed.append(target.item.uniqueIdentifier)
+            }
+        }
+
+        guard !changed.isEmpty else { return [] }
+
+        environment.writePositions(updated)
+        environment.nudgeAgent()
+        diagLog.info("Batch-reordered \(changed.count) item(s) via preferred positions")
+        return changed
+    }
+
+    /// Whether the segment's weight axis ascends left-to-right (smaller weight =
+    /// further left), read from the resolvable items' current geometry. A flat or
+    /// single-extent segment defaults to ascending (the observed system default,
+    /// e.g. Clock = 0 at the leading edge).
+    private static func ascendingAxis(
+        for resolvable: [(item: MenuBarItem, key: String, weight: Int)]
+    ) -> Bool {
+        let byPosition = resolvable.sorted { $0.item.bounds.midX < $1.item.bounds.midX }
+        guard let leftmost = byPosition.first, let rightmost = byPosition.last,
+              leftmost.weight != rightmost.weight
+        else { return true }
+        return leftmost.weight < rightmost.weight
+    }
+
     // MARK: Pure planning
 
     /// The two live items that bracket the slot `item` is moving into: `anchor`
