@@ -170,8 +170,13 @@ enum LayoutPlanner {
         items: [MenuBarItem],
         item: MenuBarItem,
         section: MenuBarSection.Name,
-        controlItems: ControlItemPair
+        controlItems: ControlItemPair,
+        experimentalSystemItemHiding: Bool = false
     ) -> Bool {
+        if !item.isPhysicallyOrderable(experimentalSystemItemHiding: experimentalSystemItemHiding) {
+            return true
+        }
+
         let orderedItems = items.filter { !$0.isSystemClone }.sorted(by: visualOrder)
         guard let itemIndex = orderedItems.firstIndex(where: { $0.tag.matchesIgnoringWindowID(item.tag) }),
               let hiddenDividerIndex = orderedItems.firstIndex(where: {

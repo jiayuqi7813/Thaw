@@ -3846,6 +3846,8 @@ extension MenuBarItemManager {
         let assignments = hider.sectionAssignment
             .filter { sectionsToReconcile.contains($0.value) }
             .sorted { lhs, rhs in lhs.key < rhs.key }
+        let experimentalSystemItemHiding = appState.settings.advanced
+            .enableExperimentalSystemItemHiding
 
         for (identifier, section) in assignments {
             guard !Task.isCancelled,
@@ -3870,7 +3872,8 @@ extension MenuBarItemManager {
                     items: liveItems,
                     item: liveItem,
                     section: section,
-                    controlItems: controlItems
+                    controlItems: controlItems,
+                    experimentalSystemItemHiding: experimentalSystemItemHiding
                 ),
                 let destination = LayoutPlanner.sectionBoundaryDestination(
                     for: section,
@@ -5717,13 +5720,24 @@ extension MenuBarItemManager {
         let hidden = controlItems.hidden
 
         if !MenuBarBackendFactory.current.supportsLegacySectionHiding {
+            let experimentalSystemItemHiding = appState?.settings.advanced
+                .enableExperimentalSystemItemHiding ?? false
+            guard hidden.isPhysicallyOrderable(
+                experimentalSystemItemHiding: experimentalSystemItemHiding
+            ) else {
+                // Zero-width section dividers are not ⌘-draggable on macOS 27;
+                // concealment is assignment-driven instead of divider-relative.
+                lastFailedDividerSignature = nil
+                return
+            }
+
             let sectionAssignment = appState?.menuBarManager.simpleItemHider?
                 .sectionAssignment ?? [:]
             guard let destination = LayoutPlanner.dividerMoveDestination(
                 items: items,
                 sectionAssignment: sectionAssignment,
                 controlItems: controlItems,
-                experimentalSystemItemHiding: appState?.settings.advanced.enableExperimentalSystemItemHiding ?? false
+                experimentalSystemItemHiding: experimentalSystemItemHiding
             ) else {
                 // Nothing to enforce — clear the thrash guard so a future genuine
                 // divergence is allowed to retry.
