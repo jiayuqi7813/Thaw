@@ -1788,6 +1788,43 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         )
     }
 
+    /// Forces an immediate capture for the visible layout/search/IceBar consumer
+    /// after a deliberate reorder has settled.
+    ///
+    /// The periodic live-refresh loop honors a recent-move guard (it skips ticks
+    /// within ~2 s of a move) and the capture-invalidation key ignores position,
+    /// so a pure reorder leaves the layout UI showing the pre-reorder screenshot
+    /// until the next nav change. The reorder caller invokes this once the bar
+    /// has re-sorted, so `skipRecentMoveCheck` is safe here. The visible-consumer
+    /// guard inside ``updateCache(sections:skipRecentMoveCheck:allowBackgroundCapture:nav:)``
+    /// keeps this free when no capture consumer is on screen.
+    @MainActor
+    func refreshAfterReorder() async {
+        guard let appState else {
+            return
+        }
+        let navSnapshot = makeNavigationStateSnapshot()
+
+        var sectionsNeedingDisplay = [MenuBarSection.Name]()
+        if navSnapshot.isSettingsPresented || navSnapshot.isSearchPresented {
+            sectionsNeedingDisplay = MenuBarSection.Name.allCases
+        } else if navSnapshot.isIceBarPresented, let section = appState.menuBarManager.iceBarPanel
+            .currentSection
+        {
+            sectionsNeedingDisplay.append(section)
+        }
+
+        guard !sectionsNeedingDisplay.isEmpty else {
+            return
+        }
+
+        await updateCache(
+            sections: sectionsNeedingDisplay,
+            skipRecentMoveCheck: true,
+            nav: navSnapshot
+        )
+    }
+
     /// Clears the images for the given section.
     @MainActor
     func clearImages(for section: MenuBarSection.Name) {

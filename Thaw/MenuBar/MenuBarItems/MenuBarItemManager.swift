@@ -3912,6 +3912,11 @@ extension MenuBarItemManager {
         hider: SimpleItemHider,
         whileRevealing revealedSection: MenuBarSection.Name? = nil
     ) async {
+        // Tracks whether any item actually moved this pass, so the layout UI's
+        // screen capture is refreshed only when the bar changed — not on every
+        // idle reconcile (each macOS 27 capture is a heavy full screenshot).
+        var didReorder = false
+
         for section in sections {
             let desiredOrder = hider.sectionItemOrder[section] ?? []
             guard desiredOrder.count > 1 else {
@@ -3932,6 +3937,7 @@ extension MenuBarItemManager {
                     liveItems: liveItems
                 )
                 if !reordered.isEmpty {
+                    didReorder = true
                     liveItems = await waitForMenuBarAgentResort(
                         desiredOrder: desiredOrder,
                         section: section,
@@ -3988,6 +3994,7 @@ extension MenuBarItemManager {
                         maxMoveAttempts: plannedMove.item.isNonConcealableSystemItem ? 1 : 8
                     )
                     recentMacOS27MoveFailures.removeValue(forKey: failureKey)
+                    didReorder = true
                     MenuBarItemManager.diagLog.info(
                         "Applied macOS 27 achievable order in \(section.logString) for \(plannedMove.item.logString)"
                     )
@@ -4006,6 +4013,14 @@ extension MenuBarItemManager {
                 try? await Task.sleep(for: .milliseconds(120))
                 liveItems = await MenuBarItem.getMenuBarItems(option: .activeSpace)
             }
+        }
+
+        // The bar settled into a new arrangement. The image cache's capture key
+        // deliberately ignores position, and its live-refresh loop skips ticks
+        // near a move, so without an explicit poke the layout UI keeps showing
+        // the pre-reorder screenshot until the next tab switch. Refresh now.
+        if didReorder {
+            await appState?.imageCache.refreshAfterReorder()
         }
     }
 
