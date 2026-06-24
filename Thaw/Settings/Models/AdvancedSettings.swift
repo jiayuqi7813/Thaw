@@ -77,6 +77,10 @@ final class AdvancedSettings: ObservableObject {
     /// Only affects notched displays; non-notched displays never use this path.
     @Published var enableMenuBarItemOverflow = Defaults.DefaultValue.enableMenuBarItemOverflow
 
+    /// A Boolean value that allows macOS system items such as Clock, Control
+    /// Center, and Siri to be assigned to hidden sections on macOS 27.
+    @Published var enableExperimentalSystemItemHiding = Defaults.DefaultValue.enableExperimentalSystemItemHiding
+
     /// The order in which menu bar sections appear in the search panel.
     @Published var searchSectionOrder: [MenuBarSection.Name] = Defaults.DefaultValue.searchSectionOrder
         .compactMap(MenuBarSection.Name.init(rawValue:))
@@ -122,6 +126,7 @@ final class AdvancedSettings: ObservableObject {
         Defaults.ifPresent(key: .enableDiagnosticLogging, assign: &enableDiagnosticLogging)
         Defaults.ifPresent(key: .useLCSSortingOnNotchedDisplays, assign: &useLCSSortingOnNotchedDisplays)
         Defaults.ifPresent(key: .enableMenuBarItemOverflow, assign: &enableMenuBarItemOverflow)
+        Defaults.ifPresent(key: .enableExperimentalSystemItemHiding, assign: &enableExperimentalSystemItemHiding)
         Defaults.ifPresent(key: .searchIncludeVisible, assign: &searchIncludeVisible)
         Defaults.ifPresent(key: .searchIncludeHidden, assign: &searchIncludeHidden)
         Defaults.ifPresent(key: .searchIncludeAlwaysHidden, assign: &searchIncludeAlwaysHidden)
@@ -188,6 +193,7 @@ final class AdvancedSettings: ObservableObject {
         )
         $useLCSSortingOnNotchedDisplays.persistToDefaults(key: .useLCSSortingOnNotchedDisplays, in: &c)
         $enableMenuBarItemOverflow.persistToDefaults(key: .enableMenuBarItemOverflow, in: &c)
+        $enableExperimentalSystemItemHiding.persistToDefaults(key: .enableExperimentalSystemItemHiding, in: &c)
         $searchSectionOrder.persistToDefaults(
             key: .searchSectionOrder,
             transform: { $0.map(\.rawValue) },
@@ -240,6 +246,8 @@ final class AdvancedSettings: ObservableObject {
                 useLCSSortingOnNotchedDisplays = boolValue
             case "enableMenuBarItemOverflow":
                 enableMenuBarItemOverflow = boolValue
+            case "enableExperimentalSystemItemHiding":
+                enableExperimentalSystemItemHiding = boolValue
             case "searchIncludeVisible":
                 searchIncludeVisible = boolValue
             case "searchIncludeHidden":
