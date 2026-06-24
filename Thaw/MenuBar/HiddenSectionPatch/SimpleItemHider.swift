@@ -126,6 +126,41 @@ final class SimpleItemHider: ObservableObject {
         }
     }
 
+    /// Whether the experimental system-item setting may relax the normal
+    /// forced-visible policy for this item. Control items and Thaw-owned items
+    /// are still protected by the assignment gates below.
+    static func isExperimentallyHideableSystemItem(_ item: MenuBarItem) -> Bool {
+        guard #available(macOS 27, *) else {
+            return false
+        }
+        return item.sectionManagementPolicy.isForcedVisible
+    }
+
+    static func canAssign(
+        _ item: MenuBarItem,
+        to section: MenuBarSection.Name,
+        experimentalSystemItemHiding: Bool
+    ) -> Bool {
+        if section == .visible {
+            return true
+        }
+        if item.canBeHidden(
+            experimentalSystemItemHiding: experimentalSystemItemHiding
+        ) {
+            return true
+        }
+        return false
+    }
+
+    static func isProtectedAssignmentItem(
+        _ item: MenuBarItem,
+        experimentalSystemItemHiding: Bool
+    ) -> Bool {
+        item.isControlItem ||
+            isOwnAppItem(item) ||
+            (item.tag.isLayoutAnchoredSystemItem && !experimentalSystemItemHiding)
+    }
+
     private static func isOwnAppAssignmentIdentifier(_ identifier: String) -> Bool {
         Constants.isThawOwnedAssignmentIdentifier(identifier)
     }
@@ -313,13 +348,33 @@ final class SimpleItemHider: ObservableObject {
     /// control items and fixed system anchors before persistence. The movable
     /// visible Thaw control remains part of visible order.
     func setSectionOrder(from items: [MenuBarItem], for section: MenuBarSection.Name) {
-        setSectionOrder(Self.persistableOrderIdentifiers(from: items, in: section), for: section)
+        let experimentalSystemItemHiding = appState?.settings.advanced.enableExperimentalSystemItemHiding ?? false
+        setSectionOrder(
+            Self.persistableOrderIdentifiers(
+                from: items,
+                in: section,
+                experimentalSystemItemHiding: experimentalSystemItemHiding
+            ),
+            for: section
+        )
     }
 
     /// Returns the identifiers Thaw is allowed to persist for a section order.
     static func persistableOrderIdentifiers(
         from items: [MenuBarItem],
         in section: MenuBarSection.Name
+    ) -> [String] {
+        persistableOrderIdentifiers(
+            from: items,
+            in: section,
+            experimentalSystemItemHiding: false
+        )
+    }
+
+    static func persistableOrderIdentifiers(
+        from items: [MenuBarItem],
+        in section: MenuBarSection.Name,
+        experimentalSystemItemHiding: Bool
     ) -> [String] {
         items.compactMap { item in
             if section == .visible,
@@ -329,7 +384,7 @@ final class SimpleItemHider: ObservableObject {
                 return item.uniqueIdentifier
             }
             guard !item.isControlItem,
-                  !item.tag.isLayoutAnchoredSystemItem,
+                  item.isMovable(experimentalSystemItemHiding: experimentalSystemItemHiding),
                   !isOwnAppItem(item)
             else {
                 return nil
@@ -384,9 +439,7 @@ final class SimpleItemHider: ObservableObject {
     }
 
     static func isProtectedAssignmentItem(_ item: MenuBarItem) -> Bool {
-        item.isControlItem ||
-            item.tag.isLayoutAnchoredSystemItem ||
-            isOwnAppItem(item)
+        isProtectedAssignmentItem(item, experimentalSystemItemHiding: false)
     }
 
     private static func isOwnAppItem(_ item: MenuBarItem) -> Bool {
@@ -415,7 +468,8 @@ final class SimpleItemHider: ObservableObject {
     /// The section for a live item. System anchors and any item Thaw can't
     /// conceal are always visible even if stale defaults say otherwise.
     func section(for item: MenuBarItem) -> MenuBarSection.Name {
-        if item.sectionManagementPolicy.isForcedVisible ||
+        let experimentalSystemItemHiding = appState?.settings.advanced.enableExperimentalSystemItemHiding ?? false
+        if (item.sectionManagementPolicy.isForcedVisible && !experimentalSystemItemHiding) ||
             Self.isOwnAppItem(item)
         {
             return .visible
@@ -456,8 +510,16 @@ final class SimpleItemHider: ObservableObject {
         // being dropped into a non-visible section (Apple system modules on
         // macOS 27): they stay visible. Dropping one back to .visible is always
         // allowed so an existing stale assignment can be cleared.
-        let cannotHideHere = section != .visible && !item.canBeHidden
-        guard !Self.isProtectedAssignmentItem(item), !cannotHideHere else {
+        let experimentalSystemItemHiding = appState?.settings.advanced.enableExperimentalSystemItemHiding ?? false
+        let cannotHideHere = !Self.canAssign(
+            item,
+            to: section,
+            experimentalSystemItemHiding: experimentalSystemItemHiding
+        )
+        guard !Self.isProtectedAssignmentItem(
+            item,
+            experimentalSystemItemHiding: experimentalSystemItemHiding
+        ), !cannotHideHere else {
             if sectionAssignment.removeValue(forKey: item.uniqueIdentifier) != nil {
                 persistAssignment()
                 refresh()
@@ -596,17 +658,21 @@ final class SimpleItemHider: ObservableObject {
     /// refreshes the retained snapshots.
     func refresh() {
         guard let appState else { return }
+        let experimentalSystemItemHiding = appState.settings.advanced.enableExperimentalSystemItemHiding
         let allItems = appState.itemManager.itemCache.managedItems
         let assignedControlItemIDs = Set(sectionAssignment.keys.filter(Self.isControlItemAssignmentIdentifier))
         let protectedAssignedIDs = Set(
             allItems
                 .filter {
-                    ($0.tag.isLayoutAnchoredSystemItem ||
-                        Self.isOwnAppItem($0) ||
-                        // macOS 27: a non-concealable system module can't live in a
-                        // hidden section — drop a stale assignment so it returns to
-                        // visible (e.g. one persisted before this rule existed).
-                        !$0.canBeHidden) &&
+                    (Self.isProtectedAssignmentItem(
+                        $0,
+                        experimentalSystemItemHiding: experimentalSystemItemHiding
+                    ) ||
+                        !Self.canAssign(
+                            $0,
+                            to: sectionAssignment[$0.uniqueIdentifier] ?? .visible,
+                            experimentalSystemItemHiding: experimentalSystemItemHiding
+                        )) &&
                         sectionAssignment[$0.uniqueIdentifier] != nil
                 }
                 .map(\.uniqueIdentifier)
