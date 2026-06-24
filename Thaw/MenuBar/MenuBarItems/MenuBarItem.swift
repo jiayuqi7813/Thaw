@@ -39,13 +39,31 @@ struct MenuBarItem: CustomStringConvertible {
 
     /// Layout-editor movability with experimental system-item hiding applied.
     /// When enabled on macOS 27, forced-visible system items may participate
-    /// in both assignment-backed section edits and best-effort physical order.
+    /// in assignment-backed section edits.
     func isMovable(experimentalSystemItemHiding: Bool) -> Bool {
         isMovable ||
             (
                 experimentalSystemItemHiding &&
                     sectionManagementPolicy.isForcedVisible
             )
+    }
+
+    /// Physical MenuBarAgent ordering with experimental system-item hiding
+    /// applied. Some forced-visible items can be assigned/hidden by the
+    /// experimental assertion but are not accepted as live reorder anchors.
+    func isPhysicallyOrderable(experimentalSystemItemHiding: Bool) -> Bool {
+        if isMovable {
+            return true
+        }
+
+        guard experimentalSystemItemHiding,
+              sectionManagementPolicy.isForcedVisible,
+              tag.namespace == .menuBarAgent
+        else {
+            return false
+        }
+
+        return true
     }
 
     /// A Boolean value that indicates whether this item can be hidden.

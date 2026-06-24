@@ -64,6 +64,7 @@ final class ProfileExportBundleTests: XCTestCase {
                 useOptionClickToShowAlwaysHiddenSection: false,
                 useLCSSortingOnNotchedDisplays: false,
                 enableMenuBarItemOverflow: false,
+                enableExperimentalSystemItemHiding: false,
                 searchSectionOrder: ["visible", "hidden", "alwaysHidden"],
                 searchIncludeVisible: true,
                 searchIncludeHidden: true,

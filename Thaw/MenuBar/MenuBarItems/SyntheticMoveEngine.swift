@@ -32,7 +32,14 @@ struct SyntheticMoveEngine {
         maxAttempts: Int = 2,
         experimentalSystemItemHiding: Bool = false
     ) async throws {
-        guard experimentalSystemItemHiding || !destination.targetItem.tag.isLayoutAnchoredSystemItem else {
+        guard item.isPhysicallyOrderable(experimentalSystemItemHiding: experimentalSystemItemHiding) else {
+            Self.diagLog.warning("Refusing physical reorder source \(item.logString)")
+            throw EventError.itemNotMovable(item)
+        }
+
+        guard destination.targetItem.isPhysicallyOrderable(
+            experimentalSystemItemHiding: experimentalSystemItemHiding
+        ) else {
             Self.diagLog.warning("Refusing anchored target \(destination.targetItem.logString)")
             throw EventError.itemNotMovable(destination.targetItem)
         }

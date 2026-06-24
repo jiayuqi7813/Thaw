@@ -229,6 +229,37 @@ final class MenuBarAgentPositionStoreTests: XCTestCase {
         XCTAssertEqual(written?["status:com.test.A::A"], 150)
     }
 
+    func testExperimentalMoveDoesNotTargetSystemUIServerItem() {
+        let a = item("A", x: 0)
+        let siri = MenuBarItem.fixture(
+            tag: MenuBarItemTag(namespace: .systemUIServer, title: "Siri", windowID: 91),
+            windowID: 91,
+            bounds: CGRect(x: 30, y: 0, width: 24, height: 22)
+        )
+        let c = item("C", x: 60)
+        let env = MenuBarAgentPositionStore.Environment(
+            readPositions: {
+                [
+                    "status:com.test.A::A": 50,
+                    "status:com.apple.systemuiserver::Siri": 100,
+                    "status:com.test.A::C": 200,
+                ]
+            },
+            writePositions: { _ in XCTFail("should not write") },
+            nudgeAgent: { XCTFail("should not nudge") }
+        )
+
+        XCTAssertFalse(
+            MenuBarAgentPositionStore.move(
+                item: a,
+                to: .rightOfItem(siri),
+                liveItems: [a, siri, c],
+                experimentalSystemItemHiding: true,
+                environment: env
+            )
+        )
+    }
+
     // MARK: - applyOrder (batch)
 
     func testApplyOrderPermutesExistingWeightsIntoDesiredOrder() {
