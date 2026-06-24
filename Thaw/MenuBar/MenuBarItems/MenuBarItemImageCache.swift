@@ -913,6 +913,22 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                 continue
             }
 
+            // A concealed / off-screen item reports phantom bounds far below
+            // the bar (macOS 27 parks them at y≈1428, well outside the ~30pt
+            // hosting window even though they're still within the screen). Such
+            // bounds would crop to an empty rect; exclude them WITHOUT recording
+            // a capture failure so they aren't blacklisted and keep their last
+            // good image. `windowFrame` shares the item's coordinate space (see
+            // the crop math below), so a plain intersection check suffices.
+            if !windowFrame.intersects(bounds) {
+                MenuBarItemImageCache.diagLog.debug(
+                    "axBoundsCapture: \(item.logString) bounds \(bounds) outside hosting " +
+                    "window \(windowFrame); keeping prior image"
+                )
+                result.excluded.append(item)
+                continue
+            }
+
             // Map the item's global (Y-down) frame into the hosting window's
             // image: subtract the window origin, then scale to pixels. CGImage
             // rows run top-down, matching the Y-down screen convention.
