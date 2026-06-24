@@ -186,6 +186,75 @@ final class MenuBarAgentPositionStoreTests: XCTestCase {
         )
     }
 
+    // MARK: - applyOrder (batch)
+
+    func testApplyOrderPermutesExistingWeightsIntoDesiredOrder() {
+        // Live order A,B,C (x ascending) with ascending weight axis. Want C,A,B.
+        let a = item("A", x: 0)
+        let b = item("B", x: 30)
+        let c = item("C", x: 60)
+        var written: [String: Int]?
+        var nudges = 0
+        let env = MenuBarAgentPositionStore.Environment(
+            readPositions: { ["status:com.test.A::A": 100, "status:com.test.A::B": 200, "status:com.test.A::C": 300] },
+            writePositions: { written = $0 },
+            nudgeAgent: { nudges += 1 }
+        )
+
+        let changed = MenuBarAgentPositionStore.applyOrder(
+            desiredOrder: [c.uniqueIdentifier, a.uniqueIdentifier, b.uniqueIdentifier],
+            liveItems: [a, b, c],
+            environment: env
+        )
+
+        // The segment's own slots {100,200,300} are reassigned in desired order:
+        // C leftmost → 100, A → 200, B → 300. One write, one nudge.
+        XCTAssertEqual(written?["status:com.test.A::C"], 100)
+        XCTAssertEqual(written?["status:com.test.A::A"], 200)
+        XCTAssertEqual(written?["status:com.test.A::B"], 300)
+        XCTAssertEqual(nudges, 1)
+        XCTAssertEqual(Set(changed), [a.uniqueIdentifier, b.uniqueIdentifier, c.uniqueIdentifier])
+    }
+
+    func testApplyOrderNoopWhenAlreadyOrdered() {
+        let a = item("A", x: 0)
+        let b = item("B", x: 30)
+        let env = MenuBarAgentPositionStore.Environment(
+            readPositions: { ["status:com.test.A::A": 100, "status:com.test.A::B": 200] },
+            writePositions: { _ in XCTFail("should not write") },
+            nudgeAgent: { XCTFail("should not nudge") }
+        )
+        let changed = MenuBarAgentPositionStore.applyOrder(
+            desiredOrder: [a.uniqueIdentifier, b.uniqueIdentifier],
+            liveItems: [a, b],
+            environment: env
+        )
+        XCTAssertTrue(changed.isEmpty)
+    }
+
+    func testApplyOrderHonorsDescendingAxis() {
+        // Same desired order, but the live axis descends (leftmost has the
+        // largest weight). Slots must be assigned high→low so C still lands left.
+        let a = item("A", x: 0)
+        let b = item("B", x: 30)
+        let c = item("C", x: 60)
+        var written: [String: Int]?
+        let env = MenuBarAgentPositionStore.Environment(
+            readPositions: { ["status:com.test.A::A": 300, "status:com.test.A::B": 200, "status:com.test.A::C": 100] },
+            writePositions: { written = $0 },
+            nudgeAgent: {}
+        )
+        _ = MenuBarAgentPositionStore.applyOrder(
+            desiredOrder: [c.uniqueIdentifier, a.uniqueIdentifier, b.uniqueIdentifier],
+            liveItems: [a, b, c],
+            environment: env
+        )
+        // Descending axis: leftmost desired (C) gets the largest slot (300).
+        XCTAssertEqual(written?["status:com.test.A::C"], 300)
+        XCTAssertEqual(written?["status:com.test.A::A"], 200)
+        XCTAssertEqual(written?["status:com.test.A::B"], 100)
+    }
+
     // MARK: - Helpers
 
     /// A movable third-party status item under the "A" app at the given x.

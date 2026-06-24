@@ -3919,6 +3919,27 @@ extension MenuBarItemManager {
             }
 
             var liveItems = await MenuBarItem.getMenuBarItems(option: .activeSpace)
+
+            // macOS 27: try to realize the whole section order in one cursor-free
+            // preferred-position write before the per-pair loop. When it places
+            // every item, the loop below finds nothing to do and breaks; any
+            // residual (unresolved items, or a reversed-axis guess) is corrected
+            // by the loop. The write restarts MenuBarAgent once, so wait for it
+            // to re-sort before re-reading geometry for the loop.
+            if #available(macOS 27, *) {
+                let reordered = MenuBarAgentPositionStore.applyOrder(
+                    desiredOrder: desiredOrder,
+                    liveItems: liveItems
+                )
+                if !reordered.isEmpty {
+                    liveItems = await waitForMenuBarAgentResort(
+                        desiredOrder: desiredOrder,
+                        section: section,
+                        hider: hider
+                    )
+                }
+            }
+
             let maximumMoves = max(1, desiredOrder.count * 2)
 
             for _ in 0 ..< maximumMoves {
@@ -3986,6 +4007,39 @@ extension MenuBarItemManager {
                 liveItems = await MenuBarItem.getMenuBarItems(option: .activeSpace)
             }
         }
+    }
+
+    /// Waits for MenuBarAgent to relaunch and re-sort after a batch
+    /// ``MenuBarAgentPositionStore/applyOrder(desiredOrder:liveItems:environment:)``
+    /// write, returning the latest geometry. Polls until `section` satisfies
+    /// `desiredOrder` (nothing left to move) or a short budget elapses, so the
+    /// caller's per-pair loop reads settled geometry — converged after a clean
+    /// batch (it breaks immediately) or current enough to mop up any residual.
+    @available(macOS 27, *)
+    private func waitForMenuBarAgentResort(
+        desiredOrder: [String],
+        section: MenuBarSection.Name,
+        hider: SimpleItemHider
+    ) async -> [MenuBarItem] {
+        var liveItems = await MenuBarItem.getMenuBarItems(option: .activeSpace)
+        for _ in 0 ..< 12 {
+            try? await Task.sleep(for: .milliseconds(250))
+            liveItems = await MenuBarItem.getMenuBarItems(option: .activeSpace)
+            let sectionItems = liveItems.filter {
+                LayoutPlanner.isEligibleForSectionOrder($0, section: section) &&
+                    hider.section(for: $0) == section
+            }
+            if LayoutPlanner.nextAchievableOrderMove(
+                items: sectionItems,
+                desiredOrder: desiredOrder
+            ) == nil {
+                MenuBarItemManager.diagLog.info(
+                    "Batch preferred-position order satisfied for \(section.logString)"
+                )
+                break
+            }
+        }
+        return liveItems
     }
 
     /// Moves a menu bar item on macOS 27 by rewriting MenuBarAgent's own
