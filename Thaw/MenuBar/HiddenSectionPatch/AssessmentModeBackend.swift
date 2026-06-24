@@ -184,6 +184,24 @@ final class AssessmentModeBackend {
             sectionAssignment: sectionAssignment
         )
 
+        // Defensive fallback against a transiently empty/failed item cache.
+        // `concealedBundleIDs` resolves from the sticky `knownBundleIDs` map and
+        // so survives an empty `allItems`, but `bundlesWithVisibleItem` (the
+        // per-bundle "keep on screen because a sibling is visible" protection)
+        // is derived purely from `allItems`. If a recache lands with zero live
+        // items (an AX enumeration hiccup / 0-items pass), that protection
+        // collapses and every hidden-assigned bundle gets concealed with no
+        // visible-sibling guard — emptying the menu bar ("reset hid every
+        // icon"). When there is concealment to apply but no live items to reason
+        // about, keep the current restriction and wait for a reliable cache
+        // rather than guessing the bar empty.
+        if allItems.isEmpty, !concealed.isEmpty {
+            diagLog.warning(
+                "apply: item cache is empty while \(concealed.count) item(s) are assigned hidden; keeping current restriction to avoid concealing everything"
+            )
+            return false
+        }
+
         // Bundles that still have at least one item that should be visible right
         // now (assigned `.visible`).
         // The assertion allowlist is per-bundle, so concealing such a bundle

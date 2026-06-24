@@ -2782,7 +2782,8 @@ extension MenuBarItemManager {
             let refreshed = await MenuBarItem.getMenuBarItems(option: .onScreen)
             if let refreshedItem = refreshed.first(where: { $0.windowID == item.windowID && $0.tag == item.tag }) ??
                 refreshed.first(where: { $0.tag.matchesIgnoringWindowID(item.tag) && !$0.isSystemClone }) ??
-                refreshed.first(where: { $0.tag.matchesIgnoringWindowID(item.tag) })
+                refreshed.first(where: { $0.tag.matchesIgnoringWindowID(item.tag) }) ??
+                Self.nearestSameOwnerMatch(for: item, in: refreshed)
             {
                 return refreshedItem.bounds
             }
@@ -2798,12 +2799,37 @@ extension MenuBarItemManager {
         let refreshed = await MenuBarItem.getMenuBarItems(option: .onScreen)
         if let refreshedItem = refreshed.first(where: { $0.windowID == item.windowID && $0.tag == item.tag }) ??
             refreshed.first(where: { $0.tag.matchesIgnoringWindowID(item.tag) && !$0.isSystemClone }) ??
-            refreshed.first(where: { $0.tag.matchesIgnoringWindowID(item.tag) })
+            refreshed.first(where: { $0.tag.matchesIgnoringWindowID(item.tag) }) ??
+            Self.nearestSameOwnerMatch(for: item, in: refreshed)
         {
             return refreshedItem.bounds
         }
 
         throw EventError.missingItemBounds(item)
+    }
+
+    /// Re-resolves a live-updating item whose tag and window ID both change out
+    /// from under us. iStat Menus (and similar) rewrite their status-item title
+    /// every second; on macOS 27 the synthetic window ID is derived from that
+    /// title (see ``MenuBarItemTag``), so neither the tag nor the window ID
+    /// matches a fresh enumeration and the title-based fallbacks miss — yielding
+    /// `missingItemBounds`, a failed move, and a cursor warp on every retry.
+    ///
+    /// The position is the only stable signal: in the sub-second between
+    /// enumeration and the drag the item has not visibly moved, so among the
+    /// same owning app's items the one nearest the original X is the same
+    /// logical item. The tolerance keeps this from grabbing a far neighbor when
+    /// the item has genuinely gone (in which case failing is correct).
+    private nonisolated static func nearestSameOwnerMatch(
+        for item: MenuBarItem,
+        in refreshed: [MenuBarItem]
+    ) -> MenuBarItem? {
+        guard item.bounds.width > 0 else { return nil }
+        let tolerance = max(item.bounds.width, 24)
+        return refreshed
+            .filter { $0.hasSameOwner(as: item) && !$0.isSystemClone }
+            .filter { abs($0.bounds.minX - item.bounds.minX) <= tolerance }
+            .min { abs($0.bounds.minX - item.bounds.minX) < abs($1.bounds.minX - item.bounds.minX) }
     }
 
     /// Returns the current mouse location.

@@ -173,6 +173,18 @@ enum LayoutPlanner {
         controlItems: ControlItemPair,
         experimentalSystemItemHiding: Bool = false
     ) -> Bool {
+        // Layout-anchored system items (Clock, Control Center, Siri, …) are
+        // pinned to the trailing edge by the OS and cannot be moved across the
+        // hidden divider with a synthetic drag. With experimental system-item
+        // hiding they register as physically orderable, so without this guard
+        // the section-boundary repair retries an impossible move every cycle —
+        // and each failed synthetic drag partially displaces the bar (the
+        // "random menu bar disappearance" / item shuffle). They never need
+        // repair; concealment, not reordering, is what hides them.
+        if item.tag.isLayoutAnchoredSystemItem {
+            return true
+        }
+
         if !item.isPhysicallyOrderable(experimentalSystemItemHiding: experimentalSystemItemHiding) {
             return true
         }
