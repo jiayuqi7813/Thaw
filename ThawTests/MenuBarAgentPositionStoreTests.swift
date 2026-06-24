@@ -186,6 +186,49 @@ final class MenuBarAgentPositionStoreTests: XCTestCase {
         )
     }
 
+    func testExperimentalMoveCanTargetAnchoredSystemItem() {
+        let a = item("A", x: 0)
+        let clock = MenuBarItem.fixture(
+            tag: .clock,
+            windowID: 90,
+            bounds: CGRect(x: 30, y: 0, width: 24, height: 22)
+        )
+        let c = item("C", x: 60)
+
+        var written: [String: Int]?
+        let env = MenuBarAgentPositionStore.Environment(
+            readPositions: {
+                [
+                    "status:com.test.A::A": 50,
+                    "module:Clock": 100,
+                    "status:com.test.A::C": 200,
+                ]
+            },
+            writePositions: { written = $0 },
+            nudgeAgent: {}
+        )
+
+        XCTAssertFalse(
+            MenuBarAgentPositionStore.move(
+                item: a,
+                to: .rightOfItem(clock),
+                liveItems: [a, clock, c],
+                environment: env
+            )
+        )
+
+        XCTAssertTrue(
+            MenuBarAgentPositionStore.move(
+                item: a,
+                to: .rightOfItem(clock),
+                liveItems: [a, clock, c],
+                experimentalSystemItemHiding: true,
+                environment: env
+            )
+        )
+        XCTAssertEqual(written?["status:com.test.A::A"], 150)
+    }
+
     // MARK: - applyOrder (batch)
 
     func testApplyOrderPermutesExistingWeightsIntoDesiredOrder() {
