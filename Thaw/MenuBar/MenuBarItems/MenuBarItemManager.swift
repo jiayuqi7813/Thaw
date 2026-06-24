@@ -3666,6 +3666,17 @@ extension MenuBarItemManager {
             return
         }
 
+        // macOS 27: try the cursor-free preferred-position write first. When it
+        // applies *and* verifies, the move is done without ever touching the
+        // cursor, so return before the cursor-hide/warp block below. Anything it
+        // cannot express (unresolved key, no numeric gap, end placement) falls
+        // through to the synthetic ⌘-drag, which keeps full coverage.
+        if #available(macOS 27, *),
+           await moveItemViaPreferredPositions(item: item, to: destination)
+        {
+            return
+        }
+
         // Capture the original cursor position once so the cursor is warped
         // back to it a single time after all attempts, rather than after each
         // individual attempt (which caused the cursor to oscillate many times
@@ -3977,8 +3988,57 @@ extension MenuBarItemManager {
         }
     }
 
+    /// Moves a menu bar item on macOS 27 by rewriting MenuBarAgent's own
+    /// `TrailingItemPreferredPositions` weight — the cursor-free reorder path.
+    ///
+    /// Returns `true` only when the write was applied *and* the resulting live
+    /// order satisfies `destination`; on any other outcome it returns `false` so
+    /// the caller falls back to ``moveItemViaCommandDrag(item:to:on:maxAttempts:)``.
+    /// See ``MenuBarAgentPositionStore`` for the preference format and the
+    /// empirically-uncertain key spelling this verification guards against.
+    @available(macOS 27, *)
+    private func moveItemViaPreferredPositions(
+        item: MenuBarItem,
+        to destination: MoveDestination
+    ) async -> Bool {
+        let liveItems = await MenuBarItem.getMenuBarItems(option: .activeSpace)
+        guard MenuBarAgentPositionStore.move(
+            item: item,
+            to: destination,
+            liveItems: liveItems
+        ) else {
+            return false
+        }
+
+        // MenuBarAgent is SIGTERM'd to re-read the layout and relaunches within
+        // ~1-2 s. Poll the live order until it settles rather than guessing a
+        // fixed delay.
+        for _ in 0 ..< 12 {
+            try? await Task.sleep(for: .milliseconds(250))
+            let updated = await MenuBarItem.getMenuBarItems(option: .activeSpace)
+            if LayoutPlanner.liveOrderSatisfiesDestination(
+                items: updated,
+                item: item,
+                destination: destination
+            ) {
+                lastMoveOperationTimestamp = .now
+                MenuBarItemManager.diagLog.info(
+                    "Preferred-position move verified for \(item.logString) \(destination.logString)"
+                )
+                return true
+            }
+        }
+
+        MenuBarItemManager.diagLog.warning(
+            "Preferred-position move did not verify for \(item.logString); falling back to synthetic drag"
+        )
+        return false
+    }
+
     /// Moves a menu bar item on macOS 27 by synthesizing the system's own
-    /// Command-drag gesture.
+    /// Command-drag gesture. Fallback for items
+    /// ``moveItemViaPreferredPositions(item:to:)`` cannot express as a
+    /// preference write.
     ///
     /// macOS 27 hosts every status item inside `MenuBarAgent`'s single
     /// compositor window, so items no longer have individual `CGWindowID`s and
