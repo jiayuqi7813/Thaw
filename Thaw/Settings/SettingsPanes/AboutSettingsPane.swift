@@ -42,6 +42,14 @@ struct AboutSettingsPane: View {
         pasteboard.setString(String(localized: text), forType: .string)
     }
 
+    private var versionLabelResource: LocalizedStringResource {
+        if #available(macOS 27, *) {
+            LocalizedStringResource("\(Constants.macOS27PreviewName)")
+        } else {
+            LocalizedStringResource("Version \(Constants.versionString) (\(Constants.buildString))")
+        }
+    }
+
     private var appIconAndCopyrightSection: some View {
         HStack(spacing: 10) {
             if let appIcon = NSImage(named: NSImage.applicationIconName) {
@@ -84,7 +92,7 @@ struct AboutSettingsPane: View {
                     .foregroundStyle(.primary)
 
                 HStack(spacing: 6) {
-                    let versionText = LocalizedStringResource("Version \(Constants.versionString) (\(Constants.buildString))")
+                    let versionText = versionLabelResource
 
                     Text(versionText)
                         .font(.system(size: 15))
@@ -102,13 +110,13 @@ struct AboutSettingsPane: View {
                 }
 
                 if #available(macOS 27, *) {
-                    Text("macOS 27 — unsupported preview")
+                    Text("Based on Thaw \(Constants.versionString) (\(Constants.buildString))")
                         .font(.system(size: 13))
                         .foregroundStyle(.tertiary)
                         .help(
-                            "Optional build for trying macOS 27 support early. "
-                                + "Not distributed through Thaw's update channels; "
-                                + "bugs found here may not be addressed."
+                            "Preview build for macOS 27. Feature work is based on "
+                                + "\(Constants.versionString) (\(Constants.buildString)); "
+                                + "this build is not distributed through Thaw's update channels."
                         )
                 }
 

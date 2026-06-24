@@ -36,9 +36,6 @@ struct MenuBarLayoutSettingsPane: View {
         } else {
             IceForm(spacing: 20) {
                 header
-                if #available(macOS 27, *) {
-                    nonHideableItemsNotice
-                }
                 layoutBars
                 resetControls
             }
@@ -52,48 +49,31 @@ struct MenuBarLayoutSettingsPane: View {
 
     private var header: some View {
         IceSection {
-            VStack(spacing: 3) {
-                Text("Drag to arrange your menu bar items into different sections.")
-                    .font(.title3.bold())
-                Text("Move the New Items badge to choose where newly detected items will appear.")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.secondary)
-                Text("Items can also be arranged by ⌘ Command + dragging them in the menu bar.")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.secondary)
-            }
-            .multilineTextAlignment(.center)
-            // Native Form rows are leading-aligned; keep this intro centered.
-            .frame(maxWidth: .infinity, alignment: .center)
+            headerIntro
         }
     }
 
-    /// On macOS 27 the anchored modules hosted by `com.apple.MenuBarAgent`
-    /// (Control Center and the Clock) can't be concealed by the visibility
-    /// assertion, so they stay in Visible and can't be dragged to Hidden. Other
-    /// MenuBarAgent modules (Wi-Fi, Bluetooth, AirDrop, Sound…) *are* hideable
-    /// through Control Center, so they're deliberately not named here. Warn the
-    /// user so a stuck item doesn't read as a bug. Styled as a pill to match the
-    /// toolbar's experimental macOS 27 badge.
-    @available(macOS 27, *)
-    private var nonHideableItemsNotice: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 5) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.yellow)
-            Text("On macOS 27, some macOS items — such as Spotlight, Siri, and Sound — can't be hidden and always stay in the Visible section.")
-                .font(.caption.weight(.medium))
+    private var headerIntro: some View {
+        VStack(spacing: 3) {
+            Text("Drag to arrange your menu bar items into different sections.")
+                .font(.title3.bold())
+            Text("Move the New Items badge to choose where newly detected items will appear.")
+                .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            Text("Items can also be arranged by ⌘ Command + dragging them in the menu bar.")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.secondary)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Capsule().fill(.yellow.opacity(0.15)))
-        // It's its own pill; don't let the grouped Form draw a card behind it.
-        .listRowBackground(Color.clear)
+        .multilineTextAlignment(.center)
+        // Native Form rows are leading-aligned; keep this intro centered.
+        .frame(maxWidth: .infinity, alignment: .center)
     }
 
     private var layoutBars: some View {
         VStack(spacing: 20) {
+            if #available(macOS 27, *) {
+                nonHideableItemsNotice
+            }
             ForEach(MenuBarSection.Name.allCases, id: \.self) { section in
                 layoutBar(for: section)
             }
@@ -144,12 +124,28 @@ struct MenuBarLayoutSettingsPane: View {
         }
     }
 
+    /// On macOS 27 the anchored modules hosted by `com.apple.MenuBarAgent`
+    /// (Control Center and the Clock) can't be concealed by the visibility
+    /// assertion, so they stay in Visible and can't be dragged to Hidden. Other
+    /// MenuBarAgent modules (Wi-Fi, Bluetooth, AirDrop, Sound…) *are* hideable
+    /// through Control Center, so they're deliberately not named here. Warn the
+    /// user so a stuck item doesn't read as a bug.
+    @available(macOS 27, *)
+    private var nonHideableItemsNotice: some View {
+        SettingsWarningPill(
+            message: "On macOS 27, some macOS items — such as Spotlight, Siri, and Sound — can't be hidden and always stay in the Visible section."
+        )
+    }
+
     private var resetControls: some View {
         IceSection {
             VStack(alignment: .leading, spacing: 16) {
                 resetToHiddenRow
                 Divider()
                 resetToVisibleRow
+                SettingsWarningPill(
+                    message: "If menu bar items are missing or a section looks empty, try Reset to Visible — it often restores the layout."
+                )
             }
 
             if let resetStatus {
