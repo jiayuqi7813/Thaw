@@ -192,12 +192,13 @@ final class LayoutBarPaddingView: NSView {
             let orderedItems = orderedLayoutItems()
             let experimentalSystemItemHiding = container.appState?.settings.advanced.enableExperimentalSystemItemHiding ?? false
 
-            guard item.isMovable(experimentalSystemItemHiding: experimentalSystemItemHiding) else {
+            guard item.isPhysicallyOrderable(experimentalSystemItemHiding: experimentalSystemItemHiding) else {
                 guard SimpleItemHider.canAssign(
                     item,
                     to: container.section,
                     experimentalSystemItemHiding: experimentalSystemItemHiding
-                ), container.section != .visible
+                ),
+                    sourceSection != container.section || container.section != .visible
                 else {
                     Self.diagLog.warning("Ignoring drag for anchored system item \(item.logString)")
                     container.updateArrangedViewsForDrag(with: sender, phase: .exited)
@@ -639,7 +640,8 @@ final class LayoutBarPaddingView: NSView {
         for candidateIndex in (index + 1) ..< arrangedViews.count {
             if case let .item(item) = arrangedViews[candidateIndex].kind {
                 if requiringMovable,
-                   item.isControlItem || !item.isMovable(experimentalSystemItemHiding: experimentalSystemItemHiding)
+                   item.isControlItem ||
+                   !item.isPhysicallyOrderable(experimentalSystemItemHiding: experimentalSystemItemHiding)
                 {
                     continue
                 }
@@ -660,7 +662,8 @@ final class LayoutBarPaddingView: NSView {
         for candidateIndex in stride(from: index - 1, through: 0, by: -1) {
             if case let .item(item) = arrangedViews[candidateIndex].kind {
                 if requiringMovable,
-                   item.isControlItem || !item.isMovable(experimentalSystemItemHiding: experimentalSystemItemHiding)
+                   item.isControlItem ||
+                   !item.isPhysicallyOrderable(experimentalSystemItemHiding: experimentalSystemItemHiding)
                 {
                     continue
                 }

@@ -1170,6 +1170,9 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         XCTAssertFalse(clock.isMovable)
         XCTAssertFalse(clock.canBeHidden)
         XCTAssertTrue(clock.isMovable(experimentalSystemItemHiding: true))
+        XCTAssertTrue(clock.isPhysicallyOrderable(experimentalSystemItemHiding: true))
+        XCTAssertTrue(siri.isMovable(experimentalSystemItemHiding: true))
+        XCTAssertFalse(siri.isPhysicallyOrderable(experimentalSystemItemHiding: true))
         XCTAssertTrue(clock.canBeHidden(experimentalSystemItemHiding: true))
         XCTAssertFalse(SimpleItemHider.canAssign(clock, to: .hidden, experimentalSystemItemHiding: false))
         XCTAssertTrue(SimpleItemHider.canAssign(clock, to: .hidden, experimentalSystemItemHiding: true))
@@ -1476,6 +1479,43 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         XCTAssertEqual(
             segments.map { $0.map(\.uniqueIdentifier) },
             [[gamma.uniqueIdentifier, beta.uniqueIdentifier, clock.uniqueIdentifier, alpha.uniqueIdentifier]]
+        )
+    }
+
+    func testExperimentalSystemItemHidingDoesNotOrderAcrossSystemUIServerAnchor() {
+        let alpha = appItem(bundleID: "com.example.alpha", title: "Alpha", x: 0, windowID: 74)
+        let siri = item(
+            tag: MenuBarItemTag(namespace: .systemUIServer, title: "Siri", windowID: 75),
+            x: 24,
+            windowID: 75
+        )
+        let beta = appItem(bundleID: "com.example.beta", title: "Beta", x: 48, windowID: 76)
+
+        let segments = LayoutPlanner.achievableOrderSegments(
+            items: [alpha, siri, beta],
+            desiredOrder: [
+                beta.uniqueIdentifier,
+                siri.uniqueIdentifier,
+                alpha.uniqueIdentifier,
+            ],
+            experimentalSystemItemHiding: true
+        )
+
+        XCTAssertEqual(
+            segments.map { $0.map(\.uniqueIdentifier) },
+            [[alpha.uniqueIdentifier], [beta.uniqueIdentifier]]
+        )
+        XCTAssertNil(
+            LayoutPlanner.achievableDestination(
+                items: [alpha, siri, beta],
+                item: beta,
+                desiredOrder: [
+                    beta.uniqueIdentifier,
+                    siri.uniqueIdentifier,
+                    alpha.uniqueIdentifier,
+                ],
+                experimentalSystemItemHiding: true
+            )
         )
     }
 

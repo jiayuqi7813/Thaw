@@ -3603,7 +3603,7 @@ extension MenuBarItemManager {
             throw EventError.cannotComplete
         }
         let experimentalSystemItemHiding = appState.settings.advanced.enableExperimentalSystemItemHiding
-        guard item.isMovable(experimentalSystemItemHiding: experimentalSystemItemHiding) else {
+        guard item.isPhysicallyOrderable(experimentalSystemItemHiding: experimentalSystemItemHiding) else {
             throw EventError.itemNotMovable(item)
         }
 

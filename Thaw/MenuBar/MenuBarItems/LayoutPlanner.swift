@@ -36,9 +36,7 @@ enum LayoutPlanner {
     ) -> Bool {
         let orderedItems = items
             .filter { !$0.isSystemClone }
-            .filter {
-                experimentalSystemItemHiding || !$0.tag.isLayoutAnchoredSystemItem
-            }
+            .filter { $0.isPhysicallyOrderable(experimentalSystemItemHiding: experimentalSystemItemHiding) }
             .sorted(by: visualOrder)
         let target = destination.targetItem
         guard !item.tag.matchesIgnoringWindowID(target.tag),
@@ -71,7 +69,7 @@ enum LayoutPlanner {
         var currentSegment = [MenuBarItem]()
         for item in orderedItems {
             if item.tag.isLayoutAnchoredSystemItem,
-               !item.isMovable(experimentalSystemItemHiding: experimentalSystemItemHiding)
+               !item.isPhysicallyOrderable(experimentalSystemItemHiding: experimentalSystemItemHiding)
             {
                 if !currentSegment.isEmpty {
                     physicalSegments.append(currentSegment)
@@ -79,7 +77,7 @@ enum LayoutPlanner {
                 }
                 continue
             }
-            if item.isMovable(experimentalSystemItemHiding: experimentalSystemItemHiding),
+            if item.isPhysicallyOrderable(experimentalSystemItemHiding: experimentalSystemItemHiding),
                !item.isControlItem || item.tag.matchesVisibleControlItem
             {
                 currentSegment.append(item)
@@ -230,20 +228,20 @@ enum LayoutPlanner {
 
         let leftBarrier = orderedItems[..<dividerIndex].lastIndex(where: {
             $0.tag.isLayoutAnchoredSystemItem &&
-                !$0.isMovable(experimentalSystemItemHiding: experimentalSystemItemHiding)
+                !$0.isPhysicallyOrderable(experimentalSystemItemHiding: experimentalSystemItemHiding)
         })
         let afterDivider = orderedItems.index(after: dividerIndex)
         let rightBarrier = afterDivider < orderedItems.endIndex
             ? orderedItems[afterDivider...].firstIndex(where: {
                 $0.tag.isLayoutAnchoredSystemItem &&
-                    !$0.isMovable(experimentalSystemItemHiding: experimentalSystemItemHiding)
+                    !$0.isPhysicallyOrderable(experimentalSystemItemHiding: experimentalSystemItemHiding)
             })
             : nil
         let segmentStart = leftBarrier.map { orderedItems.index(after: $0) } ?? orderedItems.startIndex
         let segmentEnd = rightBarrier ?? orderedItems.endIndex
 
         let visibleAnchor = orderedItems[segmentStart ..< segmentEnd].first { item in
-            guard item.isMovable(experimentalSystemItemHiding: experimentalSystemItemHiding),
+            guard item.isPhysicallyOrderable(experimentalSystemItemHiding: experimentalSystemItemHiding),
                   !item.isControlItem || item.tag.matchesVisibleControlItem
             else {
                 return false

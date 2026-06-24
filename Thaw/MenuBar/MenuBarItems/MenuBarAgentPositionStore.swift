@@ -92,8 +92,10 @@ enum MenuBarAgentPositionStore {
         experimentalSystemItemHiding: Bool = false,
         environment: Environment = .live
     ) -> Bool {
-        guard item.isMovable(experimentalSystemItemHiding: experimentalSystemItemHiding),
-              experimentalSystemItemHiding || !destination.targetItem.tag.isLayoutAnchoredSystemItem
+        guard item.isPhysicallyOrderable(experimentalSystemItemHiding: experimentalSystemItemHiding),
+              destination.targetItem.isPhysicallyOrderable(
+                  experimentalSystemItemHiding: experimentalSystemItemHiding
+              )
         else {
             return false
         }
@@ -257,9 +259,7 @@ enum MenuBarAgentPositionStore {
     ) -> (anchor: MenuBarItem, far: MenuBarItem?)? {
         let ordered = liveItems
             .filter { !$0.isSystemClone }
-            .filter {
-                experimentalSystemItemHiding || !$0.tag.isLayoutAnchoredSystemItem
-            }
+            .filter { $0.isPhysicallyOrderable(experimentalSystemItemHiding: experimentalSystemItemHiding) }
             .filter { !$0.tag.matchesIgnoringWindowID(item.tag) }
             .sorted { $0.bounds.minX < $1.bounds.minX }
 

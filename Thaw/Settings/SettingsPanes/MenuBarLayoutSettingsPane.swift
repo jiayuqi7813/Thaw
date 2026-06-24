@@ -165,7 +165,10 @@ struct MenuBarLayoutSettingsPane: View {
     private var experimentalSystemItemHidingBinding: Binding<Bool> {
         Binding(
             get: { appState.settings.advanced.enableExperimentalSystemItemHiding },
-            set: { appState.settings.advanced.enableExperimentalSystemItemHiding = $0 }
+            set: { newValue in
+                appState.settings.advanced.enableExperimentalSystemItemHiding = newValue
+                appState.menuBarManager.simpleItemHider?.refresh()
+            }
         )
     }
 
