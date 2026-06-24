@@ -38,7 +38,7 @@ final class AssessmentModeBackend {
         ThawAssessmentModeHidingAvailable()
     }
 
-    /// The Apple system-item identifiers kept visible by the Assessment Mode
+    /// The Apple system-item identifiers known to the Assessment Mode
     /// restriction.
     ///
     /// `MBSystemItemIdentifier` has exactly 9 cases, raw values 0...8 (battery,
@@ -48,7 +48,41 @@ final class AssessmentModeBackend {
     /// list hides ALL system items. Menu extras (AirDrop/Focus/User/NowPlaying)
     /// are not in this enum and cannot be preserved by the allowlist — that
     /// collateral is accepted. See [[macos27-system-item-hiding-approach]].
-    static let allowedSystemItems: [NSNumber] = (0...8).map { NSNumber(value: $0) }
+    static let allSystemItems: Set<Int> = Set(0...8)
+
+    /// The default Apple system-item identifiers kept visible by the Assessment
+    /// Mode restriction.
+    static let allowedSystemItems: [NSNumber] = allSystemItems
+        .sorted()
+        .map { NSNumber(value: $0) }
+
+    /// Known `MBSystemItemIdentifier` raw values. Apple does not publish this
+    /// enum; these values are intentionally best-effort and guarded by the
+    /// experimental setting that opts into hiding system items.
+    static func systemItemIdentifier(for tag: MenuBarItemTag) -> Int? {
+        switch tag.title {
+        case "Battery":
+            return 0
+        case "Bluetooth", "com.apple.menuextra.bluetooth":
+            return 1
+        case "Clock", "com.apple.menuextra.clock":
+            return 2
+        case "Displays", "Display", "com.apple.menuextra.displays":
+            return 3
+        case "Keyboard", "com.apple.menuextra.keyboard":
+            return 4
+        case "Sound", "Volume", "com.apple.menuextra.volume":
+            return 5
+        case "WiFi", "Wi-Fi", "com.apple.menuextra.wifi":
+            return 6
+        case "ScreenMirroring", "Screen Mirroring", "com.apple.menuextra.screenmirroring":
+            return 7
+        case "BentoBox-0", "ControlCenter", "com.apple.menuextra.controlcenter":
+            return 8
+        default:
+            return nil
+        }
+    }
 
     private let diagLog = DiagLog(category: "AssessmentModeBackend")
 
@@ -68,17 +102,25 @@ final class AssessmentModeBackend {
     /// the item *was* visible keeps it concealed across refreshes.
     private var knownBundleIDs: [String: String] = [:]
 
+    /// Learned `uniqueIdentifier → MBSystemItemIdentifier raw value` map for
+    /// Apple system items that can be hidden only by removing their raw value
+    /// from the Assessment Mode system-item allowlist.
+    private var knownSystemItemIDs: [String: Int] = [:]
+
     /// Monotonic token identifying the most recent activation attempt. The
     /// assertion's failure callback fires asynchronously, by which point a newer
     /// activation may already be in effect; the callback compares against this to
     /// avoid tearing down a handle it didn't create.
     private var activationGeneration = 0
 
-    /// The allowed set whose activation most recently failed asynchronously, or
-    /// `nil`. Used to avoid re-activating the *identical* failed configuration on
-    /// the next 1s tick (which would hot-loop); any genuine change to the desired
-    /// set clears it and allows another attempt.
-    private var lastFailedAllowed: Set<String>?
+    /// The configuration whose activation most recently failed asynchronously,
+    /// or `nil`. Used to avoid re-activating the *identical* failed
+    /// configuration on the next 1s tick (which would hot-loop); any genuine
+    /// change to the desired set clears it and allows another attempt.
+    private var lastFailedConfiguration: (allowed: Set<String>, systemItems: Set<Int>)?
+
+    /// The allowed system-item set baked into the currently-active assertion.
+    private var appliedAllowedSystemItems = AssessmentModeBackend.allSystemItems
 
     static var protectedBundleIDs: Set<String> {
         Constants.thawOwnedBundleIdentifiers
@@ -125,10 +167,14 @@ final class AssessmentModeBackend {
         for item in allItems {
             guard !isOwnAppItem(item) else {
                 knownBundleIDs.removeValue(forKey: item.uniqueIdentifier)
+                knownSystemItemIDs.removeValue(forKey: item.uniqueIdentifier)
                 continue
             }
             if let bundleID = item.sourceApplication?.bundleIdentifier {
                 knownBundleIDs[item.uniqueIdentifier] = bundleID
+            }
+            if let systemItemID = Self.systemItemIdentifier(for: item.tag) {
+                knownSystemItemIDs[item.uniqueIdentifier] = systemItemID
             }
         }
 
@@ -175,8 +221,11 @@ final class AssessmentModeBackend {
             concealedBundleIDs.remove(bundleID)
         }
 
+        let concealedSystemItemIDs = Set(concealed.compactMap { knownSystemItemIDs[$0] })
+        let allowedSystemItemSet = Self.allSystemItems.subtracting(concealedSystemItemIDs)
+
         // Nothing concealed → tear down any active restriction.
-        guard !concealedBundleIDs.isEmpty else {
+        guard !concealedBundleIDs.isEmpty || !concealedSystemItemIDs.isEmpty else {
             return reset()
         }
 
@@ -215,25 +264,32 @@ final class AssessmentModeBackend {
         // Apps merely quitting leave harmless stale entries in the allowlist, so
         // a pure shrink of the allowed set is ignored — no reflow needed.
         let concealedChanged = concealedBundleIDs != appliedConcealed
+        let systemItemsChanged = allowedSystemItemSet != appliedAllowedSystemItems
         let newlyAppeared = !allowedSet.subtracting(appliedAllowed).isEmpty
-        guard handle == nil || concealedChanged || newlyAppeared else { return false }
+        guard handle == nil || concealedChanged || systemItemsChanged || newlyAppeared else { return false }
 
         // Don't re-activate the exact configuration that just failed
         // asynchronously — that would hot-loop on the 1s timer. Any change to the
         // desired set (an app launching/quitting, a drag/reset) makes this
         // unequal and clears the marker below, so a genuine retry still happens.
-        if allowedSet == lastFailedAllowed {
+        if let lastFailedConfiguration,
+           allowedSet == lastFailedConfiguration.allowed,
+           allowedSystemItemSet == lastFailedConfiguration.systemItems
+        {
             return false
         }
-        lastFailedAllowed = nil
+        lastFailedConfiguration = nil
 
         // Re-activate with the new allowlist. The previous assertion is dropped
         // first so the server applies a single, current restriction.
         let allowedBundleIDs = allowedSet.sorted()
-        let allowedSystemItems = Self.allowedSystemItems
+        let allowedSystemItems = allowedSystemItemSet
+            .sorted()
+            .map { NSNumber(value: $0) }
         activationGeneration += 1
         let generation = activationGeneration
         let attemptedAllowed = allowedSet
+        let attemptedSystemItems = allowedSystemItemSet
         diagLog.info(
             "applying restriction: systemItems=\(allowedSystemItems.map(\.stringValue)), " +
             "concealedBundles=\(concealedBundleIDs.sorted()), allowedBundles=\(allowedBundleIDs.count)"
@@ -253,7 +309,11 @@ final class AssessmentModeBackend {
                 self.handle = nil
                 self.appliedConcealed = []
                 self.appliedAllowed = []
-                self.lastFailedAllowed = attemptedAllowed
+                self.appliedAllowedSystemItems = Self.allSystemItems
+                self.lastFailedConfiguration = (
+                    allowed: attemptedAllowed,
+                    systemItems: attemptedSystemItems
+                )
             }
         }
         if let old = handle {
@@ -262,8 +322,10 @@ final class AssessmentModeBackend {
         handle = newHandle
         appliedConcealed = concealedBundleIDs
         appliedAllowed = allowedSet
+        appliedAllowedSystemItems = allowedSystemItemSet
         diagLog.info(
             "applied restriction: concealing \(concealedBundleIDs.count) app(s), " +
+            "\(concealedSystemItemIDs.count) system item(s), " +
             "allowing \(allowedBundleIDs.count)"
         )
         return true
@@ -275,6 +337,7 @@ final class AssessmentModeBackend {
         handle = nil
         appliedConcealed = []
         appliedAllowed = []
+        appliedAllowedSystemItems = Self.allSystemItems
         diagLog.info("restriction reset; all items revealed")
         return true
     }
