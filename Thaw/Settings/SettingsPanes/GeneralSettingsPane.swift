@@ -66,26 +66,20 @@ struct GeneralSettingsPane: View {
         let labelKey: LocalizedStringKey = "\(Constants.displayName) icon"
 
         IceMenu(labelKey) {
-            Picker(labelKey, selection: $settings.iceIcon) {
-                ForEach(ControlItemImageSet.userSelectableIceIcons) { imageSet in
-                    Button {
-                        settings.iceIcon = imageSet
-                    } label: {
-                        iceIconMenuItem(for: imageSet)
-                    }
-                    .tag(imageSet)
-                }
-                if let lastCustomIceIcon = settings.lastCustomIceIcon {
-                    Button {
-                        settings.iceIcon = lastCustomIceIcon
-                    } label: {
-                        iceIconMenuItem(for: lastCustomIceIcon)
-                    }
-                    .tag(lastCustomIceIcon)
+            ForEach(ControlItemImageSet.userSelectableIceIcons) { imageSet in
+                Button {
+                    settings.iceIcon = imageSet
+                } label: {
+                    iceIconMenuItem(for: imageSet)
                 }
             }
-            .pickerStyle(.inline)
-            .labelsHidden()
+            if let lastCustomIceIcon = settings.lastCustomIceIcon {
+                Button {
+                    settings.iceIcon = lastCustomIceIcon
+                } label: {
+                    iceIconMenuItem(for: lastCustomIceIcon)
+                }
+            }
 
             Divider()
 

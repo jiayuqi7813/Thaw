@@ -28,13 +28,16 @@ enum Constants {
     /// The app's display name.
     static let displayName = Bundle.main.displayName
 
-    /// Sparkle update checks are disabled on the macOS 27 unsupported preview.
+    /// Sparkle update checks are disabled on the macOS 27 preview build.
     static var supportsSparkleUpdates: Bool {
         if #available(macOS 27, *) {
             return false
         }
         return true
     }
+
+    /// Label for the macOS 27 preview build shown in About.
+    static let macOS27PreviewName = "macOS 27 Preview 3"
 
     // swiftlint:enable force_unwrapping
 
@@ -81,13 +84,13 @@ enum Constants {
         /// Proton, Sound) are clipped by the curve. Must clear the rounded cap
         /// radius (~half the menu-bar height, ≈11 pt) plus visible breathing
         /// room, so it sits well past the legacy 7 pt CGS outset.
-        static let trailingPillLeadingInnerMargin: CGFloat = 20
+        static let trailingPillLeadingInnerMargin: CGFloat = 7
         /// Outer (trailing) breathing room for the split trailing pill on
         /// macOS 27 — the mirror of ``trailingPillLeadingInnerMargin``. The right
         /// rounded cap (radius ≈ half the menu-bar height) curves in over the
         /// rightmost item (the Clock) at the legacy 7 pt outset, so the pill
         /// looks like it stops short of covering it. Clear the cap radius.
-        static let trailingPillTrailingOuterMargin: CGFloat = 20
+        static let trailingPillTrailingOuterMargin: CGFloat = 10
         static let visibleControlClusterBridgePadding: CGFloat = 32
         static let syntheticDragDropInset: CGFloat = 2
         static let syntheticDragSettleDelay: Duration = .milliseconds(250)
