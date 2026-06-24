@@ -95,6 +95,18 @@ enum Constants {
         static let syntheticDragDropInset: CGFloat = 2
         static let syntheticDragSettleDelay: Duration = .milliseconds(250)
 
+        // MARK: Startup
+
+        /// Delay before the first post-launch menu bar scan. Gives status items
+        /// time to register before the cold-boot cache pass.
+        static let startupInitialScanDelay: Duration = .milliseconds(350)
+        /// Longer settle for the menu bar hosting process (Control Center /
+        /// MenuBarAgent and its BentoBox modules), which attach later than
+        /// ordinary app status items.
+        static let startupMenuBarHostSettleDelay: Duration = .milliseconds(500)
+        /// Interval between startup settling polls.
+        static let startupSettlingPollInterval: Duration = .milliseconds(500)
+
         // MARK: Thaw Bar (macOS 27)
 
         /// How long to wait after relaxing the visibility assertion for

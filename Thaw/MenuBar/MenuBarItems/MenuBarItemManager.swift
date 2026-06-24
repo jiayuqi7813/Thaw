@@ -118,6 +118,29 @@ final class MenuBarItemManager: ObservableObject {
     /// giving macOS time to settle menu bar item positions.
     static let uiSettleDelay: Duration = .milliseconds(300)
 
+    /// Minimum time cold-boot settling waits before declaring the bar stable.
+    private static var startupMinimumSettlingDuration: Duration {
+        if #available(macOS 27, *) {
+            Constants.MenuBarTuning.startupMenuBarHostSettleDelay
+        } else {
+            Constants.MenuBarTuning.startupInitialScanDelay
+        }
+    }
+
+    /// Delay before the first AX scan after launch.
+    private static var startupInitialScanDelay: Duration {
+        startupMinimumSettlingDuration
+    }
+
+    /// Retry interval when Thaw's control items are not yet visible.
+    private static var startupControlItemRetryDelay: Duration {
+        if #available(macOS 27, *) {
+            Constants.MenuBarTuning.startupMenuBarHostSettleDelay
+        } else {
+            Constants.MenuBarTuning.startupInitialScanDelay
+        }
+    }
+
     /// The current cache of menu bar items.
     @Published private(set) var itemCache = ItemCache(displayID: nil)
 
@@ -1022,6 +1045,17 @@ final class MenuBarItemManager: ObservableObject {
         MenuBarItemManager.diagLog.debug("performSetup: scheduling initial cacheItemsRegardless off the startup critical path")
         self.initialCacheTask = Task { @MainActor [weak self] in
             guard let self else { return }
+            let initialDelay = Self.startupInitialScanDelay
+            MenuBarItemManager.diagLog.debug(
+                "performSetup: waiting \(initialDelay) before initial menu bar scan"
+            )
+            do {
+                try await Task.sleep(for: initialDelay)
+            } catch is CancellationError {
+                return
+            } catch {
+                return
+            }
             MenuBarItemManager.diagLog.debug(
                 "performSetup: initial cacheItemsRegardless started (fast path without sourcePID resolution)"
             )
@@ -1045,10 +1079,10 @@ final class MenuBarItemManager: ObservableObject {
                 }
 
                 MenuBarItemManager.diagLog.debug(
-                    "performSetup: fast initial cache missing control items on attempt \(attempt), retrying shortly"
+                    "performSetup: fast initial cache missing control items on attempt \(attempt), retrying after \(Self.startupControlItemRetryDelay)"
                 )
                 do {
-                    try await Task.sleep(for: .milliseconds(100))
+                    try await Task.sleep(for: Self.startupControlItemRetryDelay)
                 } catch is CancellationError {
                     return
                 } catch {
@@ -1160,6 +1194,7 @@ final class MenuBarItemManager: ObservableObject {
             var stablePolls = 0
             let waitingFor = mergedExpected
             let useExpectedSet = !waitingFor.isEmpty
+            let settlingStartedAt = ContinuousClock.now
             if useExpectedSet {
                 MenuBarItemManager.diagLog.debug(
                     "\(reason): waiting for \(waitingFor.count) expected bundle ID(s) to reattach"
@@ -1178,6 +1213,8 @@ final class MenuBarItemManager: ObservableObject {
                 let managedCount = itemCache.managedItems.count
                 let unresolved = itemCache.managedItems.count(where: { $0.sourcePID == nil })
                 let pidsOK = managedCount > 0 && unresolved <= 1
+                let minimumElapsed = settlingStartedAt.duration(to: .now) >= Self.startupMinimumSettlingDuration
+                let hostReady = menuBarHostItemsReady(in: itemCache)
 
                 if useExpectedSet {
                     let presentBundleIDs: Set<String> = Set(
@@ -1189,7 +1226,11 @@ final class MenuBarItemManager: ObservableObject {
                         }
                     )
                     let stillMissing = waitingFor.subtracting(presentBundleIDs)
-                    if stillMissing.isEmpty, pidsOK {
+                    if stillMissing.isEmpty,
+                       pidsOK,
+                       minimumElapsed,
+                       hostReady
+                    {
                         MenuBarItemManager.diagLog.debug(
                             "\(reason): all \(waitingFor.count) expected bundle ID(s) reattached, ending early"
                         )
@@ -1199,7 +1240,11 @@ final class MenuBarItemManager: ObservableObject {
                         "\(reason): \(stillMissing.count) bundle ID(s) still missing: \(stillMissing.sorted().joined(separator: ", "))"
                     )
                 } else {
-                    if pidsOK, managedCount == lastSeenCount {
+                    if pidsOK,
+                       managedCount == lastSeenCount,
+                       minimumElapsed,
+                       hostReady
+                    {
                         stablePolls += 1
                         if stablePolls >= stableTarget {
                             MenuBarItemManager.diagLog.debug(
@@ -1212,6 +1257,14 @@ final class MenuBarItemManager: ObservableObject {
                             MenuBarItemManager.diagLog.debug(
                                 "\(reason): count changed \(lastSeenCount) -> \(managedCount) (\(unresolved) nil PIDs), resetting stability"
                             )
+                        } else if !minimumElapsed {
+                            MenuBarItemManager.diagLog.debug(
+                                "\(reason): count stable but minimum settle \(Self.startupMinimumSettlingDuration) not elapsed yet"
+                            )
+                        } else if !hostReady {
+                            MenuBarItemManager.diagLog.debug(
+                                "\(reason): waiting for menu bar host modules (MenuBarAgent / BentoBox)"
+                            )
                         }
                         stablePolls = 0
                         lastSeenCount = managedCount
@@ -1220,7 +1273,10 @@ final class MenuBarItemManager: ObservableObject {
 
                 // Short sleep before next poll; exit immediately if cancelled.
                 do {
-                    try await Task.sleep(for: .milliseconds(500), tolerance: .milliseconds(100))
+                    try await Task.sleep(
+                        for: Constants.MenuBarTuning.startupSettlingPollInterval,
+                        tolerance: .milliseconds(100)
+                    )
                 } catch is CancellationError {
                     MenuBarItemManager.diagLog.debug("\(reason): settling task cancelled")
                     return
@@ -1276,7 +1332,36 @@ final class MenuBarItemManager: ObservableObject {
             // skipRecentMoveCheck: true ensures this pass is never suppressed by the
             // 1-second recent-move cooldown stamped by the fast restore above.
             await cacheItemsRegardless(skipRecentMoveCheck: true, resolveSourcePID: true)
+
+            if reason == "performSetup" {
+                scheduleStartupLateItemRecheck()
+            }
         }
+    }
+
+    /// Re-checks for status items that register after the cold-boot settling
+    /// window (already-running apps with late NSStatusItem attachment).
+    private func scheduleStartupLateItemRecheck() {
+        Task { @MainActor [weak self] in
+            // Mirror the post-didLaunch recheck cadence: many apps attach
+            // their status item 2–5 s after process start with no launch
+            // notification because they were already running.
+            try? await Task.sleep(for: .seconds(2.5))
+            await self?.cacheItemsIfNeeded()
+            try? await Task.sleep(for: .seconds(2.5))
+            await self?.cacheItemsIfNeeded()
+        }
+    }
+
+    /// Whether menu bar host modules (MenuBarAgent / BentoBox on macOS 27,
+    /// Control Center on earlier releases) have appeared in the cache.
+    private func menuBarHostItemsReady(in cache: ItemCache) -> Bool {
+        if #available(macOS 27, *) {
+            return cache.managedItems.contains {
+                $0.tag.namespace == .menuBarAgent || $0.tag.isBentoBox
+            }
+        }
+        return cache.managedItems.contains { $0.tag.isBentoBox }
     }
 
     /// Configures the internal observers for the manager.
