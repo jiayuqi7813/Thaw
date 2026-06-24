@@ -3599,11 +3599,12 @@ extension MenuBarItemManager {
             MenuBarItemManager.diagLog.warning("Skipping move for \(item.logString) - system status item clone")
             return
         }
-        guard item.isMovable else {
-            throw EventError.itemNotMovable(item)
-        }
         guard let appState else {
             throw EventError.cannotComplete
+        }
+        let experimentalSystemItemHiding = appState.settings.advanced.enableExperimentalSystemItemHiding
+        guard item.isMovable(experimentalSystemItemHiding: experimentalSystemItemHiding) else {
+            throw EventError.itemNotMovable(item)
         }
 
         // Most legacy callers target a section divider to trigger the old
@@ -3672,7 +3673,11 @@ extension MenuBarItemManager {
         // cannot express (unresolved key, no numeric gap, end placement) falls
         // through to the synthetic ⌘-drag, which keeps full coverage.
         if #available(macOS 27, *),
-           await moveItemViaPreferredPositions(item: item, to: destination)
+           await moveItemViaPreferredPositions(
+               item: item,
+               to: destination,
+               experimentalSystemItemHiding: experimentalSystemItemHiding
+           )
         {
             return
         }
@@ -3703,7 +3708,12 @@ extension MenuBarItemManager {
         // items (verified by reverse-engineering), so delegate to that gesture.
         // The cursor hide/warp-back defer registered above wraps this call.
         if #available(macOS 27, *) {
-            try await moveItemViaCommandDrag(item: item, to: destination, on: resolvedDisplayID)
+            try await moveItemViaCommandDrag(
+                item: item,
+                to: destination,
+                on: resolvedDisplayID,
+                experimentalSystemItemHiding: experimentalSystemItemHiding
+            )
             return
         }
 
@@ -3820,7 +3830,8 @@ extension MenuBarItemManager {
             if LayoutPlanner.dividerMoveDestination(
                 items: liveItems,
                 sectionAssignment: hider.sectionAssignment,
-                controlItems: controlItems
+                controlItems: controlItems,
+                experimentalSystemItemHiding: appState.settings.advanced.enableExperimentalSystemItemHiding
             ) != nil {
                 liveItems = await MenuBarItem.getMenuBarItems(option: .activeSpace)
             }
@@ -3916,6 +3927,7 @@ extension MenuBarItemManager {
         // screen capture is refreshed only when the bar changed — not on every
         // idle reconcile (each macOS 27 capture is a heavy full screenshot).
         var didReorder = false
+        let experimentalSystemItemHiding = appState?.settings.advanced.enableExperimentalSystemItemHiding ?? false
 
         for section in sections {
             let desiredOrder = hider.sectionItemOrder[section] ?? []
@@ -3934,7 +3946,8 @@ extension MenuBarItemManager {
             if #available(macOS 27, *) {
                 let reordered = MenuBarAgentPositionStore.applyOrder(
                     desiredOrder: desiredOrder,
-                    liveItems: liveItems
+                    liveItems: liveItems,
+                    experimentalSystemItemHiding: experimentalSystemItemHiding
                 )
                 if !reordered.isEmpty {
                     didReorder = true
@@ -3958,7 +3971,8 @@ extension MenuBarItemManager {
                 }
                 guard let plannedMove = LayoutPlanner.nextAchievableOrderMove(
                     items: sectionItems,
-                    desiredOrder: desiredOrder
+                    desiredOrder: desiredOrder,
+                    experimentalSystemItemHiding: experimentalSystemItemHiding
                 ) else {
                     break
                 }
@@ -4046,7 +4060,8 @@ extension MenuBarItemManager {
             }
             if LayoutPlanner.nextAchievableOrderMove(
                 items: sectionItems,
-                desiredOrder: desiredOrder
+                desiredOrder: desiredOrder,
+                experimentalSystemItemHiding: appState?.settings.advanced.enableExperimentalSystemItemHiding ?? false
             ) == nil {
                 MenuBarItemManager.diagLog.info(
                     "Batch preferred-position order satisfied for \(section.logString)"
@@ -4068,13 +4083,15 @@ extension MenuBarItemManager {
     @available(macOS 27, *)
     private func moveItemViaPreferredPositions(
         item: MenuBarItem,
-        to destination: MoveDestination
+        to destination: MoveDestination,
+        experimentalSystemItemHiding: Bool
     ) async -> Bool {
         let liveItems = await MenuBarItem.getMenuBarItems(option: .activeSpace)
         guard MenuBarAgentPositionStore.move(
             item: item,
             to: destination,
-            liveItems: liveItems
+            liveItems: liveItems,
+            experimentalSystemItemHiding: experimentalSystemItemHiding
         ) else {
             return false
         }
@@ -4088,7 +4105,8 @@ extension MenuBarItemManager {
             if LayoutPlanner.liveOrderSatisfiesDestination(
                 items: updated,
                 item: item,
-                destination: destination
+                destination: destination,
+                experimentalSystemItemHiding: experimentalSystemItemHiding
             ) {
                 lastMoveOperationTimestamp = .now
                 MenuBarItemManager.diagLog.info(
@@ -4127,7 +4145,8 @@ extension MenuBarItemManager {
         item: MenuBarItem,
         to destination: MoveDestination,
         on _: CGDirectDisplayID,
-        maxAttempts: Int = 2
+        maxAttempts: Int = 2,
+        experimentalSystemItemHiding: Bool
     ) async throws {
         let engine = SyntheticMoveEngine(
             eventSemaphore: eventSemaphore,
@@ -4142,7 +4161,12 @@ extension MenuBarItemManager {
         // re-apply cooldown never arms here and divergence re-dispatches on
         // every cache cycle instead.
         defer { lastMoveOperationTimestamp = .now }
-        try await engine.move(item: item, to: destination, maxAttempts: maxAttempts)
+        try await engine.move(
+            item: item,
+            to: destination,
+            maxAttempts: maxAttempts,
+            experimentalSystemItemHiding: experimentalSystemItemHiding
+        )
     }
 }
 
@@ -5698,7 +5722,8 @@ extension MenuBarItemManager {
             guard let destination = LayoutPlanner.dividerMoveDestination(
                 items: items,
                 sectionAssignment: sectionAssignment,
-                controlItems: controlItems
+                controlItems: controlItems,
+                experimentalSystemItemHiding: appState?.settings.advanced.enableExperimentalSystemItemHiding ?? false
             ) else {
                 // Nothing to enforce — clear the thrash guard so a future genuine
                 // divergence is allowed to retry.
@@ -6071,9 +6096,17 @@ extension MenuBarItemManager {
         // cache (the set the layout bars show): everything hideable → Hidden.
         var assignment = [String: MenuBarSection.Name]()
         var skippedProtectedItems = [String]()
+        let experimentalSystemItemHiding = appState.settings.advanced.enableExperimentalSystemItemHiding
         for item in itemCache.managedItems
-        where item.canBeHidden {
-            guard !SimpleItemHider.isProtectedAssignmentItem(item) else {
+        where SimpleItemHider.canAssign(
+            item,
+            to: .hidden,
+            experimentalSystemItemHiding: experimentalSystemItemHiding
+        ) {
+            guard !SimpleItemHider.isProtectedAssignmentItem(
+                item,
+                experimentalSystemItemHiding: experimentalSystemItemHiding
+            ) else {
                 skippedProtectedItems.append(item.uniqueIdentifier)
                 continue
             }
