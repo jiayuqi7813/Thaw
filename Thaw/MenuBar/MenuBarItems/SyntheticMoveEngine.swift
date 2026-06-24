@@ -39,7 +39,7 @@ struct SyntheticMoveEngine {
 
         guard destination.targetItem.isPhysicallyOrderable(
             experimentalSystemItemHiding: experimentalSystemItemHiding
-        ) else {
+        ) || destination.targetItem.tag.matchesSectionBoundaryControlItem else {
             Self.diagLog.warning("Refusing anchored target \(destination.targetItem.logString)")
             throw EventError.itemNotMovable(destination.targetItem)
         }

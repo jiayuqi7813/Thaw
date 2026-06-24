@@ -52,6 +52,9 @@ struct MenuBarItem: CustomStringConvertible {
     /// applied. Some forced-visible items can be assigned/hidden by the
     /// experimental assertion but are not accepted as live reorder anchors.
     func isPhysicallyOrderable(experimentalSystemItemHiding: Bool) -> Bool {
+        if isControlItem, !tag.matchesVisibleControlItem {
+            return false
+        }
         if isMovable {
             return true
         }

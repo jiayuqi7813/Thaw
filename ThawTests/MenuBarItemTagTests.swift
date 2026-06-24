@@ -1180,6 +1180,11 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         XCTAssertTrue(SimpleItemHider.canAssign(siri, to: .hidden, experimentalSystemItemHiding: true))
         XCTAssertTrue(SimpleItemHider.isProtectedAssignmentItem(clock, experimentalSystemItemHiding: false))
         XCTAssertFalse(SimpleItemHider.isProtectedAssignmentItem(clock, experimentalSystemItemHiding: true))
+
+        let hiddenDivider = item(tag: .hiddenControlItem, x: 0, windowID: 99)
+        XCTAssertTrue(hiddenDivider.tag.matchesSectionBoundaryControlItem)
+        XCTAssertFalse(hiddenDivider.isPhysicallyOrderable(experimentalSystemItemHiding: false))
+        XCTAssertFalse(hiddenDivider.isPhysicallyOrderable(experimentalSystemItemHiding: true))
     }
 
     @MainActor
@@ -1514,6 +1519,28 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
                     siri.uniqueIdentifier,
                     alpha.uniqueIdentifier,
                 ],
+                experimentalSystemItemHiding: true
+            )
+        )
+    }
+
+    func testAssignmentOnlySystemItemsSkipSectionBoundaryRepair() {
+        let alpha = appItem(bundleID: "com.example.alpha", title: "Alpha", x: 0, windowID: 77)
+        let siri = item(
+            tag: MenuBarItemTag(namespace: .systemUIServer, title: "Siri", windowID: 78),
+            x: 24,
+            windowID: 78
+        )
+        let divider = item(tag: .hiddenControlItem, x: 48, windowID: 79)
+        let beta = appItem(bundleID: "com.example.beta", title: "Beta", x: 72, windowID: 80)
+        let controls = MenuBarItemManager.ControlItemPair(hidden: divider, alwaysHidden: nil)
+
+        XCTAssertTrue(
+            LayoutPlanner.liveOrderSatisfiesSectionBoundary(
+                items: [alpha, siri, beta, divider],
+                item: siri,
+                section: .hidden,
+                controlItems: controls,
                 experimentalSystemItemHiding: true
             )
         )

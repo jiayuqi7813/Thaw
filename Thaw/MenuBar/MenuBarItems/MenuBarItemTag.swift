@@ -198,6 +198,12 @@ struct MenuBarItemTag: Hashable, CustomStringConvertible {
         title == ControlItem.Identifier.visible.rawValue && isThawOwnedNamespace
     }
 
+    /// Whether this tag is a zero-width Hidden / Always-Hidden section divider.
+    /// These may anchor section-boundary ⌘-drags but are never drag sources.
+    var matchesSectionBoundaryControlItem: Bool {
+        isControlItem && !matchesVisibleControlItem
+    }
+
     /// A Boolean value that indicates whether the item identified
     /// by this tag is a control item owned by Ice.
     var isControlItem: Bool {
