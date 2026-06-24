@@ -287,27 +287,18 @@ enum MenuBarAgentPositionStore {
         CFPreferencesSynchronize(domain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
     }
 
-    /// The last time ``nudgeAgent()`` SIGTERM'd MenuBarAgent. Used to coalesce
-    /// restarts so a full layout pass — which calls ``move(...)`` once per item —
-    /// does not relaunch the agent once per item.
-    private static var lastNudge: Date = .distantPast
-    private static let nudgeCoalesceWindow: TimeInterval = 1.5
-
     /// Makes MenuBarAgent re-read the layout. The reliable trigger is a restart:
-    /// MenuBarAgent is a managed launch agent and relaunches within ~1-2 s, the
-    /// same mechanism ``ControlCenterModuleManager`` uses for Control Center.
+    /// MenuBarAgent is a managed launch agent and relaunches within ~1-2 s (the
+    /// same mechanism ``ControlCenterModuleManager`` uses for Control Center),
+    /// re-sorting from the just-written positions.
     ///
-    /// Restarts are coalesced: ``writePositions(_:)`` always persists the full
-    /// dictionary, so an agent already relaunching from a recent SIGTERM reads
-    /// the latest cumulative layout. Skipping a redundant kill within the
-    /// coalesce window avoids a relaunch storm (and menu-bar flicker) during a
-    /// multi-item pass without dropping any positional change.
+    /// This restarts immediately, once per ``move(...)``. The per-pair reconcile
+    /// loop is sequentially dependent — each move needs the agent to re-sort
+    /// before the next is planned and verified — so restarts there cannot be
+    /// coalesced without breaking verification. The batch entry point (which
+    /// writes every target weight from one snapshot, then nudges once) is where
+    /// a multi-item reorder collapses to a single restart.
     private static func nudgeAgent() {
-        let now = Date()
-        guard now.timeIntervalSince(lastNudge) >= nudgeCoalesceWindow else {
-            return
-        }
-        lastNudge = now
         for app in NSWorkspace.shared.runningApplications
             where app.bundleIdentifier == agentBundleID
         {
