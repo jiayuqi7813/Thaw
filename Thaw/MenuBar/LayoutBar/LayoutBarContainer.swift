@@ -100,12 +100,13 @@ final class LayoutBarContainer: NSView {
         var c = Set<AnyCancellable>()
 
         if let appState {
-            Publishers.CombineLatest3(
+            Publishers.CombineLatest4(
                 appState.itemManager.$itemCache,
                 appState.itemManager.$newItemsPlacement,
-                appState.settings.advanced.$enableAlwaysHiddenSection
+                appState.settings.advanced.$enableAlwaysHiddenSection,
+                appState.settings.advanced.$enableExperimentalSystemItemHiding
             )
-            .sink { [weak self] cache, _, _ in
+            .sink { [weak self] cache, _, _, _ in
                 guard let self else {
                     return
                 }
