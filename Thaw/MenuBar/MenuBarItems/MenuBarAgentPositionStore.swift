@@ -89,9 +89,12 @@ enum MenuBarAgentPositionStore {
         item: MenuBarItem,
         to destination: MenuBarItemManager.MoveDestination,
         liveItems: [MenuBarItem],
+        experimentalSystemItemHiding: Bool = false,
         environment: Environment = .live
     ) -> Bool {
-        guard item.isMovable, !destination.targetItem.tag.isLayoutAnchoredSystemItem else {
+        guard item.isMovable(experimentalSystemItemHiding: experimentalSystemItemHiding),
+              experimentalSystemItemHiding || !destination.targetItem.tag.isLayoutAnchoredSystemItem
+        else {
             return false
         }
 
@@ -108,7 +111,8 @@ enum MenuBarAgentPositionStore {
         guard let neighbors = neighborItems(
             forMoving: item,
             to: destination,
-            liveItems: liveItems
+            liveItems: liveItems,
+            experimentalSystemItemHiding: experimentalSystemItemHiding
         ) else {
             return false
         }
@@ -177,6 +181,7 @@ enum MenuBarAgentPositionStore {
     static func applyOrder(
         desiredOrder: [String],
         liveItems: [MenuBarItem],
+        experimentalSystemItemHiding: Bool = false,
         environment: Environment = .live
     ) -> [String] {
         guard desiredOrder.count > 1 else { return [] }
@@ -188,7 +193,8 @@ enum MenuBarAgentPositionStore {
 
         let segments = LayoutPlanner.achievableOrderSegments(
             items: liveItems,
-            desiredOrder: desiredOrder
+            desiredOrder: desiredOrder,
+            experimentalSystemItemHiding: experimentalSystemItemHiding
         )
 
         for segment in segments {
@@ -246,10 +252,14 @@ enum MenuBarAgentPositionStore {
     static func neighborItems(
         forMoving item: MenuBarItem,
         to destination: MenuBarItemManager.MoveDestination,
-        liveItems: [MenuBarItem]
+        liveItems: [MenuBarItem],
+        experimentalSystemItemHiding: Bool = false
     ) -> (anchor: MenuBarItem, far: MenuBarItem?)? {
         let ordered = liveItems
-            .filter { !$0.isSystemClone && !$0.tag.isLayoutAnchoredSystemItem }
+            .filter { !$0.isSystemClone }
+            .filter {
+                experimentalSystemItemHiding || !$0.tag.isLayoutAnchoredSystemItem
+            }
             .filter { !$0.tag.matchesIgnoringWindowID(item.tag) }
             .sorted { $0.bounds.minX < $1.bounds.minX }
 
