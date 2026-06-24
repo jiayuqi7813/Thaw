@@ -65,7 +65,9 @@ final class LayoutBarItemView: LayoutBarArrangedView {
         super.init(frame: CGRect(origin: .zero, size: Self.preferredSize(for: item, image: initialImage)))
         unregisterDraggedTypes()
 
-        isEnabled = LayoutBarPaddingView.acceptsLayoutDrag(of: item) && item.isMovable
+        let experimentalSystemItemHiding = appState.settings.advanced.enableExperimentalSystemItemHiding
+        isEnabled = LayoutBarPaddingView.acceptsLayoutDrag(of: item) &&
+            item.isMovable(experimentalSystemItemHiding: experimentalSystemItemHiding)
 
         configureCancellables()
     }
