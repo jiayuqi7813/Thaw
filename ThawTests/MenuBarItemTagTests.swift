@@ -1106,6 +1106,32 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
     }
 
     @MainActor
+    func testExperimentalSystemItemHidingPersistsHiddenSystemItemOrder() throws {
+        guard #available(macOS 27, *) else {
+            throw XCTSkip("SimpleItemHider order persistence is macOS 27-specific")
+        }
+
+        let clock = systemItem(title: "Clock", x: 24, windowID: 93)
+        let app = appItem(bundleID: "com.example.alpha", title: "Alpha", x: 48, windowID: 94)
+
+        XCTAssertEqual(
+            SimpleItemHider.persistableOrderIdentifiers(
+                from: [clock, app],
+                in: .hidden
+            ),
+            [app.uniqueIdentifier]
+        )
+        XCTAssertEqual(
+            SimpleItemHider.persistableOrderIdentifiers(
+                from: [clock, app],
+                in: .hidden,
+                experimentalSystemItemHiding: true
+            ),
+            [clock.uniqueIdentifier, app.uniqueIdentifier]
+        )
+    }
+
+    @MainActor
     func testGenericThawItemIsProtectedFromAssignmentHiding() throws {
         guard #available(macOS 27, *) else {
             throw XCTSkip("SimpleItemHider protection is macOS 27-specific")
@@ -1129,6 +1155,31 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
     }
 
     @MainActor
+    func testExperimentalSystemItemHidingAllowsForcedVisibleSystemItems() throws {
+        guard #available(macOS 27, *) else {
+            throw XCTSkip("SimpleItemHider protection is macOS 27-specific")
+        }
+
+        let clock = systemItem(title: "Clock", x: 24, windowID: 97)
+        let siri = item(
+            tag: MenuBarItemTag(namespace: .systemUIServer, title: "Siri", windowID: 98),
+            x: 48,
+            windowID: 98
+        )
+
+        XCTAssertFalse(clock.isMovable)
+        XCTAssertFalse(clock.canBeHidden)
+        XCTAssertTrue(clock.isMovable(experimentalSystemItemHiding: true))
+        XCTAssertTrue(clock.canBeHidden(experimentalSystemItemHiding: true))
+        XCTAssertFalse(SimpleItemHider.canAssign(clock, to: .hidden, experimentalSystemItemHiding: false))
+        XCTAssertTrue(SimpleItemHider.canAssign(clock, to: .hidden, experimentalSystemItemHiding: true))
+        XCTAssertFalse(SimpleItemHider.canAssign(siri, to: .hidden, experimentalSystemItemHiding: false))
+        XCTAssertTrue(SimpleItemHider.canAssign(siri, to: .hidden, experimentalSystemItemHiding: true))
+        XCTAssertTrue(SimpleItemHider.isProtectedAssignmentItem(clock, experimentalSystemItemHiding: false))
+        XCTAssertFalse(SimpleItemHider.isProtectedAssignmentItem(clock, experimentalSystemItemHiding: true))
+    }
+
+    @MainActor
     func testAssessmentModeProtectedBundlesIncludeThawOwnedHosts() throws {
         guard #available(macOS 27, *) else {
             throw XCTSkip("Assessment Mode hiding is macOS 27-specific")
@@ -1147,6 +1198,17 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         // MBSystemItemIdentifier has exactly 9 cases (raw values 0...8); the
         // restriction must allow exactly those to keep the core system controls.
         XCTAssertEqual(AssessmentModeBackend.allowedSystemItems.map(\.intValue), Array(0...8))
+    }
+
+    @MainActor
+    func testAssessmentModeSystemItemIdentifierMapping() throws {
+        guard #available(macOS 27, *) else {
+            throw XCTSkip("Assessment Mode hiding is macOS 27-specific")
+        }
+
+        XCTAssertEqual(AssessmentModeBackend.systemItemIdentifier(for: systemItem(title: "Clock", x: 24, windowID: 99).tag), 2)
+        XCTAssertEqual(AssessmentModeBackend.systemItemIdentifier(for: systemItem(title: "BentoBox-0", x: 48, windowID: 100).tag), 8)
+        XCTAssertNil(AssessmentModeBackend.systemItemIdentifier(for: appItem(bundleID: "com.example.alpha", title: "Alpha", x: 72, windowID: 101).tag))
     }
 
     @MainActor
@@ -1394,6 +1456,29 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         )
     }
 
+    func testExperimentalSystemItemHidingAllowsOrderAcrossFixedAnchors() {
+        let alpha = appItem(bundleID: "com.example.alpha", title: "Alpha", x: 0, windowID: 70)
+        let clock = item(tag: .clock, x: 24, windowID: 71)
+        let beta = appItem(bundleID: "com.example.beta", title: "Beta", x: 48, windowID: 72)
+        let gamma = appItem(bundleID: "com.example.gamma", title: "Gamma", x: 72, windowID: 73)
+
+        let segments = LayoutPlanner.achievableOrderSegments(
+            items: [alpha, clock, beta, gamma],
+            desiredOrder: [
+                gamma.uniqueIdentifier,
+                beta.uniqueIdentifier,
+                clock.uniqueIdentifier,
+                alpha.uniqueIdentifier,
+            ],
+            experimentalSystemItemHiding: true
+        )
+
+        XCTAssertEqual(
+            segments.map { $0.map(\.uniqueIdentifier) },
+            [[gamma.uniqueIdentifier, beta.uniqueIdentifier, clock.uniqueIdentifier, alpha.uniqueIdentifier]]
+        )
+    }
+
     func testMacOS27ConcealedSectionOrderExcludesNonConcealableSystemItems() {
         let sound = systemItem(
             title: "com.apple.menuextra.sound",
@@ -1425,6 +1510,27 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         )
 
         XCTAssertEqual(destination, .rightOfItem(beta))
+    }
+
+    func testExperimentalSystemItemHidingTargetsAnchorNeighbor() {
+        let alpha = appItem(bundleID: "com.example.alpha", title: "Alpha", x: 0, windowID: 80)
+        let beta = appItem(bundleID: "com.example.beta", title: "Beta", x: 24, windowID: 81)
+        let clock = item(tag: .clock, x: 48, windowID: 82)
+        let gamma = appItem(bundleID: "com.example.gamma", title: "Gamma", x: 72, windowID: 83)
+
+        let destination = LayoutPlanner.achievableDestination(
+            items: [alpha, beta, clock, gamma],
+            item: alpha,
+            desiredOrder: [
+                beta.uniqueIdentifier,
+                clock.uniqueIdentifier,
+                alpha.uniqueIdentifier,
+                gamma.uniqueIdentifier,
+            ],
+            experimentalSystemItemHiding: true
+        )
+
+        XCTAssertEqual(destination, .rightOfItem(clock))
     }
 
     func testMacOS27DividerDoesNotPlanAcrossFixedAnchor() {
