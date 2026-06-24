@@ -37,6 +37,9 @@ struct MenuBarLayoutSettingsPane: View {
             IceForm(spacing: 20) {
                 header
                 layoutBars
+                if #available(macOS 27, *) {
+                    experimentalSystemItemHidingControls
+                }
                 resetControls
             }
             .onAppear {
@@ -133,7 +136,36 @@ struct MenuBarLayoutSettingsPane: View {
     @available(macOS 27, *)
     private var nonHideableItemsNotice: some View {
         SettingsWarningPill(
-            message: "On macOS 27, some macOS items — such as Spotlight, Siri, and Sound — can't be hidden and always stay in the Visible section."
+            message: "On macOS 27, some macOS items — such as Clock, Control Center, and Siri — stay in the Visible section unless experimental system item hiding is enabled."
+        )
+    }
+
+    @available(macOS 27, *)
+    private var experimentalSystemItemHidingControls: some View {
+        IceSection {
+            VStack(alignment: .leading, spacing: 12) {
+                Toggle(isOn: experimentalSystemItemHidingBinding) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Hide macOS system items")
+                            .font(.headline)
+                        Text("Allows items such as Clock, Control Center, and Siri to be moved into hidden sections.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
+                SettingsWarningPill(
+                    message: "This is experimental. We don't know what could happen when hiding macOS system items."
+                )
+            }
+        }
+    }
+
+    private var experimentalSystemItemHidingBinding: Binding<Bool> {
+        Binding(
+            get: { appState.settings.advanced.enableExperimentalSystemItemHiding },
+            set: { appState.settings.advanced.enableExperimentalSystemItemHiding = $0 }
         )
     }
 
