@@ -37,9 +37,27 @@ struct MenuBarItem: CustomStringConvertible {
         tag.isMovable
     }
 
+    /// Layout-editor movability with experimental system-item hiding applied.
+    /// When enabled on macOS 27, forced-visible system items may participate
+    /// in both assignment-backed section edits and best-effort physical order.
+    func isMovable(experimentalSystemItemHiding: Bool) -> Bool {
+        isMovable ||
+            (
+                experimentalSystemItemHiding &&
+                    sectionManagementPolicy.isForcedVisible
+            )
+    }
+
     /// A Boolean value that indicates whether this item can be hidden.
     var canBeHidden: Bool {
         sectionManagementPolicy.canBeHidden
+    }
+
+    /// Hideability with experimental system-item hiding applied.
+    func canBeHidden(experimentalSystemItemHiding: Bool) -> Bool {
+        sectionManagementPolicy(
+            experimentalSystemItemHiding: experimentalSystemItemHiding
+        ).canBeHidden
     }
 
     /// Legacy divider-layout hideability, independent of the current host OS.
@@ -51,6 +69,17 @@ struct MenuBarItem: CustomStringConvertible {
     /// that cannot be determined from its tag alone.
     var sectionManagementPolicy: MenuBarItemTag.SectionManagementPolicy {
         isTransientControlCenterItem ? .excluded : tag.sectionManagementPolicy
+    }
+
+    /// Section-management policy with experimental system-item hiding applied.
+    func sectionManagementPolicy(
+        experimentalSystemItemHiding: Bool
+    ) -> MenuBarItemTag.SectionManagementPolicy {
+        let basePolicy = sectionManagementPolicy
+        guard experimentalSystemItemHiding, basePolicy.isForcedVisible else {
+            return basePolicy
+        }
+        return .hideable
     }
 
     /// A Boolean value that indicates whether this item is owned by an Apple
