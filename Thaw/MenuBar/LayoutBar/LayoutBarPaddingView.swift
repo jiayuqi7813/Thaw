@@ -187,19 +187,37 @@ final class LayoutBarPaddingView: NSView {
                 return false
             }
 
-            guard item.isMovable else {
-                Self.diagLog.warning("Ignoring drag for anchored system item \(item.logString)")
-                container.updateArrangedViewsForDrag(with: sender, phase: .exited)
-                draggingSource.hasContainer = false
-                draggingSource.oldContainerInfo = nil
-                container.canSetArrangedViews = true
-                sourceContainer?.canSetArrangedViews = true
-                return false
-            }
-
             let hider = container.appState?.menuBarManager.simpleItemHider
             let sourceSection = sourceContainer?.section ?? container.section
             let orderedItems = orderedLayoutItems()
+            let experimentalSystemItemHiding = container.appState?.settings.advanced.enableExperimentalSystemItemHiding ?? false
+
+            guard item.isMovable(experimentalSystemItemHiding: experimentalSystemItemHiding) else {
+                guard SimpleItemHider.canAssign(
+                    item,
+                    to: container.section,
+                    experimentalSystemItemHiding: experimentalSystemItemHiding
+                ), container.section != .visible
+                else {
+                    Self.diagLog.warning("Ignoring drag for anchored system item \(item.logString)")
+                    container.updateArrangedViewsForDrag(with: sender, phase: .exited)
+                    draggingSource.hasContainer = false
+                    draggingSource.oldContainerInfo = nil
+                    container.canSetArrangedViews = true
+                    sourceContainer?.canSetArrangedViews = true
+                    return false
+                }
+
+                hider?.setSection(container.section, item: item)
+                hider?.setSectionOrder(from: orderedItems, for: container.section)
+                if let appState = container.appState {
+                    Task { await appState.itemManager.cacheItemsRegardless(skipRecentMoveCheck: true) }
+                }
+                draggingSource.oldContainerInfo = nil
+                container.canSetArrangedViews = true
+                sourceContainer?.canSetArrangedViews = true
+                return true
+            }
 
             if sourceSection != container.section {
                 // macOS 27: a section change is driven by the assertion
@@ -230,16 +248,19 @@ final class LayoutBarPaddingView: NSView {
                         let desiredIDs = orderedItems.map(\.uniqueIdentifier)
                         let achievableItems = LayoutPlanner.achievableOrderSegments(
                             items: liveItems,
-                            desiredOrder: desiredIDs
+                            desiredOrder: desiredIDs,
+                            experimentalSystemItemHiding: experimentalSystemItemHiding
                         ).flatMap { $0 }
 
                         let destination = LayoutPlanner.achievableDestination(
                             items: liveItems,
                             item: item,
-                            desiredOrder: desiredIDs
+                            desiredOrder: desiredIDs,
+                            experimentalSystemItemHiding: experimentalSystemItemHiding
                         ) ?? visibleThawControlNeighborDestination(
                             for: item,
-                            at: index
+                            at: index,
+                            experimentalSystemItemHiding: experimentalSystemItemHiding
                         )
 
                         if let destination {
@@ -263,9 +284,17 @@ final class LayoutBarPaddingView: NSView {
                     }
 
                     let destination: MenuBarItemManager.MoveDestination? =
-                        if let target = nearestItem(toRightOf: index, requiringMovable: true) {
+                        if let target = nearestItem(
+                            toRightOf: index,
+                            requiringMovable: true,
+                            experimentalSystemItemHiding: experimentalSystemItemHiding
+                        ) {
                             .leftOfItem(target)
-                        } else if let target = nearestItem(toLeftOf: index, requiringMovable: true) {
+                        } else if let target = nearestItem(
+                            toLeftOf: index,
+                            requiringMovable: true,
+                            experimentalSystemItemHiding: experimentalSystemItemHiding
+                        ) {
                             .rightOfItem(target)
                         } else {
                             nil
@@ -578,25 +607,40 @@ final class LayoutBarPaddingView: NSView {
     /// cannot derive a destination from persisted order alone.
     private func visibleThawControlNeighborDestination(
         for item: MenuBarItem,
-        at index: Int
+        at index: Int,
+        experimentalSystemItemHiding: Bool
     ) -> MenuBarItemManager.MoveDestination? {
         guard item.tag.matchesVisibleControlItem else { return nil }
-        if let target = nearestItem(toRightOf: index, requiringMovable: true) {
+        if let target = nearestItem(
+            toRightOf: index,
+            requiringMovable: true,
+            experimentalSystemItemHiding: experimentalSystemItemHiding
+        ) {
             return .leftOfItem(target)
         }
-        if let target = nearestItem(toLeftOf: index, requiringMovable: true) {
+        if let target = nearestItem(
+            toLeftOf: index,
+            requiringMovable: true,
+            experimentalSystemItemHiding: experimentalSystemItemHiding
+        ) {
             return .rightOfItem(target)
         }
         return nil
     }
 
-    private func nearestItem(toRightOf index: Int, requiringMovable: Bool = false) -> MenuBarItem? {
+    private func nearestItem(
+        toRightOf index: Int,
+        requiringMovable: Bool = false,
+        experimentalSystemItemHiding: Bool = false
+    ) -> MenuBarItem? {
         guard arrangedViews.indices.contains(index + 1) else {
             return nil
         }
         for candidateIndex in (index + 1) ..< arrangedViews.count {
             if case let .item(item) = arrangedViews[candidateIndex].kind {
-                if requiringMovable, item.isControlItem || !item.isMovable {
+                if requiringMovable,
+                   item.isControlItem || !item.isMovable(experimentalSystemItemHiding: experimentalSystemItemHiding)
+                {
                     continue
                 }
                 return item
@@ -605,13 +649,19 @@ final class LayoutBarPaddingView: NSView {
         return nil
     }
 
-    private func nearestItem(toLeftOf index: Int, requiringMovable: Bool = false) -> MenuBarItem? {
+    private func nearestItem(
+        toLeftOf index: Int,
+        requiringMovable: Bool = false,
+        experimentalSystemItemHiding: Bool = false
+    ) -> MenuBarItem? {
         guard arrangedViews.indices.contains(index - 1) else {
             return nil
         }
         for candidateIndex in stride(from: index - 1, through: 0, by: -1) {
             if case let .item(item) = arrangedViews[candidateIndex].kind {
-                if requiringMovable, item.isControlItem || !item.isMovable {
+                if requiringMovable,
+                   item.isControlItem || !item.isMovable(experimentalSystemItemHiding: experimentalSystemItemHiding)
+                {
                     continue
                 }
                 return item
