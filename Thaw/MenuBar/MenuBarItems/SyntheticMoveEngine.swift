@@ -29,9 +29,10 @@ struct SyntheticMoveEngine {
     func move(
         item: MenuBarItem,
         to destination: MoveDestination,
-        maxAttempts: Int = 2
+        maxAttempts: Int = 2,
+        experimentalSystemItemHiding: Bool = false
     ) async throws {
-        guard !destination.targetItem.tag.isLayoutAnchoredSystemItem else {
+        guard experimentalSystemItemHiding || !destination.targetItem.tag.isLayoutAnchoredSystemItem else {
             Self.diagLog.warning("Refusing anchored target \(destination.targetItem.logString)")
             throw EventError.itemNotMovable(destination.targetItem)
         }
@@ -60,7 +61,8 @@ struct SyntheticMoveEngine {
             if LayoutPlanner.liveOrderSatisfiesDestination(
                 items: liveItems,
                 item: item,
-                destination: destination
+                destination: destination,
+                experimentalSystemItemHiding: experimentalSystemItemHiding
             ) {
                 return
             }
@@ -95,7 +97,8 @@ struct SyntheticMoveEngine {
             if LayoutPlanner.liveOrderSatisfiesDestination(
                 items: liveItems,
                 item: item,
-                destination: destination
+                destination: destination,
+                experimentalSystemItemHiding: experimentalSystemItemHiding
             ) {
                 return
             }
