@@ -582,8 +582,14 @@ final class MenuBarSection {
             // cancellation is automatic when the task is reassigned or cancelled.
             let interval = appState.settings.general.rehideInterval
             rehideTask = Task { [weak self, weak appState] in
-                try? await Task.sleep(for: .seconds(interval))
-                guard !Task.isCancelled, let self, let appState else { return }
+                guard
+                    let self,
+                    let appState,
+                    await self.waitForContinuousRehideEligibility(
+                        appState: appState,
+                        interval: interval
+                    )
+                else { return }
                 // Don't rehide while the mouse is inside the menu bar or IceBar.
                 if self.isMouseInsideActiveArea() {
                     self.startRehideChecks()
@@ -622,8 +628,14 @@ final class MenuBarSection {
                     if rehideTask == nil {
                         let interval = appState.settings.general.rehideInterval
                         rehideTask = Task { @MainActor [weak self, weak appState] in
-                            try? await Task.sleep(for: .seconds(interval))
-                            guard !Task.isCancelled, let self, let appState else { return }
+                            guard
+                                let self,
+                                let appState,
+                                await self.waitForContinuousRehideEligibility(
+                                    appState: appState,
+                                    interval: interval
+                                )
+                            else { return }
                             // Don't rehide while the mouse is inside the menu bar or IceBar.
                             if self.isMouseInsideActiveArea() {
                                 self.startRehideChecks()
@@ -665,8 +677,14 @@ final class MenuBarSection {
         rehideTask?.cancel()
         let interval = appState.settings.general.rehideInterval
         rehideTask = Task { [weak self, weak appState] in
-            try? await Task.sleep(for: .seconds(interval))
-            guard !Task.isCancelled, let self, let appState else { return }
+            guard
+                let self,
+                let appState,
+                await self.waitForContinuousRehideEligibility(
+                    appState: appState,
+                    interval: interval
+                )
+            else { return }
             // Don't rehide while the mouse is inside the menu bar or IceBar.
             if self.isMouseInsideActiveArea() {
                 self.startRehideChecks()
@@ -680,6 +698,38 @@ final class MenuBarSection {
             }
             self.hide()
         }
+    }
+
+    /// Waits until the section has been eligible to rehide for the full
+    /// configured interval. Time spent with a menu bar item's menu open does
+    /// not count, so choosing from a menu cannot consume the timer and then
+    /// collapse the section immediately.
+    private func waitForContinuousRehideEligibility(
+        appState: AppState,
+        interval: TimeInterval
+    ) async -> Bool {
+        let pollInterval: TimeInterval = 0.25
+        var eligibleSince = Date()
+
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .seconds(pollInterval))
+            guard !Task.isCancelled else { return false }
+
+            if isMouseInsideActiveArea() {
+                return false
+            }
+
+            if await appState.itemManager.isAnyMenuBarItemMenuOpen() {
+                eligibleSince = Date()
+                continue
+            }
+
+            if Date().timeIntervalSince(eligibleSince) >= interval {
+                return true
+            }
+        }
+
+        return false
     }
 
     /// Stops running checks to determine when to rehide the section.
