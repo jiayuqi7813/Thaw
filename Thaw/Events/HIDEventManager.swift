@@ -1039,10 +1039,13 @@ extension HIDEventManager {
 
         let initialSpaceID = Bridging.getActiveSpaceID()
 
+        let rehideInterval = appState.settings.general.rehideInterval
         Task {
-            // Give the window under the mouse a chance to focus.
+            // Respect the configured rehide interval before closing after a
+            // click outside the revealed section. The follow-up checks below
+            // still verify focus/menu state at the time the hide would occur.
             do {
-                try await Task.sleep(for: .milliseconds(250))
+                try await Task.sleep(for: .seconds(rehideInterval))
             } catch {
                 return
             }
@@ -1483,6 +1486,18 @@ extension HIDEventManager {
                 }
                 return
             }
+            // If the user turned off auto-rehide entirely, don't schedule a
+            // hover-triggered hide — leave the section open until an explicit
+            // close action (click, hotkey, etc.).
+            guard appState.settings.general.autoRehide else {
+                if pendingHoverAction == .hide {
+                    hoverTask?.cancel()
+                    hoverTask = nil
+                    hoverTaskToken = nil
+                    pendingHoverAction = nil
+                }
+                return
+            }
             guard pendingHoverAction != .hide else {
                 return
             }
@@ -1490,6 +1505,10 @@ extension HIDEventManager {
             pendingHoverAction = .hide
             let taskToken = UUID()
             hoverTaskToken = taskToken
+            // Respect the user's configured rehide interval, not the short
+            // show-hover delay. Using showOnHoverDelay (0.2 s) here caused the
+            // section to collapse before the user could interact with any item.
+            let hideDelay = appState.settings.general.rehideInterval
             hoverTask = Task {
                 defer {
                     if hoverTaskToken == taskToken {
@@ -1500,13 +1519,18 @@ extension HIDEventManager {
                         }
                     }
                 }
-                try await Task.sleep(for: .seconds(delay))
+                try await Task.sleep(for: .seconds(hideDelay))
                 // Make sure the manager is still enabled and the mouse is still outside.
                 guard
                     isEnabled,
+                    appState.settings.general.autoRehide,
                     !isMouseInsideMenuBar(appState: appState, screen: screen),
                     !isMouseInsideIceBar(appState: appState)
                 else {
+                    return
+                }
+                // Don't hide while the user is interacting with an open menu.
+                if await appState.itemManager.isAnyMenuBarItemMenuOpen() {
                     return
                 }
                 hiddenSection.hide()
