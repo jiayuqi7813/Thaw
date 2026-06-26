@@ -36,6 +36,7 @@ final class AdvancedSettingsSnapshotTests: XCTestCase {
             enableSecondaryContextMenu: true,
             enableSecondaryContextMenuQuit: false,
             showOnHoverDelay: 0.2,
+            tempShowInterval: 15,
             tooltipDelay: 1.0,
             showMenuBarTooltips: true,
             iconRefreshInterval: 3.0,
@@ -61,6 +62,7 @@ final class AdvancedSettingsSnapshotTests: XCTestCase {
             enableSecondaryContextMenu: false,
             enableSecondaryContextMenuQuit: true,
             showOnHoverDelay: 0.5,
+            tempShowInterval: 22,
             tooltipDelay: 2.0,
             showMenuBarTooltips: false,
             iconRefreshInterval: 5.0,
@@ -183,6 +185,10 @@ final class AdvancedSettingsSnapshotTests: XCTestCase {
             decoded.enableSecondaryContextMenuQuit,
             Defaults.DefaultValue.enableSecondaryContextMenuQuit
         )
+        XCTAssertEqual(
+            decoded.tempShowInterval,
+            Defaults.DefaultValue.tempShowInterval
+        )
     }
 
     func testDecodeEmptyObjectFallsBackToDefaults() throws {
@@ -202,6 +208,10 @@ final class AdvancedSettingsSnapshotTests: XCTestCase {
         XCTAssertEqual(
             decoded.enableSecondaryContextMenuQuit,
             Defaults.DefaultValue.enableSecondaryContextMenuQuit
+        )
+        XCTAssertEqual(
+            decoded.tempShowInterval,
+            Defaults.DefaultValue.tempShowInterval
         )
     }
 
