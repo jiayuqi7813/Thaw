@@ -6,8 +6,8 @@
 //  Copyright (Thaw) © 2026 Toni Förster
 //  Licensed under the GNU GPLv3
 
-@testable import Thaw
 import CoreGraphics
+@testable import Thaw
 import XCTest
 
 // MARK: - MenuBarItemTag.Namespace Tests
@@ -540,11 +540,10 @@ final class MenuBarItemTagTests: XCTestCase {
     func testBentoBoxDetection() {
         // The BentoBox is owned by the menu bar hosting process: Control Center
         // on macOS 26, MenuBarAgent on macOS 27+.
-        let hostingNamespace: MenuBarItemTag.Namespace
-        if #available(macOS 27, *) {
-            hostingNamespace = .menuBarAgent
+        let hostingNamespace: MenuBarItemTag.Namespace = if #available(macOS 27, *) {
+            .menuBarAgent
         } else {
-            hostingNamespace = .controlCenter
+            .controlCenter
         }
         let tag = MenuBarItemTag(
             namespace: hostingNamespace,
@@ -1148,6 +1147,33 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
     }
 
     @MainActor
+    func testTemporarySingleItemRevealExcludesOnlyThatItem() throws {
+        guard #available(macOS 27, *) else {
+            throw XCTSkip("SimpleItemHider reveal is macOS 27-specific")
+        }
+
+        let assignment: [String: MenuBarSection.Name] = [
+            "com.example.alpha:Alpha": .hidden,
+            "com.example.beta:Beta": .hidden,
+            "com.example.always:Always": .alwaysHidden,
+        ]
+
+        let effective = SimpleItemHider.effectiveSectionAssignment(
+            assignment,
+            revealing: nil,
+            temporarilyRevealedIDs: ["com.example.alpha:Alpha"]
+        )
+
+        XCTAssertEqual(
+            effective,
+            [
+                "com.example.beta:Beta": .hidden,
+                "com.example.always:Always": .alwaysHidden,
+            ]
+        )
+    }
+
+    @MainActor
     func testTemporaryAlwaysHiddenRevealAllowsAllAssignedItems() throws {
         guard #available(macOS 27, *) else {
             throw XCTSkip("SimpleItemHider reveal is macOS 27-specific")
@@ -1316,6 +1342,15 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
     }
 
     @MainActor
+    func testAssessmentModeNeverBundleConcealsSystemUIServer() throws {
+        guard #available(macOS 27, *) else {
+            throw XCTSkip("Assessment Mode hiding is macOS 27-specific")
+        }
+
+        XCTAssertTrue(AssessmentModeBackend.isSystemHostBundleID("com.apple.systemuiserver"))
+    }
+
+    @MainActor
     func testAssessmentModeAllowedSystemItemsAreCoreRange() throws {
         guard #available(macOS 27, *) else {
             throw XCTSkip("Assessment Mode hiding is macOS 27-specific")
@@ -1323,7 +1358,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
 
         // MBSystemItemIdentifier has exactly 9 cases (raw values 0...8); the
         // restriction must allow exactly those to keep the core system controls.
-        XCTAssertEqual(AssessmentModeBackend.allowedSystemItems.map(\.intValue), Array(0...8))
+        XCTAssertEqual(AssessmentModeBackend.allowedSystemItems.map(\.intValue), Array(0 ... 8))
     }
 
     @MainActor
@@ -1774,7 +1809,9 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
 private final class TestLayoutArrangedView: LayoutBarArrangedView {
     private let itemKind: Kind
 
-    override var kind: Kind { itemKind }
+    override var kind: Kind {
+        itemKind
+    }
 
     init(item: MenuBarItem) {
         self.itemKind = .item(item)
