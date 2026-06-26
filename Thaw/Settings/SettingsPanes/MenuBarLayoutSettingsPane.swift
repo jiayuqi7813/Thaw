@@ -39,7 +39,10 @@ struct MenuBarLayoutSettingsPane: View {
                 layoutBars
                 if #available(macOS 27, *) {
                     experimentalSystemItemHidingControls
-                    experimentalWindowHidingControls
+                    // Experimental window hiding disabled — plist-based per-item
+                    // hiding does not work on macOS 27 (removing keys from
+                    // TrailingItemPreferredPositions does not hide items).
+                    // experimentalWindowHidingControls
                 }
                 resetControls
             }
