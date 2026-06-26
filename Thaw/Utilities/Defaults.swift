@@ -182,6 +182,7 @@ extension Defaults {
         static let useDoubleClickToShowAlwaysHiddenSection = false
         static let enableMenuBarItemOverflow = true
         static let enableExperimentalSystemItemHiding = false
+        static let enableExperimentalWindowHiding = false
 
         // MARK: Search
 
@@ -258,6 +259,7 @@ extension Defaults {
         case useDoubleClickToShowAlwaysHiddenSection = "UseDoubleClickToShowAlwaysHiddenSection"
         case enableMenuBarItemOverflow = "EnableMenuBarItemOverflow"
         case enableExperimentalSystemItemHiding = "EnableExperimentalSystemItemHiding"
+        case enableExperimentalWindowHiding = "EnableExperimentalWindowHiding"
         case diagnosticAssessmentModeSceneProbes = "Thaw.diagnosticAssessmentModeSceneProbes"
         case diagnosticAssessmentModeProbeHiddenTriggerPress = "Thaw.diagnosticAssessmentModeProbeHiddenTriggerPress"
 

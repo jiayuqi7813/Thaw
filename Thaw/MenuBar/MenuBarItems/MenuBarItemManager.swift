@@ -167,6 +167,29 @@ final class MenuBarItemManager: ObservableObject {
     /// Timestamp of the most recent menu bar item move operation.
     private var lastMoveOperationTimestamp: ContinuousClock.Instant?
 
+    /// Timestamp of the most recent assessment-mode restriction reflow.
+    /// `applySavedLayout` is suppressed briefly afterward so a transient
+    /// post-reflow geometry pass is not mistaken for real layout drift.
+    private var lastRestrictionChangeTimestamp: ContinuousClock.Instant?
+
+    /// How long to defer automatic visible-section reorders after a restriction reflow.
+    private static let restrictionChangeLayoutSettleWindow: Duration = .seconds(10)
+
+    /// Whether the assessment-mode assertion was rebuilt recently enough that
+    /// automatic visible-section reorders should stand down.
+    private var isWithinRestrictionReflowSettleWindow: Bool {
+        guard let lastRestrictionChange = lastRestrictionChangeTimestamp else {
+            return false
+        }
+        return lastRestrictionChange.duration(to: .now) < Self.restrictionChangeLayoutSettleWindow
+    }
+
+    /// Deferred repair after an assessment-mode reflow. Concealing one bundle
+    /// reshuffles the whole bar; visible-assigned neighbours (notably iStat's
+    /// multi-item bundle) can land in the overflow/parked band and never recover
+    /// because the layout-bar move cooldown blocks `applySavedLayout`.
+    private var postRestrictionRepairTask: Task<Void, Never>?
+
     /// Timestamps of recent macOS 27 section-order move failures, keyed by
     /// `"<item identity>|<destination>"`. An anchored system item (e.g.
     /// Sound, Control Center) can sit between two items that a saved order
@@ -494,6 +517,159 @@ final class MenuBarItemManager: ObservableObject {
     private func persistSavedSectionOrder() {
         let key = "MenuBarItemManager.savedSectionOrder"
         UserDefaults.standard.set(savedSectionOrder, forKey: key)
+    }
+
+    /// Records that the assessment-mode assertion was torn down and rebuilt.
+    /// The OS reflows the whole bar; defer saved-layout re-apply until geometry settles.
+    func noteRestrictionChange() {
+        lastRestrictionChangeTimestamp = .now
+        guard #available(macOS 27, *) else { return }
+        postRestrictionRepairTask?.cancel()
+        postRestrictionRepairTask = Task { @MainActor [weak self] in
+            // Let assertion reflow settle before touching geometry. Nudging
+            // MenuBarAgent during this window parks collateral items at y≈1413.
+            // 1.2s also absorbs rapid multi-hide bursts so repair runs once the
+            // user finishes, not between consecutive assertion rebuilds.
+            try? await Task.sleep(for: .milliseconds(1200))
+            guard let self, !Task.isCancelled else { return }
+            var stillParked = await self.repairVisibleLayoutAfterRestrictionChange()
+            var poll = 0
+            while stillParked, poll < 4, !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                stillParked = await self.repairVisibleLayoutAfterRestrictionChange()
+                poll += 1
+            }
+        }
+    }
+
+    /// Re-composites allowed menu bar items after assertion reflow collateral.
+    /// On-band AX ghosts (tooltip works, icon missing) are fixed by pulsing the
+    /// assertion; only truly parked items (y≈1400+) get a synthetic unpark.
+    @available(macOS 27, *)
+    @discardableResult
+    private func repairVisibleLayoutAfterRestrictionChange() async -> Bool {
+        guard let appState,
+              let hider = appState.menuBarManager.simpleItemHider
+        else {
+            MenuBarItemManager.diagLog.debug(
+                "post-restriction repair: skipped, missing app state or hider"
+            )
+            return false
+        }
+
+        var liveItems = await MenuBarItem.getMenuBarItems(option: .activeSpace)
+
+        if hider.pulseRestrictionAfterReflow(liveItems: liveItems) {
+            MenuBarItemManager.diagLog.info(
+                "post-restriction repair: pulsed assertion for MenuBarAgent re-composite"
+            )
+            try? await Task.sleep(for: .milliseconds(800))
+            liveItems = await MenuBarItem.getMenuBarItems(option: .activeSpace)
+        }
+
+        let parkedVisible = liveItems.filter {
+            !$0.isControlItem &&
+                hider.section(for: $0) == .visible &&
+                $0.isParkedOffMenuBarBand(among: liveItems)
+        }
+
+        if !parkedVisible.isEmpty, let anchor = unparkAnchorAmong(liveItems: liveItems, hider: hider) {
+            MenuBarItemManager.diagLog.info(
+                "post-restriction repair: unparking \(parkedVisible.count) off-band item(s) " +
+                    "using anchor \(anchor.logString)"
+            )
+            for item in parkedVisible.sorted(by: { $0.bounds.midX < $1.bounds.midX }) {
+                let freshItems = await MenuBarItem.getMenuBarItems(option: .activeSpace)
+                guard let currentAnchor = unparkAnchorAmong(liveItems: freshItems, hider: hider) else {
+                    break
+                }
+                do {
+                    try await unparkVisibleItemAfterRestrictionReflow(item: item, anchor: currentAnchor)
+                } catch {
+                    MenuBarItemManager.diagLog.error(
+                        "post-restriction repair: failed to unpark \(item.logString): \(error)"
+                    )
+                }
+            }
+        } else if parkedVisible.isEmpty {
+            MenuBarItemManager.diagLog.debug(
+                "post-restriction repair: no off-band parked items after pulse"
+            )
+        }
+
+        await cacheItemsRegardless(skipRecentMoveCheck: true, skipSavedLayoutApply: true)
+        await appState.imageCache.refreshAfterReorder()
+        appState.hidEventManager.refreshMenuBarItemBoundsLookup()
+
+        let afterItems = await MenuBarItem.getMenuBarItems(option: .activeSpace)
+        let onBandVisibleItems = afterItems.filter {
+            !$0.isControlItem &&
+                hider.section(for: $0) == .visible &&
+                !$0.isParkedOffMenuBarBand(among: afterItems)
+        }
+        let stillParked = afterItems.contains {
+            !$0.isControlItem &&
+                hider.section(for: $0) == .visible &&
+                $0.isParkedOffMenuBarBand(among: afterItems)
+        }
+
+        // Off-band parking has its own unpark pass above; an on-band ghost
+        // (tooltip resolves it, nothing drawn) needs a different signal —
+        // the pulse already fired this call, so a fresh screenshot tells us
+        // whether it actually took. If not, returning true here feeds the
+        // SAME retry loop `noteRestrictionChange` already runs for parked
+        // items, so the next iteration pulses again instead of giving up
+        // after one attempt.
+        let displayID = Bridging.getActiveMenuBarDisplayID() ?? CGMainDisplayID()
+        let blankTags = await appState.imageCache.itemsRenderingBlank(
+            among: onBandVisibleItems,
+            displayID: displayID
+        )
+        if !blankTags.isEmpty {
+            MenuBarItemManager.diagLog.info(
+                "post-restriction repair: \(blankTags.count) on-band item(s) still blank after pulse, will retry"
+            )
+        }
+
+        return stillParked || !blankTags.isEmpty
+    }
+
+    @available(macOS 27, *)
+    private func unparkAnchorAmong(
+        liveItems: [MenuBarItem],
+        hider: SimpleItemHider
+    ) -> MenuBarItem? {
+        if let control = liveItems.first(where: {
+            $0.tag.matchesVisibleControlItem && !$0.isParkedOffMenuBarBand(among: liveItems)
+        }) {
+            return control
+        }
+        return liveItems
+            .filter {
+                !$0.isControlItem &&
+                    hider.section(for: $0) == .visible &&
+                    !$0.isParkedOffMenuBarBand(among: liveItems)
+            }
+            .max(by: { $0.bounds.midX < $1.bounds.midX })
+    }
+
+    @available(macOS 27, *)
+    private func unparkVisibleItemAfterRestrictionReflow(
+        item: MenuBarItem,
+        anchor: MenuBarItem
+    ) async throws {
+        MenuBarItemManager.diagLog.info(
+            "post-restriction repair: recovering \(item.logString) to left of \(anchor.logString)"
+        )
+        try await move(
+            item: item,
+            to: .leftOfItem(anchor),
+            skipInputPause: true,
+            watchdogTimeout: Self.layoutWatchdogTimeout,
+            maxMoveAttempts: 4,
+            allowParkedOffMenuBarSource: true,
+            skipPreferredPositionMove: true
+        )
     }
 
     /// Mirrors a macOS 27 layout-bar drop into the legacy saved-order gate
@@ -2820,10 +2996,18 @@ extension MenuBarItemManager {
     /// same owning app's items the one nearest the original X is the same
     /// logical item. The tolerance keeps this from grabbing a far neighbor when
     /// the item has genuinely gone (in which case failing is correct).
+    ///
+    /// Restricted to volatile-title third-party items (iStat & co). System
+    /// items (Clock, Control Center, Siri, Spotlight) share one namespace and
+    /// owning PID, so `hasSameOwner` matches *all* of them — positional guessing
+    /// there would conflate Clock with its neighbours. They also have stable
+    /// titles, so the title-based fallbacks already resolve them; this heuristic
+    /// is neither needed nor safe for them.
     private nonisolated static func nearestSameOwnerMatch(
         for item: MenuBarItem,
         in refreshed: [MenuBarItem]
     ) -> MenuBarItem? {
+        guard !item.tag.isNonConcealableSystemItem else { return nil }
         guard item.bounds.width > 0 else { return nil }
         let tolerance = max(item.bounds.width, 24)
         return refreshed
@@ -3698,7 +3882,9 @@ extension MenuBarItemManager {
         skipInputPause: Bool = false,
         watchdogTimeout: DispatchTimeInterval? = nil,
         maxMoveAttempts: Int = 8,
-        allowSectionBoundaryTargetOnMacOS27: Bool = false
+        allowSectionBoundaryTargetOnMacOS27: Bool = false,
+        allowParkedOffMenuBarSource: Bool = false,
+        skipPreferredPositionMove: Bool = false
     ) async throws {
         // System clone windows are transient WindowServer duplicates that
         // must never be moved. Refuse here as a final safety net so no
@@ -3747,6 +3933,16 @@ extension MenuBarItemManager {
             MenuBarItemManager.diagLog.debug("Proceeding with move of blocked \(item.logString); recovery to visible")
         }
 
+        let livePeers = await MenuBarItem.getMenuBarItems(option: .activeSpace)
+        if !allowParkedOffMenuBarSource,
+           item.isParkedOffMenuBarBand(among: livePeers)
+        {
+            MenuBarItemManager.diagLog.warning(
+                "Skipping move for \(item.logString) - item is parked off the menu bar band"
+            )
+            throw EventError.cannotComplete
+        }
+
         // Determine display ID early.
         let resolvedDisplayID: CGDirectDisplayID = if let displayID {
             displayID
@@ -3784,6 +3980,7 @@ extension MenuBarItemManager {
         // cannot express (unresolved key, no numeric gap, end placement) falls
         // through to the synthetic ⌘-drag, which keeps full coverage.
         if #available(macOS 27, *),
+           !skipPreferredPositionMove,
            await moveItemViaPreferredPositions(
                item: item,
                to: destination,
@@ -4035,8 +4232,22 @@ extension MenuBarItemManager {
     private func applyMacOS27SectionItemOrder(
         sections: [MenuBarSection.Name],
         hider: SimpleItemHider,
-        whileRevealing revealedSection: MenuBarSection.Name? = nil
+        whileRevealing revealedSection: MenuBarSection.Name? = nil,
+        repairAfterRestriction: Bool = false
     ) async {
+        // The settle window only defers *automatic* visible-section reorders
+        // (see `isWithinRestrictionReflowSettleWindow`'s doc comment) that run
+        // opportunistically while idle. The hidden/always-hidden path here is
+        // the opposite: it's the direct continuation of the user's own reveal
+        // action, which is itself the reflow the window is timed from — so
+        // gating on it made every reveal-triggered reorder a guaranteed no-op.
+        if !repairAfterRestriction, revealedSection == nil, isWithinRestrictionReflowSettleWindow {
+            MenuBarItemManager.diagLog.debug(
+                "Skipping macOS 27 section order: within restriction-reflow settle window"
+            )
+            return
+        }
+
         // Tracks whether any item actually moved this pass, so the layout UI's
         // screen capture is refreshed only when the bar changed — not on every
         // idle reconcile (each macOS 27 capture is a heavy full screenshot).
@@ -4044,7 +4255,8 @@ extension MenuBarItemManager {
         let experimentalSystemItemHiding = appState?.settings.advanced.enableExperimentalSystemItemHiding ?? false
 
         for section in sections {
-            let desiredOrder = hider.sectionItemOrder[section] ?? []
+            let desiredOrder = (hider.sectionItemOrder[section] ?? [])
+                .filter { hider.section(for: $0) == section }
             guard desiredOrder.count > 1 else {
                 continue
             }
@@ -4073,6 +4285,14 @@ extension MenuBarItemManager {
                 }
             }
 
+            // After an assessment-mode reflow, synthetic drags routinely fail
+            // (volatile neighbours like iStat, concealed bundles still in AX)
+            // and can strand collateral items. Preferred-position writes above
+            // are sufficient for repair.
+            if repairAfterRestriction {
+                continue
+            }
+
             let maximumMoves = max(1, desiredOrder.count * 2)
 
             for _ in 0 ..< maximumMoves {
@@ -4091,6 +4311,15 @@ extension MenuBarItemManager {
                     break
                 }
 
+                if !repairAfterRestriction,
+                   plannedMove.item.isParkedOffMenuBarBand(among: liveItems)
+                {
+                    MenuBarItemManager.diagLog.debug(
+                        "Deferring macOS 27 section order for parked \(plannedMove.item.logString)"
+                    )
+                    break
+                }
+
                 // Some Apple system extras (e.g. Sound) are classified as
                 // movable but empirically reject the synthetic Command-drag
                 // every time. Without this backoff, the same doomed move gets
@@ -4099,7 +4328,8 @@ extension MenuBarItemManager {
                 // triggered it — a perpetual cursor-warp/hide loop that also
                 // disrupts the dragged item's own AX state.
                 let failureKey = Self.macOS27MoveFailureKey(item: plannedMove.item, destination: plannedMove.destination)
-                if let lastFailure = recentMacOS27MoveFailures[failureKey],
+                if !repairAfterRestriction,
+                   let lastFailure = recentMacOS27MoveFailures[failureKey],
                    ContinuousClock.now - lastFailure < Self.macOS27MoveFailureBackoff
                 {
                     MenuBarItemManager.diagLog.debug(
@@ -4119,7 +4349,8 @@ extension MenuBarItemManager {
                         to: plannedMove.destination,
                         skipInputPause: true,
                         watchdogTimeout: Self.layoutWatchdogTimeout,
-                        maxMoveAttempts: plannedMove.item.isNonConcealableSystemItem ? 1 : 8
+                        maxMoveAttempts: plannedMove.item.isNonConcealableSystemItem ? 1 : 8,
+                        allowParkedOffMenuBarSource: repairAfterRestriction
                     )
                     recentMacOS27MoveFailures.removeValue(forKey: failureKey)
                     didReorder = true
@@ -6183,9 +6414,12 @@ extension MenuBarItemManager {
             persistSavedSectionOrder()
         }
 
-        // Visible items always have live AX elements. Apply their persisted
-        // order immediately; concealed sections are reconciled when revealed.
-        await applyMacOS27SectionItemOrder(sections: [.visible], hider: hider)
+        // Visible items always have live AX elements. Only an explicit profile
+        // apply should run synthetic reconciliation; saved-order re-apply is
+        // disabled on macOS 27 and assignment mirroring owns section membership.
+        if source == .profile {
+            await applyMacOS27SectionItemOrder(sections: [.visible], hider: hider)
+        }
 
         let items = await MenuBarItem.getMenuBarItems(option: .activeSpace)
         MenuBarItemManager.diagLog.info(
@@ -7895,7 +8129,8 @@ extension MenuBarItemManager {
     /// early-returns when no moves are needed, so the cost is minor.
     private func currentLayoutDivergesFromSaved(
         items: [MenuBarItem],
-        controlItems: ControlItemPair
+        controlItems: ControlItemPair,
+        hider: SimpleItemHider?
     ) -> Bool {
         var savedSectionByBaseID = [String: MenuBarSection.Name]()
         for (sectionKey, ids) in savedSectionOrder {
@@ -7907,6 +8142,30 @@ extension MenuBarItemManager {
             }
         }
         guard !savedSectionByBaseID.isEmpty else { return false }
+
+        // macOS 27: section membership is assignment-driven, not spatial.
+        // Items left of the hidden control still read as "hidden-side" in AX
+        // even when SimpleItemHider assigns them visible — false-triggering a
+        // bulk reorder on every cache cycle after assertion reflow.
+        if !MenuBarBackendFactory.current.supportsLegacySectionHiding {
+            guard let hider else { return false }
+            for item in items where !item.isControlItem && item.canBeHidden && item.isMovable
+                && !item.isNonConcealableSystemItem
+            {
+                guard !item.isParkedOffMenuBarBand(among: items) else { continue }
+
+                let baseID = "\(item.tag.namespace):\(item.tag.title)"
+                guard let expectedSection = savedSectionByBaseID[baseID] else {
+                    continue
+                }
+
+                let currentSection = hider.section(for: item)
+                if currentSection != expectedSection {
+                    return true
+                }
+            }
+            return false
+        }
 
         let hiddenMinX = controlItems.hidden.bounds.minX
         let hiddenMaxX = controlItems.hidden.bounds.maxX
@@ -7923,6 +8182,10 @@ extension MenuBarItemManager {
         for item in items where !item.isControlItem && item.canBeHidden && item.isMovable
             && !item.isNonConcealableSystemItem
         {
+            // Assertion reflows park items off the bar band briefly; their X
+            // still reads hidden-side and would false-trigger a bulk re-apply.
+            guard !item.isParkedOffMenuBarBand(among: items) else { continue }
+
             let baseID = "\(item.tag.namespace):\(item.tag.title)"
             guard let expectedSection = savedSectionByBaseID[baseID] else {
                 continue
@@ -8021,6 +8284,25 @@ extension MenuBarItemManager {
             MenuBarItemManager.diagLog.debug("applySavedLayout: skipping, within 5s move cooldown")
             return false
         }
+        if let lastRestrictionChange = lastRestrictionChangeTimestamp,
+           lastRestrictionChange.duration(to: .now) < Self.restrictionChangeLayoutSettleWindow
+        {
+            MenuBarItemManager.diagLog.debug(
+                "applySavedLayout: skipping, within restriction-reflow settle window"
+            )
+            return false
+        }
+        // savedSectionOrder is mirrored FROM the hider each cache cycle, not
+        // restored TO it. Spatial layout-divergence falsely fired bulk visible-
+        // section reorders after assertion reflow (items left of the hidden
+        // control are still visible-assigned), which collided with volatile
+        // neighbours like iStat and stranded them off the bar.
+        guard MenuBarBackendFactory.current.supportsLegacySectionHiding else {
+            MenuBarItemManager.diagLog.debug(
+                "applySavedLayout: skipping, macOS 27 uses assignment mirror"
+            )
+            return false
+        }
 
         // Trigger detection. The cache cycle calls this on every tick;
         // without a change gate we would run a full bulk apply every
@@ -8058,7 +8340,11 @@ extension MenuBarItemManager {
         )
         let layoutDiverged = windowIDsChanged
             ? false
-            : currentLayoutDivergesFromSaved(items: items, controlItems: controlItems)
+            : currentLayoutDivergesFromSaved(
+                items: items,
+                controlItems: controlItems,
+                hider: appState?.menuBarManager.simpleItemHider
+            )
         guard windowIDsChanged || layoutDiverged else {
             MenuBarItemManager.diagLog.debug("applySavedLayout: skipping, no windowID change and saved layout matches current")
             return false

@@ -89,9 +89,30 @@ struct MenuBarItemTag: Hashable, CustomStringConvertible {
         ControlCenterModuleManager.moduleKeysByMenuExtraTitle[title] != nil
     }
 
+    /// Bundle identifiers whose menu bar items Thaw can reorder but cannot yet
+    /// reliably *hide* on macOS 27. iStat Menus rewrites each item's title every
+    /// second, which defeats the identity used by both the reorder re-resolution
+    /// and the assertion's bundle attribution, so a hide attempt leaves the item
+    /// as an on-band ghost (frame present, no glyph) rather than concealing it.
+    /// Such items are classified ``SectionManagementPolicy/forcedVisible`` so the
+    /// layout editor still offers reordering but refuses a drop into a hidden
+    /// section, and the experimental-system-item promotion does not lift them.
+    static let hidingUnsupportedBundleIDs: Set<String> = [
+        "com.bjango.istatmenus.status",
+    ]
+
+    /// Whether this item's owner is in ``hidingUnsupportedBundleIDs``.
+    var isHidingUnsupported: Bool {
+        if case let .string(bundleID) = namespace {
+            return MenuBarItemTag.hidingUnsupportedBundleIDs.contains(bundleID)
+        }
+        return false
+    }
+
     /// The item's authoritative section-management classification.
     var sectionManagementPolicy: SectionManagementPolicy {
         if #available(macOS 27, *),
+           isHidingUnsupported ||
            isLayoutAnchoredSystemItem ||
            (isNonConcealableSystemItem && !isControlCenterGovernable)
         {

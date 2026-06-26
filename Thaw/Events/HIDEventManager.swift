@@ -427,6 +427,35 @@ final class HIDEventManager: ObservableObject {
     /// Includes ALL menu bar item windows (both managed and unmanaged) so that
     /// clicks on unmanaged items like Clock and Control Center are correctly
     /// detected as being on a menu bar item, not on empty space.
+    func refreshMenuBarItemBoundsLookup() {
+        guard let appState else { return }
+        rebuildWindowBoundsLookup(from: appState.itemManager.itemCache)
+    }
+
+    /// Whether an item's cached bounds should participate in hover/click/tooltip
+    /// hit-testing. On macOS 27, concealed and reflow-collateral items keep
+    /// phantom AX frames (sometimes at y≈1400+) with no rendered glyph.
+    private func shouldIncludeInMenuBarBoundsLookup(_ item: MenuBarItem) -> Bool {
+        guard item.bounds.width > 0, item.bounds.width <= Self.maxReasonableItemWidth else {
+            return false
+        }
+        guard item.bounds.midY <= 80 else {
+            return false
+        }
+        guard let appState, let hider = appState.menuBarManager.simpleItemHider else {
+            return true
+        }
+        if hider.section(for: item) != .visible, !item.isNonConcealableSystemItem {
+            return false
+        }
+        return true
+    }
+
+    /// Rebuilds the window bounds lookup table from the current item cache.
+    ///
+    /// Includes ALL menu bar item windows (both managed and unmanaged) so that
+    /// clicks on unmanaged items like Clock and Control Center are correctly
+    /// detected as being on a menu bar item, not on empty space.
     private func rebuildWindowBoundsLookup(from cache: MenuBarItemManager.ItemCache) {
         var knownWindowIDs = Set<CGWindowID>()
         var buffer = [(windowID: CGWindowID, bounds: CGRect)]()
@@ -450,7 +479,7 @@ final class HIDEventManager: ObservableObject {
         // This is a fallback for items that might not be reported by the Window Server.
         let items = cache.managedItems
         for item in items where item.isOnScreen && !knownWindowIDs.contains(item.windowID) {
-            guard item.bounds.width <= Self.maxReasonableItemWidth else {
+            guard shouldIncludeInMenuBarBoundsLookup(item) else {
                 continue
             }
             buffer.append((windowID: item.windowID, bounds: item.bounds))

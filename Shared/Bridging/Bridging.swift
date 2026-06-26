@@ -286,6 +286,116 @@ extension Bridging {
         return bounds
     }
 
+    /// Diagnostic: logs the menu-bar windows owned by SystemUIServer and
+    /// MenuBarAgent. On macOS 27 individual item windows (if they exist as CG
+    /// windows) are owned by the system process, not by the third-party app.
+    /// Call this once during startup to understand the window architecture.
+    static func logSystemMenuBarWindows() {
+        let bundleIDs = ["com.apple.systemuiserver", "com.apple.MenuBarAgent"]
+        for bid in bundleIDs {
+            guard let pid = NSRunningApplication.runningApplications(withBundleIdentifier: bid).first?.processIdentifier else {
+                diagLog.debug("logSystemMenuBarWindows: \(bid) not running")
+                continue
+            }
+            diagLog.debug("logSystemMenuBarWindows: \(bid) pid=\(pid)")
+            let wids = getMenuBarWindowIDs(forProcess: pid, skipWidthFilter: true)
+            diagLog.debug("logSystemMenuBarWindows: \(bid) → \(wids.count) menu-bar windows")
+            for wid in wids {
+                let bounds = getWindowBounds(for: wid)
+                let level = getWindowLevel(for: wid)
+                diagLog.debug("logSystemMenuBarWindows: \(bid) window \(wid) bounds=\(bounds?.debugDescription ?? "nil") level=\(level.map(String.init(describing:)) ?? "nil")")
+            }
+        }
+    }
+
+    /// Returns the real `CGWindowID`s of a process's menu-bar item windows.
+    ///
+    /// On macOS 27 the per-item identifiers Thaw carries are *synthetic* (a hash
+    /// of the item's identity), not real window IDs, so the CGS off-screen hider
+    /// cannot move them directly. This resolves a running process to its actual
+    /// menu-bar window IDs via its CGS connection. Returns an empty array if the
+    /// process has no menu-bar windows or the
+    /// connection cannot be resolved.
+    ///
+    /// - Parameter pid: The owning process identifier.
+    static func getMenuBarWindowIDs(forProcess pid: pid_t, skipWidthFilter: Bool = false) -> [CGWindowID] {
+        var psn = ProcessSerialNumber()
+        guard getProcessForPID(pid, &psn) == noErr else {
+            diagLog.debug("getMenuBarWindowIDs: pid \(pid) → no PSN")
+            return []
+        }
+        let cid = getConnectionForThread()
+        var targetCID: CGSConnectionID = 0
+        guard cgsGetConnectionIDForPSN(cid, &psn, &targetCID) == .success, targetCID != 0 else {
+            diagLog.debug("getMenuBarWindowIDs: pid \(pid) → cgsGetConnectionIDForPSN failed, targetCID=\(targetCID)")
+            return []
+        }
+        var count: Int32 = 0
+        guard cgsGetWindowCount(cid, targetCID, &count) == .success, count > 0 else {
+            diagLog.debug("getMenuBarWindowIDs: pid \(pid) → cgsGetWindowCount=\(count)")
+            return []
+        }
+        diagLog.debug("getMenuBarWindowIDs: pid \(pid) total windows=\(count)")
+        var list = [CGWindowID](repeating: 0, count: Int(count))
+        var outCount: Int32 = 0
+        let result = list.withUnsafeMutableBufferPointer { buffer in
+            guard let base = buffer.baseAddress else {
+                return CGError.failure
+            }
+            return cgsGetProcessMenuBarWindowList(cid, targetCID, count, base, &outCount)
+        }
+        guard result == .success else {
+            diagLog.error("cgsGetProcessMenuBarWindowList failed for pid \(pid): \(result.logString)")
+            return []
+        }
+
+        // On macOS 27 the menu bar is rendered into shared hosting windows
+        // (one per display), not per-item windows. cgsGetProcessMenuBarWindowList
+        // returns those hosting windows for every process. We must filter them
+        // out — moving a hosting window off-screen collapses the entire bar.
+        // Hosting windows are full display width; real per-item windows are at
+        // most a few hundred points wide. On pre-27 macOS where items have
+        // individual windows this filter is a no-op (items are narrow).
+        let allReturned = Array(list.prefix(Int(outCount)))
+        let windowIDs: [CGWindowID]
+        if skipWidthFilter {
+            windowIDs = allReturned
+        } else {
+            windowIDs = allReturned.filter { wid in
+                guard let bounds = getWindowBounds(for: wid) else { return false }
+                return bounds.width <= 1000
+            }
+        }
+
+        for wid in windowIDs {
+            let bounds = getWindowBounds(for: wid)
+            let level = getWindowLevel(for: wid)
+            diagLog.debug("getMenuBarWindowIDs: pid \(pid) → window \(wid) bounds=\(bounds?.debugDescription ?? "nil") level=\(level.map(String.init(describing:)) ?? "nil")")
+        }
+        if !skipWidthFilter && windowIDs.isEmpty && outCount > 0 {
+            diagLog.debug("getMenuBarWindowIDs: pid \(pid) → all \(outCount) returned windows were hosting windows, filtered out")
+        }
+        return windowIDs
+    }
+
+    /// Moves a window's top-left origin in global display coordinates. Returns
+    /// whether the move succeeded. Used by the CGS off-screen hider to push a
+    /// status-item window outside all displays and to restore it.
+    ///
+    /// - Parameters:
+    ///   - windowID: An identifier for a window.
+    ///   - origin: The new top-left origin, in global (Y-down) coordinates.
+    @discardableResult
+    static func moveWindow(_ windowID: CGWindowID, to origin: CGPoint) -> Bool {
+        var point = origin
+        let result = cgsMoveWindow(getConnectionForThread(), windowID, &point)
+        guard result == .success else {
+            diagLog.error("cgsMoveWindow failed for window \(windowID): \(result.logString)")
+            return false
+        }
+        return true
+    }
+
     /// Returns the level for the given window.
     ///
     /// - Parameter windowID: An identifier for a window.

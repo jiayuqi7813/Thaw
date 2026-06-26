@@ -89,6 +89,102 @@ final class MenuBarAgentPositionStoreTests: XCTestCase {
         )
     }
 
+    func testResolvePositionalKeyPairsSiblingsByXAndWeightWhenTitlesNeverMatch() {
+        // iStat-style family: three sibling items whose live titles ("CPU 9%",
+        // "MEM 51%", "12.3 KB/s") never match the keys MenuBarAgent stores them
+        // under (the autosaveName, not the title). The family's key count
+        // matches its item count, so position pairs them up.
+        let cpu = MenuBarItem.fixture(
+            tag: .appItem(bundleID: "com.bjango.istatmenus", title: "CPU 9%"),
+            windowID: 10,
+            bounds: CGRect(x: 0, y: 0, width: 40, height: 22)
+        )
+        let mem = MenuBarItem.fixture(
+            tag: .appItem(bundleID: "com.bjango.istatmenus", title: "MEM 51%"),
+            windowID: 11,
+            bounds: CGRect(x: 50, y: 0, width: 40, height: 22)
+        )
+        let net = MenuBarItem.fixture(
+            tag: .appItem(bundleID: "com.bjango.istatmenus", title: "12.3 KB/s"),
+            windowID: 12,
+            bounds: CGRect(x: 100, y: 0, width: 40, height: 22)
+        )
+        let positions = [
+            "status:com.bjango.istatmenus::com.bjango.istatmenus.cpu": 100,
+            "status:com.bjango.istatmenus::com.bjango.istatmenus.memory": 200,
+            "status:com.bjango.istatmenus::com.bjango.istatmenus.network": 300,
+        ]
+
+        XCTAssertEqual(
+            MenuBarAgentPositionStore.resolveKey(
+                for: cpu,
+                existingKeys: Array(positions.keys),
+                positions: positions,
+                liveItems: [cpu, mem, net]
+            ),
+            "status:com.bjango.istatmenus::com.bjango.istatmenus.cpu"
+        )
+        XCTAssertEqual(
+            MenuBarAgentPositionStore.resolveKey(
+                for: net,
+                existingKeys: Array(positions.keys),
+                positions: positions,
+                liveItems: [cpu, mem, net]
+            ),
+            "status:com.bjango.istatmenus::com.bjango.istatmenus.network"
+        )
+    }
+
+    func testResolvePositionalKeyNilWhenFamilyCountMismatch() {
+        // Only two keys for a family of three live items — no safe pairing.
+        let cpu = MenuBarItem.fixture(
+            tag: .appItem(bundleID: "com.bjango.istatmenus", title: "CPU 9%"),
+            windowID: 10,
+            bounds: CGRect(x: 0, y: 0, width: 40, height: 22)
+        )
+        let mem = MenuBarItem.fixture(
+            tag: .appItem(bundleID: "com.bjango.istatmenus", title: "MEM 51%"),
+            windowID: 11,
+            bounds: CGRect(x: 50, y: 0, width: 40, height: 22)
+        )
+        let net = MenuBarItem.fixture(
+            tag: .appItem(bundleID: "com.bjango.istatmenus", title: "12.3 KB/s"),
+            windowID: 12,
+            bounds: CGRect(x: 100, y: 0, width: 40, height: 22)
+        )
+        let positions = [
+            "status:com.bjango.istatmenus::com.bjango.istatmenus.cpu": 100,
+            "status:com.bjango.istatmenus::com.bjango.istatmenus.memory": 200,
+        ]
+
+        XCTAssertNil(
+            MenuBarAgentPositionStore.resolveKey(
+                for: cpu,
+                existingKeys: Array(positions.keys),
+                positions: positions,
+                liveItems: [cpu, mem, net]
+            )
+        )
+    }
+
+    func testResolvePositionalKeyNilWithoutSiblings() {
+        // No siblings from the same app: title-based tiers already failed and
+        // there's nothing to position-correlate against.
+        let lone = MenuBarItem.fixture(
+            tag: .appItem(bundleID: "com.bjango.istatmenus", title: "CPU 9%"),
+            windowID: 10,
+            bounds: CGRect(x: 0, y: 0, width: 40, height: 22)
+        )
+        XCTAssertNil(
+            MenuBarAgentPositionStore.resolveKey(
+                for: lone,
+                existingKeys: ["status:com.bjango.istatmenus::com.bjango.istatmenus.cpu"],
+                positions: ["status:com.bjango.istatmenus::com.bjango.istatmenus.cpu": 100],
+                liveItems: [lone]
+            )
+        )
+    }
+
     // MARK: - neighborItems
 
     func testRightOfItemBracketsAnchorAndRightNeighbor() {

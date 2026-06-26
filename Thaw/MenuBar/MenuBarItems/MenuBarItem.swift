@@ -97,7 +97,11 @@ struct MenuBarItem: CustomStringConvertible {
         experimentalSystemItemHiding: Bool
     ) -> MenuBarItemTag.SectionManagementPolicy {
         let basePolicy = sectionManagementPolicy
-        guard experimentalSystemItemHiding, basePolicy.isForcedVisible else {
+        // Items whose hiding is not yet supported (e.g. iStat's per-second title
+        // churn) stay forced-visible even under the experimental toggle: the
+        // editor may reorder them, but they can never be assigned to a hidden
+        // section. See ``MenuBarItemTag/isHidingUnsupported``.
+        guard experimentalSystemItemHiding, basePolicy.isForcedVisible, !tag.isHidingUnsupported else {
             return basePolicy
         }
         return .hideable
@@ -124,6 +128,62 @@ struct MenuBarItem: CustomStringConvertible {
     func hasSameOwner(as other: MenuBarItem) -> Bool {
         tag.namespace == other.tag.namespace &&
             (sourcePID ?? ownerPID) == (other.sourcePID ?? other.ownerPID)
+    }
+
+    /// Whether AX reports this item parked outside the live menu bar band.
+    ///
+    /// During assertion reflows macOS 27 temporarily parks items at y≈1400+
+    /// while the bar reshuffles. Their X still reads as hidden-side, which
+    /// false-triggers layout-divergence detection and doomed synthetic reorders
+    /// ("moving Proton to hidden also hid iStat").
+    ///
+    /// Uses an absolute Y threshold first: when the visible control parks with
+    /// collateral, a peer-relative check falsely reports everyone as on-band.
+    func isParkedOffMenuBarBand(among peers: [MenuBarItem]) -> Bool {
+        guard bounds.width > 0, bounds.height > 0 else { return true }
+
+        // Live bar items sit in the top ~60pt of the hosting-window space;
+        // assertion reflow parks collateral at y≈1400+.
+        if bounds.midY > 80 {
+            return true
+        }
+
+        guard let barMidY = peers.first(where: {
+            $0.tag.matchesVisibleControlItem && $0.bounds.midY <= 80
+        })?.bounds.midY
+            ?? peers.first(where: {
+                $0.isControlItem && $0.bounds.width > 8 && $0.bounds.midY <= 80
+            })?.bounds.midY
+        else { return false }
+        // The live bar band is ~30 pt; parked items are 1000+ pt away on Y.
+        return abs(bounds.midY - barMidY) > 48
+    }
+
+    /// Whether this visible-assigned item is likely collateral from an
+    /// assessment-mode reflow (parked off-band, or physically adjacent to a
+    /// concealed item that still appears in AX).
+    func isRestrictionReflowCollateral(
+        among peers: [MenuBarItem],
+        concealedIdentifiers: Set<String>
+    ) -> Bool {
+        if isParkedOffMenuBarBand(among: peers) {
+            return true
+        }
+        guard !concealedIdentifiers.isEmpty else { return false }
+
+        let sorted = peers
+            .filter { !$0.isControlItem && $0.bounds.width > 0 }
+            .sorted { $0.bounds.midX < $1.bounds.midX }
+        guard let index = sorted.firstIndex(where: { $0.windowID == windowID }) else {
+            return false
+        }
+
+        for (neighborIndex, neighbor) in sorted.enumerated() where concealedIdentifiers.contains(neighbor.uniqueIdentifier) {
+            if abs(neighborIndex - index) <= 1 {
+                return true
+            }
+        }
+        return false
     }
 
     /// A Boolean value that indicates whether this item is a transient
