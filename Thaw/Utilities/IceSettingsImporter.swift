@@ -132,6 +132,7 @@ struct IceSettingsImporter {
             (.hideApplicationMenus, "HideApplicationMenus"),
             (.enableSecondaryContextMenu, "EnableSecondaryContextMenu"),
             (.showOnHoverDelay, "ShowOnHoverDelay"),
+            (.tempShowInterval, "TempShowInterval"),
         ]
 
         for (key, iceKey) in mappings {
