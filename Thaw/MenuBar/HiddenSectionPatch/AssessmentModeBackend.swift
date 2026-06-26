@@ -5,7 +5,6 @@
 //  Copyright (Ice) © 2023–2025 Jordan Baird
 //  Copyright (Thaw) © 2026 Toni Förster
 //  Licensed under the GNU GPLv3
-//
 
 import Cocoa
 
@@ -48,7 +47,7 @@ final class AssessmentModeBackend {
     /// list hides ALL system items. Menu extras (AirDrop/Focus/User/NowPlaying)
     /// are not in this enum and cannot be preserved by the allowlist — that
     /// collateral is accepted. See [[macos27-system-item-hiding-approach]].
-    static let allSystemItems: Set<Int> = Set(0...8)
+    static let allSystemItems: Set<Int> = Set(0 ... 8)
 
     /// The default Apple system-item identifiers kept visible by the Assessment
     /// Mode restriction.
@@ -86,15 +85,24 @@ final class AssessmentModeBackend {
 
     private let diagLog = DiagLog(category: "AssessmentModeBackend")
 
-    /// Bundles that host *multiple* system menu extras (Clock, Control Center,
-    /// Siri, Spotlight, …). They must never be concealed at the bundle level —
-    /// doing so blanks every system item the host owns. Individual system items
-    /// are concealed via the index path (`concealedSystemItemIDs`) instead.
+    /// Bundles that own system menu extras that must be concealed via their
+    /// system-item index (`concealedSystemItemIDs`) rather than the bundle path.
+    /// Bundle-level concealment of these hosts would blank every item the host
+    /// owns on each restriction reflow (the whole system side of the bar).
+    ///
+    /// `com.apple.systemuiserver` is included even when it appears to host only
+    /// Siri. Concealing that bundle can blank more of the menu bar than the
+    /// single assigned item during restriction reflows, so Siri may remain
+    /// visible rather than risking a whole-bar disappearance.
     private static let systemHostBundleIDs: Set<String> = [
         "com.apple.MenuBarAgent",
         "com.apple.controlcenter",
         "com.apple.systemuiserver",
     ]
+
+    static func isSystemHostBundleID(_ bundleID: String) -> Bool {
+        systemHostBundleIDs.contains(bundleID)
+    }
 
     /// The live assertion handle, or `nil` when nothing is hidden.
     private var handle: UnsafeMutableRawPointer?
@@ -255,7 +263,7 @@ final class AssessmentModeBackend {
             let bundleID = knownBundleIDs[identifier]
             return isOwnAppBundleID(bundleID) ? nil : bundleID
         })
-            .subtracting(bundlesWithVisibleItem)
+        .subtracting(bundlesWithVisibleItem)
 
         // Never conceal Thaw itself. Thaw's own control items are *not* in
         // `allItems` (the cache exposes them separately, not as managed items),
@@ -402,8 +410,21 @@ final class AssessmentModeBackend {
         let attemptedSystemItems = allowedSystemItemSet
         diagLog.info(
             "applying restriction: systemItems=\(allowedSystemItems.map(\.stringValue)), " +
-            "concealedBundles=\(concealedBundleIDs.sorted()), allowedBundles=\(allowedBundleIDs.count)"
+                "concealedBundles=\(concealedBundleIDs.sorted()), allowedBundles=\(allowedBundleIDs.count)"
         )
+        // System item changes require the old assertion to be torn down BEFORE
+        // the new one is created. MenuBarAgent only re-composites system-item
+        // visibility when it observes an assertion going away; a silent swap
+        // (create-then-invalidate) is treated as an update and items remain
+        // on-screen. Bundle changes tolerate the swap order fine, so only
+        // invert for system-item changes to avoid the extra reflow flash.
+        let hadLiveAssertion = handle != nil
+        if systemItemsChanged, let old = handle {
+            diagLog.info("pre-invalidating assertion for system-item re-composite")
+            ThawAssessmentModeHidingInvalidate(old)
+            handle = nil
+        }
+
         let newHandle = ThawAssessmentModeHidingActivate(allowedBundleIDs, allowedSystemItems) { [weak self] in
             // Dispatched to the main queue by the ObjC wrapper, so MainActor
             // isolation holds at runtime even though the block type is not.
@@ -426,7 +447,6 @@ final class AssessmentModeBackend {
                 )
             }
         }
-        let hadLiveAssertion = handle != nil
         if let old = handle {
             ThawAssessmentModeHidingInvalidate(old)
         }
@@ -447,8 +467,8 @@ final class AssessmentModeBackend {
         appliedAllowedSystemItems = allowedSystemItemSet
         diagLog.info(
             "applied restriction: concealing \(concealedBundleIDs.count) app(s), " +
-            "\(concealedSystemItemIDs.count) system item(s), " +
-            "allowing \(allowedBundleIDs.count)"
+                "\(concealedSystemItemIDs.count) system item(s), " +
+                "allowing \(allowedBundleIDs.count)"
         )
         return true
     }
