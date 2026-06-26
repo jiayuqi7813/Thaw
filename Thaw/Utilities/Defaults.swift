@@ -169,6 +169,7 @@ extension Defaults {
         static let enableSecondaryContextMenu = true
         static let enableSecondaryContextMenuQuit = false
         static let showOnHoverDelay: TimeInterval = 0.2
+        static let tempShowInterval: TimeInterval = 15
         static let tooltipDelay: TimeInterval = 0.5
         static let showMenuBarTooltips = false
         static let iconRefreshInterval: TimeInterval = 0.1
@@ -183,6 +184,7 @@ extension Defaults {
         static let enableMenuBarItemOverflow = true
         static let enableExperimentalSystemItemHiding = false
         static let enableExperimentalWindowHiding = false
+        static let enableExperimentalOverflowPrevention = false
 
         // MARK: Search
 
@@ -250,6 +252,7 @@ extension Defaults {
         case enableSecondaryContextMenu = "EnableSecondaryContextMenu"
         case enableSecondaryContextMenuQuit = "EnableSecondaryContextMenuQuit"
         case showOnHoverDelay = "ShowOnHoverDelay"
+        case tempShowInterval = "TempShowInterval"
         case tooltipDelay = "TooltipDelay"
         case iconRefreshInterval = "IconRefreshInterval"
         case showMenuBarTooltips = "ShowMenuBarTooltips"
@@ -260,6 +263,7 @@ extension Defaults {
         case enableMenuBarItemOverflow = "EnableMenuBarItemOverflow"
         case enableExperimentalSystemItemHiding = "EnableExperimentalSystemItemHiding"
         case enableExperimentalWindowHiding = "EnableExperimentalWindowHiding"
+        case enableExperimentalOverflowPrevention = "EnableExperimentalOverflowPrevention"
         case diagnosticAssessmentModeSceneProbes = "Thaw.diagnosticAssessmentModeSceneProbes"
         case diagnosticAssessmentModeProbeHiddenTriggerPress = "Thaw.diagnosticAssessmentModeProbeHiddenTriggerPress"
 
