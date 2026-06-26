@@ -48,7 +48,7 @@ final class TrailingItemPositionStore {
     ///     that should stay anchored.
     ///   - allItems: The full live item list, used to read current positions.
     @discardableResult
-    func lockVisiblePositions(visibleItemKeys: Set<String>, allItems: [MenuBarItem]) -> Set<String> {
+    func lockVisiblePositions(visibleItemKeys _: Set<String>, allItems: [MenuBarItem]) -> Set<String> {
         var positions = readPositions()
         let isFirstApply = originalPositions == nil
         if isFirstApply {
@@ -115,7 +115,7 @@ final class TrailingItemPositionStore {
         let removedCount = (originalPositions?.count ?? positions.count) - positions.count
         diagLog.info(
             "lock: \(positions.count) keys after cleanup (removed \(removedCount) ghost(s)), " +
-            "preserving existing weight order"
+                "preserving existing weight order"
         )
         return liveResolvedKeys
     }
@@ -241,7 +241,9 @@ final class TrailingItemPositionStore {
     }
 
     /// Whether any items are currently hidden via the plist path.
-    var hasHiddenItems: Bool { !hiddenPlistKeys.isEmpty }
+    var hasHiddenItems: Bool {
+        !hiddenPlistKeys.isEmpty
+    }
 
     /// Restores all items hidden via the plist path.
     private func restoreAllHiddenItems() {
@@ -397,7 +399,7 @@ final class TrailingItemPositionStore {
     /// under a stable internal identifier that never appears in the live AX
     /// title. Requires the family sizes to match exactly so we can pair
     /// siblings without guessing.
-    private static func resolvePositionalKey(
+    static func resolvePositionalKey(
         for item: MenuBarItem,
         existingKeys: [String],
         positions: [String: Int],
@@ -426,7 +428,7 @@ final class TrailingItemPositionStore {
 
     // MARK: Private
 
-    private func readPositions() -> [String: Int] {
+    func readPositions() -> [String: Int] {
         // Try CFPreferences with AnyHost first (matches `defaults read`).
         if let dict = CFPreferencesCopyValue(
             Self.positionKey as CFString,
@@ -439,7 +441,8 @@ final class TrailingItemPositionStore {
         // Fallback: read the plist file directly.
         let plistPath = ("~/Library/Preferences/\(Self.agentDomain as String).plist" as NSString).expandingTildeInPath
         if let plist = NSDictionary(contentsOfFile: plistPath),
-           let dict = plist[Self.positionKey] as? [String: Int] {
+           let dict = plist[Self.positionKey] as? [String: Int]
+        {
             diagLog.debug("readPositions: read \(dict.count) entries from plist file")
             return dict
         }
@@ -456,7 +459,7 @@ final class TrailingItemPositionStore {
         return [:]
     }
 
-    private func writePositions(_ dict: [String: Int]) {
+    func writePositions(_ dict: [String: Int]) {
         // CFPreferences path.
         CFPreferencesSetValue(
             Self.positionKey as CFString,
