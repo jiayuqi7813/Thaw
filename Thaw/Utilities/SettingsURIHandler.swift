@@ -46,6 +46,7 @@ enum SettingsURIHandler {
     static let doubleKeys: [String] = [
         "rehideInterval",
         "showOnHoverDelay",
+        "tempShowInterval",
         "tooltipDelay",
         "iconRefreshInterval",
     ]
@@ -85,11 +86,13 @@ enum SettingsURIHandler {
         "iceBarLocationOnHotkey": .iceBarLocationOnHotkey,
         "useLCSSortingOnNotchedDisplays": .useLCSSortingOnNotchedDisplays,
         "enableMenuBarItemOverflow": .enableMenuBarItemOverflow,
+        "enableExperimentalOverflowPrevention": .enableExperimentalOverflowPrevention,
         "searchIncludeVisible": .searchIncludeVisible,
         "searchIncludeHidden": .searchIncludeHidden,
         "searchIncludeAlwaysHidden": .searchIncludeAlwaysHidden,
         "rehideInterval": .rehideInterval,
         "showOnHoverDelay": .showOnHoverDelay,
+        "tempShowInterval": .tempShowInterval,
         "tooltipDelay": .tooltipDelay,
         "iconRefreshInterval": .iconRefreshInterval,
         "rehideStrategy": .rehideStrategy,
@@ -99,6 +102,7 @@ enum SettingsURIHandler {
     private static let doubleRanges: [String: (min: Double, max: Double)] = [
         "rehideInterval": (1, 300),
         "showOnHoverDelay": (0, 5),
+        "tempShowInterval": (0, 30),
         "tooltipDelay": (0, 5),
         "iconRefreshInterval": (0, 5),
     ]
