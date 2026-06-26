@@ -92,11 +92,7 @@ enum MenuBarAgentPositionStore {
         experimentalSystemItemHiding: Bool = false,
         environment: Environment = .live
     ) -> Bool {
-        guard item.isPhysicallyOrderable(experimentalSystemItemHiding: experimentalSystemItemHiding),
-              destination.targetItem.isPhysicallyOrderable(
-                  experimentalSystemItemHiding: experimentalSystemItemHiding
-              )
-        else {
+        guard item.isPhysicallyOrderable(experimentalSystemItemHiding: experimentalSystemItemHiding) else {
             return false
         }
 
@@ -127,22 +123,29 @@ enum MenuBarAgentPositionStore {
         }
 
         // The far neighbor may be absent (the anchor sits at the end of the
-        // movable run). Without a second bound we cannot pick a direction-safe
-        // midpoint, so defer to the synthetic drag for end placements.
-        guard
-            let farNeighbor = neighbors.far,
-            let farKey = resolveKey(for: farNeighbor, existingKeys: keys, positions: positions, liveItems: liveItems),
-            let farValue = positions[farKey]
-        else {
-            diagLog.debug("End placement for \(item.logString); deferring to synthetic drag")
-            return false
+        // movable run). For end placements, compute an offset weight from the
+        // anchor rather than deferring to the synthetic drag.
+        let farValue: Int
+        if let farNeighbor = neighbors.far,
+           let farKey = resolveKey(for: farNeighbor, existingKeys: keys, positions: positions, liveItems: liveItems),
+           let value = positions[farKey]
+        {
+            farValue = value
+        } else {
+            // End placement: step 10 units outward from the anchor.
+            farValue = anchorValue + (destination.isRightward ? 20 : -20)
+            diagLog.debug("End placement for \(item.logString); computing offset from anchor=\(anchorValue) to far=\(farValue)")
         }
 
-        guard let newValue = midpointPosition(between: anchorValue, and: farValue) else {
+        let newValue: Int
+        if let midpoint = midpointPosition(between: anchorValue, and: farValue) {
+            newValue = midpoint
+        } else {
+            // No numeric gap between neighbors — shift by 1 in the move direction.
+            newValue = destination.isRightward ? anchorValue + 1 : anchorValue - 1
             diagLog.debug(
-                "No numeric gap between \(anchorKey)=\(anchorValue) and \(farKey)=\(farValue); deferring"
+                "No numeric gap between \(anchorKey)=\(anchorValue) and far=\(farValue); using adjacent weight \(newValue)"
             )
-            return false
         }
 
         var updated = positions
