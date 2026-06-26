@@ -5,7 +5,6 @@
 //  Copyright (Ice) © 2023–2025 Jordan Baird
 //  Copyright (Thaw) © 2026 Toni Förster
 //  Licensed under the GNU GPLv3
-//
 
 @preconcurrency import AXSwift
 import Cocoa
@@ -70,6 +69,7 @@ final class SimpleItemHider: ObservableObject {
     /// the Thaw Bar click path on macOS 27) instead of its whole section, so a
     /// click never flashes every hidden icon into the menu bar.
     private var temporarilyRevealedIDs: Set<String> = []
+    private var temporaryRevealConcealTasks = [String: Task<Void, Never>]()
 
     /// The backend that performs the hiding (the private visibility-restriction
     /// assertion).
@@ -286,6 +286,18 @@ final class SimpleItemHider: ObservableObject {
         }
     }
 
+    static func effectiveSectionAssignment(
+        _ assignment: [String: MenuBarSection.Name],
+        revealing revealedSection: MenuBarSection.Name?,
+        temporarilyRevealedIDs: Set<String>
+    ) -> [String: MenuBarSection.Name] {
+        var effective = effectiveSectionAssignment(assignment, revealing: revealedSection)
+        for identifier in temporarilyRevealedIDs {
+            effective.removeValue(forKey: identifier)
+        }
+        return effective
+    }
+
     /// Temporarily reveals a hidden section in the real menu bar.
     func show(
         _ section: MenuBarSection.Name,
@@ -342,17 +354,52 @@ final class SimpleItemHider: ObservableObject {
     /// section. Used by the Thaw Bar click path so only the touched icon
     /// appears in the menu bar.
     func revealItemTemporarily(_ identifier: String) {
-        guard !temporarilyRevealedIDs.contains(identifier) else { return }
-        temporarilyRevealedIDs.insert(identifier)
+        let didInsert = temporarilyRevealedIDs.insert(identifier).inserted
+        temporaryRevealConcealTasks[identifier]?.cancel()
+        temporaryRevealConcealTasks[identifier] = nil
         diagLog.info("revealItemTemporarily(\(identifier)); single-item reveal")
-        refresh()
+        if didInsert {
+            refresh()
+        }
     }
 
     /// Re-conceals an item previously revealed via ``revealItemTemporarily``.
     func concealTemporarilyRevealedItem(_ identifier: String) {
+        temporaryRevealConcealTasks[identifier]?.cancel()
+        temporaryRevealConcealTasks[identifier] = nil
         guard temporarilyRevealedIDs.remove(identifier) != nil else { return }
         diagLog.info("concealTemporarilyRevealedItem(\(identifier))")
         refresh()
+    }
+
+    /// Conceals a single-item reveal after the configured temporary-show delay.
+    /// Time spent with a menu open does not count toward the delay.
+    func scheduleTemporaryItemConceal(_ identifier: String) {
+        temporaryRevealConcealTasks[identifier]?.cancel()
+        let interval = appState?.settings.advanced.tempShowInterval ?? Defaults.DefaultValue.tempShowInterval
+        guard interval > 0 else {
+            concealTemporarilyRevealedItem(identifier)
+            return
+        }
+        temporaryRevealConcealTasks[identifier] = Task { @MainActor [weak self] in
+            guard let self else { return }
+            var eligibleSince = Date()
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(250))
+                guard !Task.isCancelled else { return }
+                let isMenuOpen = await self.appState?.itemManager.isAnyMenuBarItemMenuOpen() ?? false
+                if isMenuOpen {
+                    eligibleSince = Date()
+                    continue
+                }
+                if Date().timeIntervalSince(eligibleSince) >= interval {
+                    break
+                }
+            }
+            guard !Task.isCancelled else { return }
+            self.temporaryRevealConcealTasks[identifier] = nil
+            self.concealTemporarilyRevealedItem(identifier)
+        }
     }
 
     /// Toggles the temporary reveal state for a section.
@@ -796,6 +843,10 @@ final class SimpleItemHider: ObservableObject {
             restoreVisibleControlItemAfterRestrictionChange()
             diagLog.info("restriction changed; restored visible control item state")
             runPostRestrictionSceneProbes()
+            // Experimental overflow prevention: push hidden items' position
+            // weights to extreme values so the native macOS 27 menu bar
+            // overflow (notched displays) collapses them before visible items.
+            applyExperimentalOverflowPreventionIfEnabled(allItems: allItems)
         }
 
         // Post-assertion safety net: re-enumerate from AX after the assertion
@@ -839,10 +890,10 @@ final class SimpleItemHider: ObservableObject {
         if !invisible.isEmpty || !fullyAbsent.isEmpty {
             diagLog.error(
                 "Post-assertion guard: \(invisible.count) hiding-unsupported item(s) " +
-                "invisible, \(fullyAbsent.count) bundle(s) absent — " +
-                "tearing down restriction. Invisible: " +
-                invisible.map { "\($0.uniqueIdentifier) onScreen=\($0.isOnScreen)" }.joined(separator: ", ") +
-                ". Absent: \(fullyAbsent.sorted().joined(separator: ", "))"
+                    "invisible, \(fullyAbsent.count) bundle(s) absent — " +
+                    "tearing down restriction. Invisible: " +
+                    invisible.map { "\($0.uniqueIdentifier) onScreen=\($0.isOnScreen)" }.joined(separator: ", ") +
+                    ". Absent: \(fullyAbsent.sorted().joined(separator: ", "))"
             )
             resetBackendRestriction()
         }
@@ -850,6 +901,48 @@ final class SimpleItemHider: ObservableObject {
 
     private func resetBackendRestriction() {
         backend.apply(sectionAssignment: [:], allItems: [])
+    }
+
+    /// Experimental: pushes hidden items' position weights to extreme values
+    /// (50000+) in `TrailingItemPreferredPositions` so the native macOS 27 menu
+    /// bar overflow on notched displays collapses them before visible items.
+    /// Items moved back to visible get their weights restored.
+    private func applyExperimentalOverflowPreventionIfEnabled(allItems: [MenuBarItem]) {
+        guard let appState,
+              appState.settings.advanced.enableExperimentalOverflowPrevention
+        else { return }
+
+        var positions = positionStore.readPositions()
+        let existingKeys = Array(positions.keys)
+        var changed = false
+        var overflowBase = 50000
+
+        for (identifier, section) in sectionAssignment where section != .visible {
+            guard let item = allItems.first(where: { $0.uniqueIdentifier == identifier }) ??
+                snapshots[identifier]
+            else { continue }
+
+            guard let key = TrailingItemPositionStore.resolvedPositionKey(
+                for: item,
+                existingKeys: existingKeys
+            ) ?? TrailingItemPositionStore.resolvePositionalKey(
+                for: item,
+                existingKeys: existingKeys,
+                positions: positions,
+                allItems: allItems
+            ) else { continue }
+
+            let currentWeight = positions[key] ?? overflowBase
+            if currentWeight < 50000 {
+                positions[key] = overflowBase
+                overflowBase += 10
+                changed = true
+            }
+        }
+
+        guard changed else { return }
+        positionStore.writePositions(positions)
+        diagLog.info("overflowPrevention: elevated \(overflowBase - 50000) hidden-item weight(s)")
     }
 
     /// Re-applies the current assertion allowlist without changing assignment.
@@ -885,20 +978,13 @@ final class SimpleItemHider: ObservableObject {
         return backendAssignment
     }
 
-    /// `effectiveSectionAssignment` with `temporarilyRevealedIDs` removed — the
-    /// effective desired section for every item except those single-item reveals
-    /// the Thaw Bar click path forces visible. Both the assertion input
-    /// (``backendAssignmentInput``) and the experimental CGS/AX passes key off
-    /// this; CC modules and Spotlight are stripped separately by their managers.
+    /// Assignment applied to hiding backends after removing single-item reveals.
     private func effectiveAssignmentExcludingTemporarilyRevealed() -> [String: MenuBarSection.Name] {
-        var effectiveAssignment = Self.effectiveSectionAssignment(
+        Self.effectiveSectionAssignment(
             sectionAssignment,
-            revealing: revealedSection
+            revealing: revealedSection,
+            temporarilyRevealedIDs: temporarilyRevealedIDs
         )
-        for identifier in temporarilyRevealedIDs {
-            effectiveAssignment.removeValue(forKey: identifier)
-        }
-        return effectiveAssignment
     }
 
     /// Experimental surgical hide: when `enabled`, hide third-party items via
@@ -1140,7 +1226,7 @@ final class SimpleItemHider: ObservableObject {
             guard !clippedCropRect.isNull, !clippedCropRect.isEmpty else {
                 diagLog.warning(
                     "controlCrop[\(reason)] id=\(identifier.rawValue) crop outside host " +
-                    "axFrame=\(NSStringFromRect(item.bounds)) crop=\(NSStringFromRect(cropRect))"
+                        "axFrame=\(NSStringFromRect(item.bounds)) crop=\(NSStringFromRect(cropRect))"
                 )
                 continue
             }
@@ -1148,15 +1234,15 @@ final class SimpleItemHider: ObservableObject {
             guard let cropped = capture.image.cropping(to: clippedCropRect) else {
                 diagLog.warning(
                     "controlCrop[\(reason)] id=\(identifier.rawValue) crop failed " +
-                    "axFrame=\(NSStringFromRect(item.bounds)) crop=\(NSStringFromRect(clippedCropRect))"
+                        "axFrame=\(NSStringFromRect(item.bounds)) crop=\(NSStringFromRect(clippedCropRect))"
                 )
                 continue
             }
 
             diagLog.info(
                 "controlCrop[\(reason)] id=\(identifier.rawValue) " +
-                "axFrame=\(NSStringFromRect(item.bounds)) crop=\(NSStringFromRect(clippedCropRect)) " +
-                "size=\(cropped.width)x\(cropped.height) transparent=\(cropped.isTransparent())"
+                    "axFrame=\(NSStringFromRect(item.bounds)) crop=\(NSStringFromRect(clippedCropRect)) " +
+                    "size=\(cropped.width)x\(cropped.height) transparent=\(cropped.isTransparent())"
             )
         }
     }
@@ -1189,7 +1275,7 @@ final class SimpleItemHider: ObservableObject {
         let didPress = AXHelpers.press(element)
         diagLog.info(
             "hiddenTriggerAXPress[\(reason)]: didPress=\(didPress) " +
-            "role=\(role) enabled=\(enabled) frame=\(frame)"
+                "role=\(role) enabled=\(enabled) frame=\(frame)"
         )
     }
 
@@ -1214,9 +1300,9 @@ final class SimpleItemHider: ObservableObject {
     private func resolvedAXIdentifier(for element: UIElement) -> String? {
         AXHelpers.identifier(for: element)?.nonEmpty
             ?? AXHelpers.children(for: element)
-                .lazy
-                .compactMap { AXHelpers.identifier(for: $0)?.nonEmpty }
-                .first
+            .lazy
+            .compactMap { AXHelpers.identifier(for: $0)?.nonEmpty }
+            .first
             ?? AXHelpers.title(for: element)?.nonEmpty
     }
 }
