@@ -73,6 +73,7 @@ struct AdvancedSettingsPane: View {
                 }
                 showIceBarAtMouseLocationOnHotkey
                 showOnHoverDelay
+                tempShowInterval
                 iconRefreshInterval
             }
             IceSection("Permissions") {
@@ -381,6 +382,25 @@ struct AdvancedSettingsPane: View {
                 }
         }
         .annotation("The amount of time to wait before showing on hover.")
+    }
+
+    private var tempShowInterval: some View {
+        LabeledContent {
+            IceSlider(
+                value: $settings.tempShowInterval,
+                in: 0 ... 30,
+                step: 1
+            ) {
+                SecondsLabel(value: settings.tempShowInterval)
+            }
+        } label: {
+            Text("Temporarily shown item delay")
+                .frame(minWidth: maxSliderLabelWidth, alignment: .leading)
+                .onFrameChange { frame in
+                    maxSliderLabelWidth = max(maxSliderLabelWidth, frame.width)
+                }
+        }
+        .annotation("The amount of time to wait before hiding temporarily shown menu bar items.")
     }
 
     private var iconRefreshInterval: some View {
