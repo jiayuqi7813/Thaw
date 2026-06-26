@@ -96,6 +96,7 @@ struct AdvancedSettingsSnapshot: Codable {
     var enableSecondaryContextMenu: Bool
     var enableSecondaryContextMenuQuit: Bool
     var showOnHoverDelay: TimeInterval
+    var tempShowInterval: TimeInterval
     var tooltipDelay: TimeInterval
     var showMenuBarTooltips: Bool
     var iconRefreshInterval: TimeInterval
@@ -120,6 +121,7 @@ struct AdvancedSettingsSnapshot: Codable {
             enableSecondaryContextMenu: settings.enableSecondaryContextMenu,
             enableSecondaryContextMenuQuit: settings.enableSecondaryContextMenuQuit,
             showOnHoverDelay: settings.showOnHoverDelay,
+            tempShowInterval: settings.tempShowInterval,
             tooltipDelay: settings.tooltipDelay,
             showMenuBarTooltips: settings.showMenuBarTooltips,
             iconRefreshInterval: settings.iconRefreshInterval,
@@ -147,6 +149,7 @@ struct AdvancedSettingsSnapshot: Codable {
         settings.enableSecondaryContextMenu = enableSecondaryContextMenu
         settings.enableSecondaryContextMenuQuit = enableSecondaryContextMenuQuit
         settings.showOnHoverDelay = showOnHoverDelay
+        settings.tempShowInterval = tempShowInterval
         settings.tooltipDelay = tooltipDelay
         settings.showMenuBarTooltips = showMenuBarTooltips
         settings.iconRefreshInterval = iconRefreshInterval
@@ -170,6 +173,7 @@ struct AdvancedSettingsSnapshot: Codable {
         case enableSecondaryContextMenu
         case enableSecondaryContextMenuQuit
         case showOnHoverDelay
+        case tempShowInterval
         case tooltipDelay
         case showMenuBarTooltips
         case iconRefreshInterval
@@ -193,6 +197,7 @@ struct AdvancedSettingsSnapshot: Codable {
         enableSecondaryContextMenu: Bool,
         enableSecondaryContextMenuQuit: Bool,
         showOnHoverDelay: TimeInterval,
+        tempShowInterval: TimeInterval = Defaults.DefaultValue.tempShowInterval,
         tooltipDelay: TimeInterval,
         showMenuBarTooltips: Bool,
         iconRefreshInterval: TimeInterval,
@@ -214,6 +219,7 @@ struct AdvancedSettingsSnapshot: Codable {
         self.enableSecondaryContextMenu = enableSecondaryContextMenu
         self.enableSecondaryContextMenuQuit = enableSecondaryContextMenuQuit
         self.showOnHoverDelay = showOnHoverDelay
+        self.tempShowInterval = tempShowInterval
         self.tooltipDelay = tooltipDelay
         self.showMenuBarTooltips = showMenuBarTooltips
         self.iconRefreshInterval = iconRefreshInterval
@@ -252,6 +258,9 @@ struct AdvancedSettingsSnapshot: Codable {
         showOnHoverDelay = try container.decodeIfPresent(
             TimeInterval.self, forKey: .showOnHoverDelay
         ) ?? Defaults.DefaultValue.showOnHoverDelay
+        tempShowInterval = try container.decodeIfPresent(
+            TimeInterval.self, forKey: .tempShowInterval
+        ) ?? Defaults.DefaultValue.tempShowInterval
         tooltipDelay = try container.decodeIfPresent(
             TimeInterval.self, forKey: .tooltipDelay
         ) ?? Defaults.DefaultValue.tooltipDelay
@@ -491,6 +500,7 @@ struct Profile: Codable, Identifiable {
             enableSecondaryContextMenu: Defaults.DefaultValue.enableSecondaryContextMenu,
             enableSecondaryContextMenuQuit: Defaults.DefaultValue.enableSecondaryContextMenuQuit,
             showOnHoverDelay: Defaults.DefaultValue.showOnHoverDelay,
+            tempShowInterval: Defaults.DefaultValue.tempShowInterval,
             tooltipDelay: Defaults.DefaultValue.tooltipDelay,
             showMenuBarTooltips: Defaults.DefaultValue.showMenuBarTooltips,
             iconRefreshInterval: Defaults.DefaultValue.iconRefreshInterval,
