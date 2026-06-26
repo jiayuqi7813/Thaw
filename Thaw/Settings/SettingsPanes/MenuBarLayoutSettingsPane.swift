@@ -39,6 +39,7 @@ struct MenuBarLayoutSettingsPane: View {
                 layoutBars
                 if #available(macOS 27, *) {
                     experimentalSystemItemHidingControls
+                    experimentalOverflowPreventionControl
                     // Experimental window hiding disabled — plist-based per-item
                     // hiding does not work on macOS 27 (removing keys from
                     // TrailingItemPreferredPositions does not hide items).
@@ -196,6 +197,38 @@ struct MenuBarLayoutSettingsPane: View {
                 )
             }
         }
+    }
+
+    @available(macOS 27, *)
+    private var experimentalOverflowPreventionControl: some View {
+        IceSection {
+            VStack(alignment: .leading, spacing: 12) {
+                Toggle(isOn: experimentalOverflowPreventionBinding) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Prevent native menu bar overflow hiding (experimental)")
+                            .font(.headline)
+                        Text("On notched displays, macOS may collapse items behind a chevron when the menu bar is full. This writes hidden items' position weights to extreme values so the native overflow collapses them first, keeping visible items on screen.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
+                SettingsWarningPill(
+                    message: "Experimental. May cause layout issues on some setups. Only affects macOS 27+ notched displays."
+                )
+            }
+        }
+    }
+
+    private var experimentalOverflowPreventionBinding: Binding<Bool> {
+        Binding(
+            get: { appState.settings.advanced.enableExperimentalOverflowPrevention },
+            set: { newValue in
+                appState.settings.advanced.enableExperimentalOverflowPrevention = newValue
+                appState.menuBarManager.simpleItemHider?.refresh()
+            }
+        )
     }
 
     private var experimentalWindowHidingBinding: Binding<Bool> {
