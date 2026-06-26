@@ -212,10 +212,9 @@ final class MenuBarItemManager: ObservableObject {
     /// backoff the moment either item's synthetic windowID churns between
     /// cycles even though the logical move being retried hasn't changed.
     private static func macOS27MoveFailureKey(item: MenuBarItem, destination: MoveDestination) -> String {
-        let side: String
-        switch destination {
-        case .leftOfItem: side = "leftOf"
-        case .rightOfItem: side = "rightOf"
+        let side = switch destination {
+        case .leftOfItem: "leftOf"
+        case .rightOfItem: "rightOf"
         }
         return "\(item.uniqueIdentifier)|\(side)|\(destination.targetItem.uniqueIdentifier)"
     }
@@ -3003,7 +3002,7 @@ extension MenuBarItemManager {
     /// there would conflate Clock with its neighbours. They also have stable
     /// titles, so the title-based fallbacks already resolve them; this heuristic
     /// is neither needed nor safe for them.
-    private nonisolated static func nearestSameOwnerMatch(
+    private static nonisolated func nearestSameOwnerMatch(
         for item: MenuBarItem,
         in refreshed: [MenuBarItem]
     ) -> MenuBarItem? {
@@ -3477,6 +3476,13 @@ extension MenuBarItemManager {
             switch self {
             case let .leftOfItem(item), let .rightOfItem(item): item
             }
+        }
+
+        /// Whether the destination is to the right of the anchor, used for
+        /// computing offset weights in cursor-free reorder.
+        var isRightward: Bool {
+            if case .rightOfItem = self { return true }
+            return false
         }
 
         /// A string to use for logging purposes.
@@ -4191,26 +4197,29 @@ extension MenuBarItemManager {
                 continue
             }
 
-            do {
-                try await move(
-                    item: liveItem,
-                    to: destination,
-                    skipInputPause: true,
-                    watchdogTimeout: Self.layoutWatchdogTimeout,
-                    allowSectionBoundaryTargetOnMacOS27: true
-                )
+            // Cursor-free boundary repair: write the item's preferred position
+            // to be on the correct side of the divider. No reveal or cursor warp
+            // needed — the plist write works regardless of assessment-mode state.
+            // If the anchor (the Hidden control item) has no plist key yet, skip
+            // silently; the ordering pass below will handle placement once keys
+            // exist.
+            if #available(macOS 27, *),
+               MenuBarAgentPositionStore.move(
+                   item: liveItem,
+                   to: destination,
+                   liveItems: liveItems,
+                   experimentalSystemItemHiding: experimentalSystemItemHiding
+               )
+            {
                 MenuBarItemManager.diagLog.info(
-                    "Repaired macOS 27 section boundary for \(liveItem.logString)"
+                    "Repaired macOS 27 section boundary for \(liveItem.logString) via preferred positions"
                 )
-            } catch {
-                MenuBarItemManager.diagLog.error(
-                    "Failed to repair macOS 27 section boundary for \(liveItem.logString): \(error)"
+                liveItems = await MenuBarItem.getMenuBarItems(option: .activeSpace)
+            } else {
+                MenuBarItemManager.diagLog.debug(
+                    "Skipping macOS 27 section boundary repair for \(liveItem.logString): no resolvable plist key"
                 )
             }
-            // A failed synthetic drag may still partially displace the bar.
-            // Refresh once after an attempted move and thread that snapshot into
-            // the next assignment instead of re-walking before every item.
-            liveItems = await MenuBarItem.getMenuBarItems(option: .activeSpace)
         }
 
         let sectionsToOrder: [MenuBarSection.Name] = switch revealedSection {
@@ -5031,7 +5040,7 @@ extension MenuBarItemManager {
     /// Schedules a timer for the given interval that rehides the
     /// temporarily shown items when fired.
     private func runRehideTimer(for interval: TimeInterval? = nil) {
-        let interval = interval ?? 15
+        let interval = interval ?? appState?.settings.advanced.tempShowInterval ?? Defaults.DefaultValue.tempShowInterval
         MenuBarItemManager.diagLog.debug("Running rehide timer for interval: \(interval)")
         rehideTimer?.invalidate()
         rehideCancellable?.cancel()
@@ -5055,7 +5064,7 @@ extension MenuBarItemManager {
                 guard let self else { return }
                 Task { [weak self] in
                     guard let self else { return }
-                    await self.rehideTemporarilyShownItems()
+                    self.runRehideTimer()
                 }
             }
     }
@@ -5078,9 +5087,9 @@ extension MenuBarItemManager {
     /// Temporarily moves `item` into the visible area next to the Ice icon,
     /// clicks it, then schedules a rehide.
     ///
-    /// The item is returned to its original location after approximately
-    /// 15 seconds, though it may be sooner (e.g. when switching apps) or
-    /// later due to the smart rehide logic.
+    /// The item is returned to its original location after approximately the
+    /// configured temporary-show interval, though it may be sooner (e.g. when
+    /// switching apps) or later due to the smart rehide logic.
     ///
     /// - Returns: A ``TemporaryShowResult`` describing whether the move and
     ///   click succeeded. Only act on ``TemporaryShowResult/movedButClickFailed``
@@ -5385,21 +5394,20 @@ extension MenuBarItemManager {
         // which reflows the whole menu bar and momentarily flickers every hidden
         // icon. AXPress maps to the item's default action, so right-clicks (which
         // want a different menu) fall through to the synthetic path below.
+        let identifier = item.uniqueIdentifier
         if mouseButton == .left, pressItemViaAccessibility(item) {
+            hider.revealItemTemporarily(identifier)
+            hider.scheduleTemporaryItemConceal(identifier)
             MenuBarItemManager.diagLog.info(
-                "clickConcealedItem: opened \(item.logString) via AX press (no reveal, no flicker)"
+                "clickConcealedItem: opened \(item.logString) via AX press; scheduled temporary reveal"
             )
             return
         }
 
-        // Fallback: reveal ONLY the touched item, not its whole section, so a
+        // Fallback: reveal only the touched item, not its whole section, so a
         // click never flashes every hidden icon into the menu bar. This path
-        // still re-applies the assertion, so a brief flicker is expected here.
-        let identifier = item.uniqueIdentifier
+        // still re-applies the assertion, so a brief flicker is expected.
         hider.revealItemTemporarily(identifier)
-        // Guarantee re-concealment on every exit path, so the item can never be
-        // left stranded visible if this method gains an early return later.
-        defer { hider.concealTemporarilyRevealedItem(identifier) }
 
         // Let MenuBarAgent recomposite the revealed item before clicking. This
         // is the same settle the prewarm uses to capture correct glyphs, so the
@@ -5425,10 +5433,10 @@ extension MenuBarItemManager {
             )
         }
 
-        // Let the opened menu/popup settle (it is a separate window and stays
-        // open) before the deferred re-conceal re-applies the assertion to the
-        // status item glyph.
+        // Let the opened menu/popup settle before scheduling the delayed
+        // re-conceal; menu-open time does not count toward the delay.
         await eventSleep(for: Constants.MenuBarTuning.iceBarPostClickSettle)
+        hider.scheduleTemporaryItemConceal(identifier)
     }
 
     /// Resolves the best move destination for returning a temporarily shown
@@ -5530,12 +5538,12 @@ extension MenuBarItemManager {
         if !force {
             guard !temporarilyShownItemContexts.contains(where: \.isShowingInterface) else {
                 MenuBarItemManager.diagLog.debug("Menu bar item interface is shown, so waiting to rehide")
-                runRehideTimer(for: 3)
+                runRehideTimer()
                 return
             }
             guard hasUserPausedInput(for: .milliseconds(250)) else {
                 MenuBarItemManager.diagLog.debug("Found recent user input, so waiting to rehide")
-                runRehideTimer(for: 1)
+                runRehideTimer()
                 return
             }
         }
@@ -5671,7 +5679,7 @@ extension MenuBarItemManager {
             )
             temporarilyShownItemContexts.append(contentsOf: failedContexts.reversed())
             if !force {
-                runRehideTimer(for: 3)
+                runRehideTimer()
             }
         }
     }
@@ -6457,11 +6465,12 @@ extension MenuBarItemManager {
         var skippedProtectedItems = [String]()
         let experimentalSystemItemHiding = appState.settings.advanced.enableExperimentalSystemItemHiding
         for item in itemCache.managedItems
-        where SimpleItemHider.canAssign(
-            item,
-            to: .hidden,
-            experimentalSystemItemHiding: experimentalSystemItemHiding
-        ) {
+            where SimpleItemHider.canAssign(
+                item,
+                to: .hidden,
+                experimentalSystemItemHiding: experimentalSystemItemHiding
+            )
+        {
             guard !SimpleItemHider.isProtectedAssignmentItem(
                 item,
                 experimentalSystemItemHiding: experimentalSystemItemHiding
@@ -8223,7 +8232,7 @@ extension MenuBarItemManager {
     /// which on a notched display drifts items into always-hidden. A display
     /// switch is not a layout edit, so it must not advance the gate; the
     /// divergence check still runs and catches genuine section drift.
-    nonisolated static func windowIDsChanged(
+    static nonisolated func windowIDsChanged(
         previous: Set<CGWindowID>,
         current: Set<CGWindowID>,
         previousDisplayID: CGDirectDisplayID?,
