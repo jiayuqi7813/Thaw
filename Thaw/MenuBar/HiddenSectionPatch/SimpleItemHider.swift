@@ -81,11 +81,6 @@ final class SimpleItemHider: ObservableObject {
     /// backend input.
     private let ccModuleManager: ControlCenterModuleManager
 
-    /// Governs Spotlight (Campo), which the assessment-mode allowlist cannot
-    /// hide. When Spotlight is assigned hidden it is driven via its own per-host
-    /// preference and kept out of the backend input.
-    private let spotlightManager: SpotlightMenuItemManager
-
     /// Off-screen CGS window hider. When the experimental window
     /// hiding flag is on, third-party items are hidden by moving their windows
     /// off-screen via CGS instead of the assessment-mode assertion, so hiding one
@@ -117,7 +112,6 @@ final class SimpleItemHider: ObservableObject {
         self.sectionItemOrder = Self.loadOrder()
         self.backend = AssessmentModeBackend()
         self.ccModuleManager = ControlCenterModuleManager()
-        self.spotlightManager = SpotlightMenuItemManager()
         self.cgsWindowHider = CGSWindowHider()
         self.axItemHider = AXItemHider()
         self.positionStore = TrailingItemPositionStore()
@@ -154,18 +148,21 @@ final class SimpleItemHider: ObservableObject {
         assignment.filter { identifier, section in
             section != .visible &&
                 !isControlItemAssignmentIdentifier(identifier) &&
-                !isOwnAppAssignmentIdentifier(identifier)
+                !isOwnAppAssignmentIdentifier(identifier) &&
+                !isHidingUnsupportedAssignmentIdentifier(identifier)
         }
     }
 
-    /// Whether the experimental system-item setting may relax the normal
-    /// forced-visible policy for this item. Control items and Thaw-owned items
-    /// are still protected by the assignment gates below.
-    static func isExperimentallyHideableSystemItem(_ item: MenuBarItem) -> Bool {
-        guard #available(macOS 27, *) else {
-            return false
+    /// Whether the identifier belongs to an app whose hiding is not yet
+    /// supported (e.g. iStat Menus with its per-second title rotation).
+    /// These items can be reordered but must never be assigned to a hidden
+    /// section — the assertion cannot reliably hide them and the dynamic
+    /// titles create stale-assignment leaks. Such items are simply never
+    /// placed in the hidden-assignment list.
+    private static func isHidingUnsupportedAssignmentIdentifier(_ identifier: String) -> Bool {
+        MenuBarItemTag.hidingUnsupportedBundleIDs.contains { bundleID in
+            identifier.hasPrefix("\(bundleID):")
         }
-        return item.sectionManagementPolicy.isForcedVisible
     }
 
     static func canAssign(
@@ -590,6 +587,11 @@ final class SimpleItemHider: ObservableObject {
     /// Applies a profile or saved-layout spec on macOS 27. Section membership
     /// is written through the assignment model; intra-section order is persisted
     /// per section. Visible entries are omitted from the assignment map.
+    ///
+    /// Items from apps that cannot be reliably hidden (iStat Menus with its
+    /// per-second title rotation — see ``MenuBarItemTag/hidingUnsupportedBundleIDs``)
+    /// are filtered out of hidden assignments and forced to their existing
+    /// section (visible), excluding them from the hidden-order list entirely.
     func applyProfileLayout(
         itemSectionMap: [String: String],
         itemOrder: [String: [String]]
@@ -598,6 +600,15 @@ final class SimpleItemHider: ObservableObject {
             from: itemSectionMap,
             itemOrder: itemOrder
         )
+        // Filter out identifiers from apps whose hiding is not yet supported.
+        // Their bundle IDs are in hidingUnsupportedBundleIDs; they can be
+        // reordered but must never be assigned to a hidden section, even when
+        // a profile import or layout export tries to do so.
+        assignment = assignment.filter { identifier, _ in
+            !MenuBarItemTag.hidingUnsupportedBundleIDs.contains { bundleID in
+                identifier.hasPrefix("\(bundleID):")
+            }
+        }
         sectionAssignment = Self.sanitizedSectionAssignment(assignment)
         persistAssignment()
 
@@ -716,15 +727,18 @@ final class SimpleItemHider: ObservableObject {
                 .map(\.uniqueIdentifier)
         )
         let assignedOwnAppIDs = Set(sectionAssignment.keys.filter(Self.isOwnAppAssignmentIdentifier))
+        let liveItemIDs = Set(allItems.map(\.uniqueIdentifier))
+        let missingLiveIDs = Set(sectionAssignment.keys).subtracting(liveItemIDs)
         let invalidAssignmentIDs = assignedControlItemIDs
             .union(assignedOwnAppIDs)
             .union(protectedAssignedIDs)
+            .union(missingLiveIDs)
         if !invalidAssignmentIDs.isEmpty {
             for identifier in invalidAssignmentIDs {
                 sectionAssignment.removeValue(forKey: identifier)
             }
             persistAssignment()
-            diagLog.info("removed \(invalidAssignmentIDs.count) control/system assignment(s)")
+            diagLog.info("removed \(invalidAssignmentIDs.count) stale/invalid assignment(s)")
         }
         // Snapshot every assigned item while it's still live, so it can keep
         // appearing in the layout bars after it's concealed. Drop snapshots for
@@ -753,16 +767,7 @@ final class SimpleItemHider: ObservableObject {
         }
         ccModuleManager.apply(hiddenMenuExtraTitles: ccHiddenTitles)
 
-        // Spotlight (Campo) is likewise unreachable by the assessment-mode
-        // allowlist — route it to its own per-host preference. Like CC modules it
-        // follows the *persisted* assignment, not the reveal-adjusted one, so a
-        // temporary reveal doesn't restart Campo on every Thaw-icon click.
-        let spotlightHidden = sectionAssignment.contains { identifier, section in
-            section != .visible && SpotlightMenuItemManager.isGovernable(itemIdentifier: identifier)
-        }
-        spotlightManager.apply(hidden: spotlightHidden)
-
-        // Strip CC modules and Spotlight from the backend input regardless of
+        // Strip CC modules from the backend input regardless of
         // reveal state (they are handled by their dedicated managers above).
         var backendAssignment = backendAssignmentInput()
 
@@ -792,6 +797,59 @@ final class SimpleItemHider: ObservableObject {
             diagLog.info("restriction changed; restored visible control item state")
             runPostRestrictionSceneProbes()
         }
+
+        // Post-assertion safety net: re-enumerate from AX after the assertion
+        // reflow (stale `allItems` would show `isOnScreen = true` for items the
+        // assertion just hid). If any hiding-unsupported item became invisible,
+        // tear down the restriction immediately.
+        verifyHidingUnsupportedItemsVisiblePostAssertion()
+    }
+
+    /// Re-enumerates from AX after the assertion fires and tears down the
+    /// restriction if any hiding-unsupported item (iStat Menus) has become
+    /// invisible. Uses a fresh AX snapshot — the pre-assertion `allItems`
+    /// cache has stale `isOnScreen` values.
+    private func verifyHidingUnsupportedItemsVisiblePostAssertion() {
+        guard #available(macOS 27, *),
+              AssessmentModeBackend.isAvailable,
+              !MenuBarItemTag.hidingUnsupportedBundleIDs.isEmpty
+        else { return }
+
+        let freshItems = MenuBarItemAXProvider.menuBarItems(option: [])
+
+        let unsupportedItems = freshItems.filter { item in
+            item.tag.isHidingUnsupported
+        }
+
+        let invisible = unsupportedItems.filter { !$0.isOnScreen }
+        guard !invisible.isEmpty else { return }
+
+        // Also check against the known bundle IDs: are any hiding-unsupported
+        // bundles absent from the fresh enumeration entirely? The assertion
+        // can remove items from AX visibility, so a bundle with zero visible
+        // items in the fresh snapshot is also a signal.
+        let unsupportedBundleIDs = MenuBarItemTag.hidingUnsupportedBundleIDs
+        let visibleBundleIDs = Set(freshItems.compactMap { item in
+            MenuBarItemTag.hidingUnsupportedBundleIDs.contains(where: {
+                item.tag.namespace.description == $0
+            }) ? item.tag.namespace.description : nil
+        })
+        let fullyAbsent = unsupportedBundleIDs.subtracting(visibleBundleIDs)
+
+        if !invisible.isEmpty || !fullyAbsent.isEmpty {
+            diagLog.error(
+                "Post-assertion guard: \(invisible.count) hiding-unsupported item(s) " +
+                "invisible, \(fullyAbsent.count) bundle(s) absent — " +
+                "tearing down restriction. Invisible: " +
+                invisible.map { "\($0.uniqueIdentifier) onScreen=\($0.isOnScreen)" }.joined(separator: ", ") +
+                ". Absent: \(fullyAbsent.sorted().joined(separator: ", "))"
+            )
+            resetBackendRestriction()
+        }
+    }
+
+    private func resetBackendRestriction() {
+        backend.apply(sectionAssignment: [:], allItems: [])
     }
 
     /// Re-applies the current assertion allowlist without changing assignment.
@@ -821,7 +879,6 @@ final class SimpleItemHider: ObservableObject {
         var backendAssignment = effectiveAssignmentExcludingTemporarilyRevealed()
         for identifier in backendAssignment.keys
             where ControlCenterModuleManager.isGovernable(itemIdentifier: identifier)
-                || SpotlightMenuItemManager.isGovernable(itemIdentifier: identifier)
         {
             backendAssignment.removeValue(forKey: identifier)
         }
@@ -845,21 +902,20 @@ final class SimpleItemHider: ObservableObject {
     }
 
     /// Experimental surgical hide: when `enabled`, hide third-party items via
-    /// CGS window moves (then AX hides for PIDs CGS couldn't resolve, then a
-    /// visible-position lock) instead of the assessment-mode assertion, which
-    /// re-composites the WHOLE bar and ghosts dynamic neighbors like iStat.
-    /// Items a surgical hider took over are stripped from `backendAssignment`
-    /// so the assertion leaves them alone. When disabled, restores anything a
-    /// previous on-state stranded off-screen / AX-hidden / position-locked.
+    /// per-key plist manipulation instead of the assessment-mode assertion,
+    /// which re-composites the whole bar and can disrupt dynamic neighbors
+    /// like iStat Menus. Note that on macOS 27 removing keys from
+    /// `TrailingItemPreferredPositions` alone does not hide items — the
+    /// assertion remains the primary visibility mechanism.
     ///
-    /// The three passes are complementary and run in order:
-    /// 1. CGS window move (pre-27, or post-27 if per-item windows are found).
-    /// 2. AX element hide (`AXHidden` — unsupported on macOS 27; kept for
-    ///    diagnostics, effectively a no-op there).
-    /// 3. Position lock via `TrailingItemPreferredPositions` — writes current
-    ///    on-screen positions of visible items before the assertion fires so
-    ///    MenuBarAgent anchors them in place during reflow, preventing ghosting.
-    /// The position lock does NOT remove items — it only anchors visible ones.
+    /// The passes run in order:
+    /// 1. Plist hide/show — remove keys for newly-hidden items, restore keys
+    ///    for items returned to visible. iStat and other hiding-unsupported
+    ///    items are silently skipped.
+    /// 2. CGS window move (legacy, no-op on macOS 27).
+    /// 3. AX element hide (legacy, no-op on macOS 27).
+    /// 4. Position lock — preserve visible items' existing weights, clean up
+    ///    ghost keys from dynamic-title apps.
     private func applyExperimentalWindowHiding(
         enabled: Bool,
         effectiveAssignment: [String: MenuBarSection.Name],
@@ -867,20 +923,55 @@ final class SimpleItemHider: ObservableObject {
         backendAssignment: inout [String: MenuBarSection.Name]
     ) {
         guard enabled else {
+            positionStore.restoreAll()
             cgsWindowHider.apply(hiddenPIDs: [])
             axItemHider.apply(hiddenPIDs: [], allItems: allItems)
-            positionStore.restoreAll()
             return
         }
 
+        // ── 1. Plist-based hide/show (experimental) ──
+        var toHide = [MenuBarItem]()
+        var toShow = [MenuBarItem]()
+        for item in allItems where Self.isCGSWindowHideable(item) {
+            let section = effectiveAssignment[item.uniqueIdentifier] ?? .visible
+            if section != .visible {
+                toHide.append(item)
+            } else if positionStore.hasHiddenItems {
+                toShow.append(item)
+            }
+        }
+
+        var plistHandledKeys = Set<String>()
+        if !toHide.isEmpty {
+            plistHandledKeys = positionStore.hideItems(toHide)
+        }
+        if !toShow.isEmpty {
+            plistHandledKeys.formUnion(positionStore.showItems(toShow, allItems: allItems))
+        }
+
+        // Strip plist-handled items from the assertion input.
+        if !plistHandledKeys.isEmpty {
+            for item in allItems where Self.isCGSWindowHideable(item) {
+                guard (effectiveAssignment[item.uniqueIdentifier] ?? .visible) != .visible else { continue }
+                if plistHandledKeys.contains(TrailingItemPositionStore.key(for: item)) {
+                    backendAssignment.removeValue(forKey: item.uniqueIdentifier)
+                }
+            }
+        }
+
+        // ── 2. CGS pass (legacy, no-op on macOS 27) ──
         var cgsHiddenPIDs = Set<pid_t>()
         for item in allItems where Self.isCGSWindowHideable(item) {
             let section = effectiveAssignment[item.uniqueIdentifier] ?? .visible
             guard section != .visible else { continue }
-            cgsHiddenPIDs.insert(item.sourcePID ?? item.ownerPID)
+            if plistHandledKeys.contains(TrailingItemPositionStore.key(for: item)) { continue }
+            let pid = item.sourcePID ?? item.ownerPID
+            if #available(macOS 27, *) {
+                guard item.sourcePID != nil else { continue }
+            }
+            cgsHiddenPIDs.insert(pid)
         }
 
-        // CGS pass — per-window move off-screen.
         let cgsHandledPIDs = cgsWindowHider.apply(hiddenPIDs: cgsHiddenPIDs)
         stripSurgicallyHandledPIDs(
             cgsHandledPIDs,
@@ -889,7 +980,7 @@ final class SimpleItemHider: ObservableObject {
             backendAssignment: &backendAssignment
         )
 
-        // AX pass — AXHidden on individual elements (no-op on macOS 27).
+        // ── 3. AX pass (legacy, no-op on macOS 27) ──
         let remainingPIDs = cgsHiddenPIDs.subtracting(cgsHandledPIDs)
         if !remainingPIDs.isEmpty {
             let axHandledPIDs = axItemHider.apply(hiddenPIDs: remainingPIDs, allItems: allItems)
@@ -901,7 +992,7 @@ final class SimpleItemHider: ObservableObject {
             )
         }
 
-        // Position pass — lock visible items before the assertion reflow.
+        // ── 4. Position lock — preserve visible items' weights ──
         let visibleItemKeys = Set(
             allItems
                 .filter { (effectiveAssignment[$0.uniqueIdentifier] ?? .visible) == .visible }
