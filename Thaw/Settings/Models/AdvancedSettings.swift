@@ -81,6 +81,12 @@ final class AdvancedSettings: ObservableObject {
     /// Center, and Siri to be assigned to hidden sections on macOS 27.
     @Published var enableExperimentalSystemItemHiding = Defaults.DefaultValue.enableExperimentalSystemItemHiding
 
+    /// A Boolean value that hides third-party items by moving their windows
+    /// off-screen via CGS instead of the assessment-mode
+    /// assertion, so hiding one item no longer reflows the bar and ghosts
+    /// dynamic neighbors such as iStat. Complements, not replaces, the assertion.
+    @Published var enableExperimentalWindowHiding = Defaults.DefaultValue.enableExperimentalWindowHiding
+
     /// The order in which menu bar sections appear in the search panel.
     @Published var searchSectionOrder: [MenuBarSection.Name] = Defaults.DefaultValue.searchSectionOrder
         .compactMap(MenuBarSection.Name.init(rawValue:))
@@ -127,6 +133,7 @@ final class AdvancedSettings: ObservableObject {
         Defaults.ifPresent(key: .useLCSSortingOnNotchedDisplays, assign: &useLCSSortingOnNotchedDisplays)
         Defaults.ifPresent(key: .enableMenuBarItemOverflow, assign: &enableMenuBarItemOverflow)
         Defaults.ifPresent(key: .enableExperimentalSystemItemHiding, assign: &enableExperimentalSystemItemHiding)
+        Defaults.ifPresent(key: .enableExperimentalWindowHiding, assign: &enableExperimentalWindowHiding)
         Defaults.ifPresent(key: .searchIncludeVisible, assign: &searchIncludeVisible)
         Defaults.ifPresent(key: .searchIncludeHidden, assign: &searchIncludeHidden)
         Defaults.ifPresent(key: .searchIncludeAlwaysHidden, assign: &searchIncludeAlwaysHidden)
@@ -194,6 +201,7 @@ final class AdvancedSettings: ObservableObject {
         $useLCSSortingOnNotchedDisplays.persistToDefaults(key: .useLCSSortingOnNotchedDisplays, in: &c)
         $enableMenuBarItemOverflow.persistToDefaults(key: .enableMenuBarItemOverflow, in: &c)
         $enableExperimentalSystemItemHiding.persistToDefaults(key: .enableExperimentalSystemItemHiding, in: &c)
+        $enableExperimentalWindowHiding.persistToDefaults(key: .enableExperimentalWindowHiding, in: &c)
         $searchSectionOrder.persistToDefaults(
             key: .searchSectionOrder,
             transform: { $0.map(\.rawValue) },

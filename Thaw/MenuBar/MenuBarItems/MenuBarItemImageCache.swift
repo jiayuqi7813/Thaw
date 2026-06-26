@@ -878,6 +878,55 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
     /// item out of it using the AX-provided bounds in `item.bounds`. Capturing
     /// the hosting window (rather than a display region) keeps the menu bar fill
     /// and the wallpaper out of the thumbnails.
+    /// Checks which of the given items currently render as blank pixels in the
+    /// real menu bar, independent of this cache's own stored images.
+    ///
+    /// A restriction-reflow re-composite can leave an allowed item as an
+    /// on-band "AX ghost": hit-testing and tooltips still resolve it at the
+    /// right coordinates, but nothing is drawn there. Whether the assertion
+    /// pulse fixed that isn't knowable from cache state alone (this cache
+    /// often holds no entry for a `.visible`-section item at all, since
+    /// `runLiveRefreshLoop` only captures while a Thaw UI surface — Settings,
+    /// Search, IceBar — is open). A fresh hosting-window screenshot is the
+    /// only ground truth for whether the OS actually redrew the glyph.
+    @available(macOS 27, *)
+    nonisolated func itemsRenderingBlank(
+        among items: [MenuBarItem],
+        displayID: CGDirectDisplayID
+    ) async -> Set<MenuBarItemTag> {
+        guard !items.isEmpty,
+              let capture = await ScreenCapture.captureMenuBarHostingWindowAsync(displayID: displayID)
+        else {
+            return []
+        }
+
+        let composite = capture.image
+        let windowFrame = capture.windowFrame
+        let scale = capture.scale
+        let imageBounds = CGRect(x: 0, y: 0, width: composite.width, height: composite.height)
+
+        var blankTags = Set<MenuBarItemTag>()
+        for item in items {
+            guard windowFrame.intersects(item.bounds) else { continue }
+            let rawCropRect = CGRect(
+                x: (item.bounds.minX - windowFrame.minX) * scale,
+                y: (item.bounds.minY - windowFrame.minY) * scale,
+                width: item.bounds.width * scale,
+                height: item.bounds.height * scale
+            )
+            let cropRect = rawCropRect.integral.intersection(imageBounds)
+            guard !cropRect.isNull, !cropRect.isEmpty,
+                  let croppedImage = composite.cropping(to: cropRect)
+            else {
+                continue
+            }
+            if croppedImage.isTransparent() {
+                blankTags.insert(item.tag)
+            }
+        }
+        return blankTags
+    }
+
     @available(macOS 27, *)
     private nonisolated func axBoundsCapture(
         _ itemsWithBounds: [(item: MenuBarItem, bounds: CGRect)],
@@ -1015,7 +1064,29 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
 
             var axItems: [(item: MenuBarItem, bounds: CGRect)] = []
             for item in capturable {
-                let bounds = liveBoundsByID[item.uniqueIdentifier] ?? item.bounds
+                let bounds: CGRect
+                if freshBounds {
+                    // freshBounds means the cached `item.bounds` are explicitly
+                    // distrusted (the item may have shifted in a reflow). If the
+                    // live AX walk didn't return THIS item — its identity drifted
+                    // (iStat rewrites its title), or it briefly fell out of the
+                    // enumeration during a conceal/reflow — we must NOT fall back
+                    // to the stale cached bounds: after a leftward reflow those
+                    // bounds now overlap a *neighbor*, so cropping there stamps the
+                    // neighbor's glyph onto this item's tag (e.g. CodexBar's icon
+                    // showing up on an iStat slot). Skip instead, keeping the
+                    // item's last-good image until a clean live bound is available.
+                    guard let liveBounds = liveBoundsByID[item.uniqueIdentifier] else {
+                        MenuBarItemImageCache.diagLog.debug(
+                            "captureImages: no live bounds for \(item.logString); " +
+                            "keeping prior image (skipping stale-bounds crop)"
+                        )
+                        continue
+                    }
+                    bounds = liveBounds
+                } else {
+                    bounds = item.bounds
+                }
                 guard !bounds.isEmpty else { continue }
                 // items.bounds is in global screen coords (Y-down); NSScreen.frame
                 // is in AppKit coords (Y-up) — but both share the same X axis and

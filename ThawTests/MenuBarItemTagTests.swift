@@ -422,6 +422,54 @@ final class MenuBarItemTagTests: XCTestCase {
         XCTAssertFalse(tag.canBeHidden)
     }
 
+    // MARK: - Hiding-Unsupported Tests
+
+    func testIStatItemIsHidingUnsupported() {
+        let cpu = MenuBarItemTag(
+            namespace: .string("com.bjango.istatmenus.status"),
+            title: "CPU #%"
+        )
+        XCTAssertTrue(cpu.isHidingUnsupported)
+    }
+
+    func testRegularAppIsNotHidingUnsupported() {
+        let tag = MenuBarItemTag(
+            namespace: .string("com.example.app"),
+            title: "Item-0"
+        )
+        XCTAssertFalse(tag.isHidingUnsupported)
+    }
+
+    func testIStatItemIsMovableButNotHideableOnMacOS27() throws {
+        guard #available(macOS 27, *) else {
+            throw XCTSkip("hiding-unsupported classification is macOS 27-specific")
+        }
+        let cpu = MenuBarItemTag(
+            namespace: .string("com.bjango.istatmenus.status"),
+            title: "CPU #%"
+        )
+        // Reorderable in the layout editor, but never assignable to a hidden
+        // section — the whole point of the hiding-unsupported classification.
+        XCTAssertTrue(cpu.isMovable)
+        XCTAssertFalse(cpu.canBeHidden)
+        XCTAssertEqual(cpu.sectionManagementPolicy, .forcedVisible)
+    }
+
+    func testIStatStaysNonHideableEvenWithExperimentalHidingOn() throws {
+        guard #available(macOS 27, *) else {
+            throw XCTSkip("hiding-unsupported classification is macOS 27-specific")
+        }
+        let item = MenuBarItem.fixture(
+            tag: .appItem(bundleID: "com.bjango.istatmenus.status", title: "CPU #%"),
+            windowID: 1
+        )
+        // The experimental toggle lifts ordinary forced-visible system items to
+        // hideable, but must NOT lift a hiding-unsupported app like iStat.
+        XCTAssertFalse(item.canBeHidden(experimentalSystemItemHiding: false))
+        XCTAssertFalse(item.canBeHidden(experimentalSystemItemHiding: true))
+        XCTAssertTrue(item.isMovable(experimentalSystemItemHiding: true))
+    }
+
     func testMacOS27SectionManagementPolicyCentralizesSystemExceptions() throws {
         guard #available(macOS 27, *) else {
             throw XCTSkip("Assertion-backed section policy is macOS 27-specific")
@@ -706,6 +754,76 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
             ),
             "CPU"
         )
+    }
+
+    @available(macOS 27, *)
+    func testParkedOffMenuBarBandDetectsParkingWhenControlAlsoParked() {
+        let control = MenuBarItem.fixture(
+            tag: .visibleControlItem,
+            windowID: 100,
+            bounds: CGRect(x: -1, y: 1413, width: 35, height: 24)
+        )
+        let parked = MenuBarItem.fixture(
+            tag: MenuBarItemTag(namespace: .string("com.bjango.istatmenus.status"), title: "CPU", windowID: 2),
+            windowID: 2,
+            bounds: CGRect(x: 7, y: 1413, width: 21, height: 24)
+        )
+        let peers = [control, parked]
+
+        XCTAssertTrue(control.isParkedOffMenuBarBand(among: peers))
+        XCTAssertTrue(parked.isParkedOffMenuBarBand(among: peers))
+    }
+
+    @available(macOS 27, *)
+    func testParkedOffMenuBarBandDetectsAssertionReflowParking() {
+        let control = MenuBarItem.fixture(
+            tag: .visibleControlItem,
+            windowID: 100,
+            bounds: CGRect(x: 2200, y: 3, width: 35, height: 24)
+        )
+        let onBar = MenuBarItem.fixture(
+            tag: MenuBarItemTag(namespace: .string("com.example.app"), title: "Item", windowID: 1),
+            windowID: 1,
+            bounds: CGRect(x: 2100, y: 3, width: 24, height: 24)
+        )
+        let parked = MenuBarItem.fixture(
+            tag: MenuBarItemTag(namespace: .string("com.bjango.istatmenus.status"), title: "CPU", windowID: 2),
+            windowID: 2,
+            bounds: CGRect(x: 7, y: 1413, width: 21, height: 24)
+        )
+        let peers = [control, onBar, parked]
+
+        XCTAssertFalse(onBar.isParkedOffMenuBarBand(among: peers))
+        XCTAssertTrue(parked.isParkedOffMenuBarBand(among: peers))
+    }
+
+    @available(macOS 27, *)
+    func testRestrictionReflowCollateralDetectsNeighborOfConcealedItem() {
+        let control = MenuBarItem.fixture(
+            tag: .visibleControlItem,
+            windowID: 100,
+            bounds: CGRect(x: 2360, y: 3, width: 35, height: 24)
+        )
+        let proton = MenuBarItem.fixture(
+            tag: MenuBarItemTag(namespace: .string("ch.protonmail.drive"), title: "Proton Drive", windowID: 1),
+            windowID: 1,
+            bounds: CGRect(x: 1985, y: 3, width: 24, height: 24)
+        )
+        let istatCPU = MenuBarItem.fixture(
+            tag: MenuBarItemTag(namespace: .string("com.bjango.istatmenus.status"), title: "CPU", windowID: 2),
+            windowID: 2,
+            bounds: CGRect(x: 2023, y: 3, width: 21, height: 24)
+        )
+        let discord = MenuBarItem.fixture(
+            tag: MenuBarItemTag(namespace: .string("com.hnc.Discord"), title: "Item-0", windowID: 3),
+            windowID: 3,
+            bounds: CGRect(x: 2153, y: 3, width: 40, height: 24)
+        )
+        let peers = [control, proton, istatCPU, discord]
+        let concealed = Set([proton.uniqueIdentifier])
+
+        XCTAssertTrue(istatCPU.isRestrictionReflowCollateral(among: peers, concealedIdentifiers: concealed))
+        XCTAssertFalse(discord.isRestrictionReflowCollateral(among: peers, concealedIdentifiers: concealed))
     }
 
     @available(macOS 27, *)

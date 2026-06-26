@@ -81,6 +81,33 @@ final class SimpleItemHider: ObservableObject {
     /// backend input.
     private let ccModuleManager: ControlCenterModuleManager
 
+    /// Governs Spotlight (Campo), which the assessment-mode allowlist cannot
+    /// hide. When Spotlight is assigned hidden it is driven via its own per-host
+    /// preference and kept out of the backend input.
+    private let spotlightManager: SpotlightMenuItemManager
+
+    /// Off-screen CGS window hider. When the experimental window
+    /// hiding flag is on, third-party items are hidden by moving their windows
+    /// off-screen via CGS instead of the assessment-mode assertion, so hiding one
+    /// item no longer reflows the bar and ghosts dynamic neighbors like iStat.
+    private let cgsWindowHider: CGSWindowHider
+
+    /// AX-based item hider. On macOS 27 per-item CG windows don't exist, so the
+    /// CGS hider cannot operate. This hider sets `AXHidden` on each item's AX
+    /// element instead — hiding items
+    /// surgically without whole-bar reflow.
+    ///
+    /// Note: AXHidden is not settable on macOS 27 menu-bar items; this hider is
+    /// kept for diagnostics but is effectively a no-op there.
+    private let axItemHider: AXItemHider
+
+    /// Position lock for visible items. On macOS 27 the assessment-mode
+    /// assertion re-composites the whole bar, ghosting dynamic neighbors (iStat).
+    /// Writing visible items' current positions to `TrailingItemPreferredPositions`
+    /// before the assertion fires tells MenuBarAgent to anchor them in place
+    /// during reflow, preventing the ghosting.
+    private let positionStore: TrailingItemPositionStore
+
     private var timer: Timer?
     private var boundaryReconciliationTask: Task<Void, Never>?
 
@@ -90,6 +117,11 @@ final class SimpleItemHider: ObservableObject {
         self.sectionItemOrder = Self.loadOrder()
         self.backend = AssessmentModeBackend()
         self.ccModuleManager = ControlCenterModuleManager()
+        self.spotlightManager = SpotlightMenuItemManager()
+        self.cgsWindowHider = CGSWindowHider()
+        self.axItemHider = AXItemHider()
+        self.positionStore = TrailingItemPositionStore()
+        Bridging.logSystemMenuBarWindows()
         let assessmentModeAvailable = AssessmentModeBackend.isAvailable
         diagLog.info("hiding backend: AssessmentMode (\(assessmentModeAvailable ? "available" : "unavailable")); \(sectionAssignment.count) assigned item(s)")
     }
@@ -141,15 +173,8 @@ final class SimpleItemHider: ObservableObject {
         to section: MenuBarSection.Name,
         experimentalSystemItemHiding: Bool
     ) -> Bool {
-        if section == .visible {
-            return true
-        }
-        if item.canBeHidden(
-            experimentalSystemItemHiding: experimentalSystemItemHiding
-        ) {
-            return true
-        }
-        return false
+        section == .visible
+            || item.canBeHidden(experimentalSystemItemHiding: experimentalSystemItemHiding)
     }
 
     static func isProtectedAssignmentItem(
@@ -159,6 +184,19 @@ final class SimpleItemHider: ObservableObject {
         item.isControlItem ||
             isOwnAppItem(item) ||
             (item.tag.isLayoutAnchoredSystemItem && !experimentalSystemItemHiding)
+    }
+
+    /// Whether an item should be hidden by the CGS off-screen hider rather than
+    /// the assessment-mode assertion when experimental window hiding is on. Scoped
+    /// to ordinary third-party app items: Apple/system items (`com.apple.*`) stay
+    /// on the assertion / Control Center / Spotlight paths, and Thaw's own items
+    /// and control items are never hidden.
+    static func isCGSWindowHideable(_ item: MenuBarItem) -> Bool {
+        guard !item.isControlItem, !isOwnAppItem(item) else { return false }
+        if case let .string(bundleID) = item.tag.namespace {
+            return !bundleID.hasPrefix("com.apple.")
+        }
+        return false
     }
 
     private static func isOwnAppAssignmentIdentifier(_ identifier: String) -> Bool {
@@ -695,17 +733,7 @@ final class SimpleItemHider: ObservableObject {
             snapshots[item.uniqueIdentifier] = item
         }
         snapshots = snapshots.filter { sectionAssignment[$0.key] != nil }
-        var effectiveAssignment = Self.effectiveSectionAssignment(
-            sectionAssignment,
-            revealing: revealedSection
-        )
-
-        // Single-item reveals: drop these from the backend input so their bundle
-        // is treated as having a visible item and is lifted from concealment,
-        // exposing only the touched icon (see ``revealItemTemporarily``).
-        for identifier in temporarilyRevealedIDs {
-            effectiveAssignment.removeValue(forKey: identifier)
-        }
+        let effectiveAssignment = effectiveAssignmentExcludingTemporarilyRevealed()
 
         // Apple Control Center modules cannot be hidden by the assessment-mode
         // allowlist (proven 2026-06-18); route them to their Control Center
@@ -725,13 +753,33 @@ final class SimpleItemHider: ObservableObject {
         }
         ccModuleManager.apply(hiddenMenuExtraTitles: ccHiddenTitles)
 
-        // Strip CC modules from the backend input regardless of reveal state.
-        var backendAssignment = effectiveAssignment
-        for identifier in effectiveAssignment.keys
-            where ControlCenterModuleManager.isGovernable(itemIdentifier: identifier)
-        {
-            backendAssignment.removeValue(forKey: identifier)
+        // Spotlight (Campo) is likewise unreachable by the assessment-mode
+        // allowlist — route it to its own per-host preference. Like CC modules it
+        // follows the *persisted* assignment, not the reveal-adjusted one, so a
+        // temporary reveal doesn't restart Campo on every Thaw-icon click.
+        let spotlightHidden = sectionAssignment.contains { identifier, section in
+            section != .visible && SpotlightMenuItemManager.isGovernable(itemIdentifier: identifier)
         }
+        spotlightManager.apply(hidden: spotlightHidden)
+
+        // Strip CC modules and Spotlight from the backend input regardless of
+        // reveal state (they are handled by their dedicated managers above).
+        var backendAssignment = backendAssignmentInput()
+
+        // Experimental: hide third-party items surgically (CGS window move, then
+        // AX hide, then visible-position lock) instead of the assessment-mode
+        // assertion, which re-composites the WHOLE bar and ghosts dynamic
+        // neighbors like iStat. Items a surgical hider took over are stripped
+        // from `backendAssignment` so the assertion leaves them alone. See
+        // ``applyExperimentalWindowHiding`` for the strategy and the off-path
+        // teardown. When the flag is off this is a no-op except for restoring
+        // anything a previous on-state stranded off-screen / AX-hidden / locked.
+        applyExperimentalWindowHiding(
+            enabled: appState.settings.advanced.enableExperimentalWindowHiding,
+            effectiveAssignment: effectiveAssignment,
+            allItems: allItems,
+            backendAssignment: &backendAssignment
+        )
 
         logRestrictionProbeSnapshot(reason: "before-apply", items: allItems)
         let didChangeRestriction = backend.apply(
@@ -739,9 +787,146 @@ final class SimpleItemHider: ObservableObject {
             allItems: allItems
         )
         if didChangeRestriction {
+            appState.itemManager.noteRestrictionChange()
             restoreVisibleControlItemAfterRestrictionChange()
             diagLog.info("restriction changed; restored visible control item state")
             runPostRestrictionSceneProbes()
+        }
+    }
+
+    /// Re-applies the current assertion allowlist without changing assignment.
+    /// Used after reflow collateral leaves allowed bundles invisible at on-band
+    /// AX coordinates (synthetic drags cannot recover those).
+    @discardableResult
+    func pulseRestrictionAfterReflow(liveItems: [MenuBarItem]) -> Bool {
+        guard AssessmentModeBackend.isAvailable else { return false }
+        guard sectionAssignment.values.contains(where: { $0 == .hidden || $0 == .alwaysHidden }) else {
+            return false
+        }
+
+        let backendAssignment = backendAssignmentInput()
+        logRestrictionProbeSnapshot(reason: "before-pulse", items: liveItems)
+        let didPulse = backend.pulse(
+            sectionAssignment: backendAssignment,
+            allItems: liveItems
+        )
+        if didPulse {
+            restoreVisibleControlItemAfterRestrictionChange()
+            diagLog.info("restriction pulsed after reflow; restored visible control item state")
+        }
+        return didPulse
+    }
+
+    private func backendAssignmentInput() -> [String: MenuBarSection.Name] {
+        var backendAssignment = effectiveAssignmentExcludingTemporarilyRevealed()
+        for identifier in backendAssignment.keys
+            where ControlCenterModuleManager.isGovernable(itemIdentifier: identifier)
+                || SpotlightMenuItemManager.isGovernable(itemIdentifier: identifier)
+        {
+            backendAssignment.removeValue(forKey: identifier)
+        }
+        return backendAssignment
+    }
+
+    /// `effectiveSectionAssignment` with `temporarilyRevealedIDs` removed — the
+    /// effective desired section for every item except those single-item reveals
+    /// the Thaw Bar click path forces visible. Both the assertion input
+    /// (``backendAssignmentInput``) and the experimental CGS/AX passes key off
+    /// this; CC modules and Spotlight are stripped separately by their managers.
+    private func effectiveAssignmentExcludingTemporarilyRevealed() -> [String: MenuBarSection.Name] {
+        var effectiveAssignment = Self.effectiveSectionAssignment(
+            sectionAssignment,
+            revealing: revealedSection
+        )
+        for identifier in temporarilyRevealedIDs {
+            effectiveAssignment.removeValue(forKey: identifier)
+        }
+        return effectiveAssignment
+    }
+
+    /// Experimental surgical hide: when `enabled`, hide third-party items via
+    /// CGS window moves (then AX hides for PIDs CGS couldn't resolve, then a
+    /// visible-position lock) instead of the assessment-mode assertion, which
+    /// re-composites the WHOLE bar and ghosts dynamic neighbors like iStat.
+    /// Items a surgical hider took over are stripped from `backendAssignment`
+    /// so the assertion leaves them alone. When disabled, restores anything a
+    /// previous on-state stranded off-screen / AX-hidden / position-locked.
+    ///
+    /// The three passes are complementary and run in order:
+    /// 1. CGS window move (pre-27, or post-27 if per-item windows are found).
+    /// 2. AX element hide (`AXHidden` — unsupported on macOS 27; kept for
+    ///    diagnostics, effectively a no-op there).
+    /// 3. Position lock via `TrailingItemPreferredPositions` — writes current
+    ///    on-screen positions of visible items before the assertion fires so
+    ///    MenuBarAgent anchors them in place during reflow, preventing ghosting.
+    /// The position lock does NOT remove items — it only anchors visible ones.
+    private func applyExperimentalWindowHiding(
+        enabled: Bool,
+        effectiveAssignment: [String: MenuBarSection.Name],
+        allItems: [MenuBarItem],
+        backendAssignment: inout [String: MenuBarSection.Name]
+    ) {
+        guard enabled else {
+            cgsWindowHider.apply(hiddenPIDs: [])
+            axItemHider.apply(hiddenPIDs: [], allItems: allItems)
+            positionStore.restoreAll()
+            return
+        }
+
+        var cgsHiddenPIDs = Set<pid_t>()
+        for item in allItems where Self.isCGSWindowHideable(item) {
+            let section = effectiveAssignment[item.uniqueIdentifier] ?? .visible
+            guard section != .visible else { continue }
+            cgsHiddenPIDs.insert(item.sourcePID ?? item.ownerPID)
+        }
+
+        // CGS pass — per-window move off-screen.
+        let cgsHandledPIDs = cgsWindowHider.apply(hiddenPIDs: cgsHiddenPIDs)
+        stripSurgicallyHandledPIDs(
+            cgsHandledPIDs,
+            effectiveAssignment: effectiveAssignment,
+            allItems: allItems,
+            backendAssignment: &backendAssignment
+        )
+
+        // AX pass — AXHidden on individual elements (no-op on macOS 27).
+        let remainingPIDs = cgsHiddenPIDs.subtracting(cgsHandledPIDs)
+        if !remainingPIDs.isEmpty {
+            let axHandledPIDs = axItemHider.apply(hiddenPIDs: remainingPIDs, allItems: allItems)
+            stripSurgicallyHandledPIDs(
+                axHandledPIDs,
+                effectiveAssignment: effectiveAssignment,
+                allItems: allItems,
+                backendAssignment: &backendAssignment
+            )
+        }
+
+        // Position pass — lock visible items before the assertion reflow.
+        let visibleItemKeys = Set(
+            allItems
+                .filter { (effectiveAssignment[$0.uniqueIdentifier] ?? .visible) == .visible }
+                .map { TrailingItemPositionStore.key(for: $0) }
+        )
+        positionStore.lockVisiblePositions(visibleItemKeys: visibleItemKeys, allItems: allItems)
+    }
+
+    /// Removes from `backendAssignment` every CGS/AX-hideable item whose owning
+    /// PID was handled by a surgical hider, so the assertion allowlist no longer
+    /// tries to conceal it (which would re-composite the whole bar). A no-op
+    /// when `handledPIDs` is empty.
+    private func stripSurgicallyHandledPIDs(
+        _ handledPIDs: Set<pid_t>,
+        effectiveAssignment: [String: MenuBarSection.Name],
+        allItems: [MenuBarItem],
+        backendAssignment: inout [String: MenuBarSection.Name]
+    ) {
+        guard !handledPIDs.isEmpty else { return }
+        for item in allItems where Self.isCGSWindowHideable(item) {
+            let section = effectiveAssignment[item.uniqueIdentifier] ?? .visible
+            guard section != .visible else { continue }
+            if handledPIDs.contains(item.sourcePID ?? item.ownerPID) {
+                backendAssignment.removeValue(forKey: item.uniqueIdentifier)
+            }
         }
     }
 

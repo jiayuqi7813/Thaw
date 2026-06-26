@@ -221,6 +221,24 @@ final class LayoutBarPaddingView: NSView {
             }
 
             if sourceSection != container.section {
+                // A physically-orderable item can still be un-hideable (e.g. iStat,
+                // which we reorder but cannot reliably conceal). Reject a drop into
+                // a non-visible section and snap it back, rather than committing a
+                // hidden assignment the assertion can't honor.
+                guard SimpleItemHider.canAssign(
+                    item,
+                    to: container.section,
+                    experimentalSystemItemHiding: experimentalSystemItemHiding
+                ) else {
+                    Self.diagLog.warning("Refusing to assign non-hideable \(item.logString) to \(container.section.logString)")
+                    container.updateArrangedViewsForDrag(with: sender, phase: .exited)
+                    draggingSource.hasContainer = false
+                    draggingSource.oldContainerInfo = nil
+                    container.canSetArrangedViews = true
+                    sourceContainer?.canSetArrangedViews = true
+                    return false
+                }
+
                 // macOS 27: a section change is driven by the assertion
                 // (assignment), NOT a physical divider-crossing drag. The synthetic
                 // cross-divider move is unreliable — it exhausts its attempts and

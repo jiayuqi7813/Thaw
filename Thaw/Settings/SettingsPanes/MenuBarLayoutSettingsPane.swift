@@ -39,6 +39,7 @@ struct MenuBarLayoutSettingsPane: View {
                 layoutBars
                 if #available(macOS 27, *) {
                     experimentalSystemItemHidingControls
+                    experimentalWindowHidingControls
                 }
                 resetControls
             }
@@ -136,7 +137,7 @@ struct MenuBarLayoutSettingsPane: View {
     @available(macOS 27, *)
     private var nonHideableItemsNotice: some View {
         SettingsWarningPill(
-            message: "On macOS 27, some macOS items — such as Clock, Control Center, and Siri — stay in the Visible section unless experimental system item hiding is enabled."
+            message: "On macOS 27, some items can be reordered but not yet hidden. Native macOS items such as Clock, Control Center, and Siri stay visible unless experimental system item hiding is enabled, and a few — like AirDrop and Sound — along with some apps such as iStat Menus, cannot be moved to a hidden section yet. You can still rearrange them in the Visible section."
         )
     }
 
@@ -167,6 +168,38 @@ struct MenuBarLayoutSettingsPane: View {
             get: { appState.settings.advanced.enableExperimentalSystemItemHiding },
             set: { newValue in
                 appState.settings.advanced.enableExperimentalSystemItemHiding = newValue
+                appState.menuBarManager.simpleItemHider?.refresh()
+            }
+        )
+    }
+
+    @available(macOS 27, *)
+    private var experimentalWindowHidingControls: some View {
+        IceSection {
+            VStack(alignment: .leading, spacing: 12) {
+                Toggle(isOn: experimentalWindowHidingBinding) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Hide third-party items off-screen (experimental)")
+                            .font(.headline)
+                        Text("Hides app items by moving their windows off-screen instead of using the system restriction, so hiding one item no longer makes dynamic neighbors like iStat Menus flicker or disappear.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
+                SettingsWarningPill(
+                    message: "This is experimental and uses private window APIs. Hidden items are restored when Thaw quits."
+                )
+            }
+        }
+    }
+
+    private var experimentalWindowHidingBinding: Binding<Bool> {
+        Binding(
+            get: { appState.settings.advanced.enableExperimentalWindowHiding },
+            set: { newValue in
+                appState.settings.advanced.enableExperimentalWindowHiding = newValue
                 appState.menuBarManager.simpleItemHider?.refresh()
             }
         )

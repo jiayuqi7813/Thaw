@@ -86,6 +86,16 @@ final class AssessmentModeBackend {
 
     private let diagLog = DiagLog(category: "AssessmentModeBackend")
 
+    /// Bundles that host *multiple* system menu extras (Clock, Control Center,
+    /// Siri, Spotlight, …). They must never be concealed at the bundle level —
+    /// doing so blanks every system item the host owns. Individual system items
+    /// are concealed via the index path (`concealedSystemItemIDs`) instead.
+    private static let systemHostBundleIDs: Set<String> = [
+        "com.apple.MenuBarAgent",
+        "com.apple.controlcenter",
+        "com.apple.systemuiserver",
+    ]
+
     /// The live assertion handle, or `nil` when nothing is hidden.
     private var handle: UnsafeMutableRawPointer?
 
@@ -121,6 +131,25 @@ final class AssessmentModeBackend {
 
     /// The allowed system-item set baked into the currently-active assertion.
     private var appliedAllowedSystemItems = AssessmentModeBackend.allSystemItems
+
+    /// The previous applied configuration and when it was applied. Used for
+    /// anti-flap hysteresis: dynamic-icon apps (codexbar, iStat-style) whose
+    /// item identity churns make `concealedBundleIDs` oscillate A→B→A→B, each
+    /// flip clearing the dedupe guard and re-activating the assertion → the OS
+    /// reflows the whole menu bar (a visible flash). If a fresh config is
+    /// identical to the one we applied just before the current one and that was
+    /// within the hysteresis window, the desired state is flapping, not really
+    /// changing — skip the re-activation and let it settle.
+    private var previousAppliedConfiguration: (
+        allowed: Set<String>,
+        systemItems: Set<Int>,
+        concealed: Set<String>,
+        at: ContinuousClock.Instant
+    )?
+
+    /// How long a just-superseded configuration suppresses a re-activation that
+    /// would revert straight back to it.
+    private static let antiFlapWindow: Duration = .seconds(3)
 
     static var protectedBundleIDs: Set<String> {
         Constants.thawOwnedBundleIdentifiers
@@ -239,6 +268,22 @@ final class AssessmentModeBackend {
             concealedBundleIDs.remove(bundleID)
         }
 
+        // Never bundle-conceal a *system* host. A concealed system item (Clock,
+        // Control Center, Siri, Spotlight, …) is hidden individually via its
+        // index in `concealedSystemItemIDs` below, but its owning bundle is a
+        // shared host — most are hosted by `com.apple.MenuBarAgent`. The
+        // per-bundle allowlist would then conceal the entire host, blanking
+        // *every* system item it owns (and the whole system side of the bar)
+        // on each restriction reflow — observed as the menu bar disappearing
+        // for a few seconds. Drop the host bundle of any concealed item that has
+        // a system-item index; the index path still conceals it precisely.
+        let dynamicSystemHostBundleIDs = Set(concealed.compactMap { identifier -> String? in
+            guard knownSystemItemIDs[identifier] != nil else { return nil }
+            return knownBundleIDs[identifier]
+        })
+        concealedBundleIDs.subtract(dynamicSystemHostBundleIDs)
+        concealedBundleIDs.subtract(Self.systemHostBundleIDs)
+
         let concealedSystemItemIDs = Set(concealed.compactMap { knownSystemItemIDs[$0] })
         let allowedSystemItemSet = Self.allSystemItems.subtracting(concealedSystemItemIDs)
 
@@ -257,6 +302,14 @@ final class AssessmentModeBackend {
                 .filter { !concealedBundleIDs.contains($0) }
         )
         for bundleID in protectedBundleIDs {
+            allowedSet.insert(bundleID)
+        }
+
+        // Belt-and-suspenders: also allow every known item-host bundle that isn't
+        // itself concealed. Covers sub-bundle hosts that can be absent from
+        // `runningApplications` on some OS builds. `knownBundleIDs` is sticky,
+        // so this also survives a transient cache gap.
+        for bundleID in knownBundleIDs.values where !concealedBundleIDs.contains(bundleID) {
             allowedSet.insert(bundleID)
         }
 
@@ -285,6 +338,28 @@ final class AssessmentModeBackend {
         let systemItemsChanged = allowedSystemItemSet != appliedAllowedSystemItems
         let newlyAppeared = !allowedSet.subtracting(appliedAllowed).isEmpty
         guard handle == nil || concealedChanged || systemItemsChanged || newlyAppeared else { return false }
+
+        // Anti-flap hysteresis. A dynamic-icon app whose item identity churns
+        // (codexbar, iStat-style) makes the desired set oscillate A→B→A→B; each
+        // flip passes the guard above and re-activates the assertion, and every
+        // re-activation reflows the whole menu bar (a visible flash). If this
+        // fresh config is byte-identical to the one we held *before* the current
+        // one, and that was within the anti-flap window, the state is flapping
+        // back rather than genuinely advancing — skip the re-activation and keep
+        // the current assertion until it settles. A `handle == nil` (nothing
+        // active) is never suppressed, so hiding still engages promptly.
+        if handle != nil,
+           let previous = previousAppliedConfiguration,
+           previous.allowed == allowedSet,
+           previous.systemItems == allowedSystemItemSet,
+           previous.concealed == concealedBundleIDs,
+           previous.at.duration(to: .now) < Self.antiFlapWindow
+        {
+            diagLog.debug(
+                "apply: suppressing flap back to a config applied \(previous.at.duration(to: .now)) ago (anti-flap)"
+            )
+            return false
+        }
 
         // Don't re-activate the exact configuration that just failed
         // asynchronously — that would hot-loop on the 1s timer. Any change to the
@@ -334,10 +409,22 @@ final class AssessmentModeBackend {
                 )
             }
         }
+        let hadLiveAssertion = handle != nil
         if let old = handle {
             ThawAssessmentModeHidingInvalidate(old)
         }
         handle = newHandle
+        // Remember the config we are superseding (and when) so a flap straight
+        // back to it within `antiFlapWindow` can be suppressed above. Only
+        // record it when there was a live assertion to supersede.
+        if hadLiveAssertion {
+            previousAppliedConfiguration = (
+                allowed: appliedAllowed,
+                systemItems: appliedAllowedSystemItems,
+                concealed: appliedConcealed,
+                at: .now
+            )
+        }
         appliedConcealed = concealedBundleIDs
         appliedAllowed = allowedSet
         appliedAllowedSystemItems = allowedSystemItemSet
@@ -347,6 +434,26 @@ final class AssessmentModeBackend {
             "allowing \(allowedBundleIDs.count)"
         )
         return true
+    }
+
+    /// Invalidates the live assertion and immediately re-applies the same
+    /// allowlist. Assertion reflow can strand allowed bundles as invisible AX
+    /// ghosts at on-band coordinates; synthetic drags cannot fix those, but a
+    /// fresh activation forces MenuBarAgent to re-composite.
+    func pulse(
+        sectionAssignment: [String: MenuBarSection.Name],
+        allItems: [MenuBarItem]
+    ) -> Bool {
+        if let old = handle {
+            diagLog.info("pulsing restriction: invalidating assertion for MenuBarAgent re-composite")
+            ThawAssessmentModeHidingInvalidate(old)
+            handle = nil
+            appliedConcealed = []
+            appliedAllowed = []
+        }
+        previousAppliedConfiguration = nil
+        lastFailedConfiguration = nil
+        return apply(sectionAssignment: sectionAssignment, allItems: allItems)
     }
 
     private func reset() -> Bool {

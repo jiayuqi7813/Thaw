@@ -29,7 +29,7 @@ import Cocoa
 /// The integer is a sort weight; MenuBarAgent lays the bar out by ordering the
 /// keys by that weight. Rewriting a key's weight and nudging the agent to
 /// re-read therefore moves the item **without touching the cursor** — the
-/// cursor-warp-free reorder Bartender 7 "Golden Gate" ships.
+/// cursor-warp-free reorder path.
 ///
 /// This store performs a *minimal* relative move: it reassigns only the moved
 /// item's weight to the midpoint between its destination's two live neighbors,
@@ -103,7 +103,7 @@ enum MenuBarAgentPositionStore {
         let positions = environment.readPositions()
         let keys = Array(positions.keys)
 
-        guard let movedKey = resolveKey(for: item, existingKeys: keys) else {
+        guard let movedKey = resolveKey(for: item, existingKeys: keys, positions: positions, liveItems: liveItems) else {
             diagLog.debug("No MenuBarAgent key for \(item.logString); deferring to synthetic drag")
             return false
         }
@@ -120,7 +120,7 @@ enum MenuBarAgentPositionStore {
         }
 
         guard
-            let anchorKey = resolveKey(for: neighbors.anchor, existingKeys: keys),
+            let anchorKey = resolveKey(for: neighbors.anchor, existingKeys: keys, positions: positions, liveItems: liveItems),
             let anchorValue = positions[anchorKey]
         else {
             return false
@@ -131,7 +131,7 @@ enum MenuBarAgentPositionStore {
         // midpoint, so defer to the synthetic drag for end placements.
         guard
             let farNeighbor = neighbors.far,
-            let farKey = resolveKey(for: farNeighbor, existingKeys: keys),
+            let farKey = resolveKey(for: farNeighbor, existingKeys: keys, positions: positions, liveItems: liveItems),
             let farValue = positions[farKey]
         else {
             diagLog.debug("End placement for \(item.logString); deferring to synthetic drag")
@@ -204,7 +204,7 @@ enum MenuBarAgentPositionStore {
             // kept in the segment's desired left-to-right order.
             let resolvable: [(item: MenuBarItem, key: String, weight: Int)] = segment.compactMap { item in
                 guard
-                    let key = resolveKey(for: item, existingKeys: keys),
+                    let key = resolveKey(for: item, existingKeys: keys, positions: positions, liveItems: liveItems),
                     let weight = positions[key]
                 else { return nil }
                 return (item, key, weight)
@@ -307,7 +307,15 @@ enum MenuBarAgentPositionStore {
     /// Resolution tries them in that order. The bundle-ID form is exact, so it
     /// is preferred over the suffix match, which for generic `Item-0` titles has
     /// dozens of candidates that only the owning app's display name disambiguates.
-    static func resolveKey(for item: MenuBarItem, existingKeys: [String]) -> String? {
+    ///
+    /// `positions` and `liveItems` are only consulted by the positional
+    /// fallback below; omit them to use the title-only tiers (e.g. from tests).
+    static func resolveKey(
+        for item: MenuBarItem,
+        existingKeys: [String],
+        positions: [String: Int] = [:],
+        liveItems: [MenuBarItem] = []
+    ) -> String? {
         let title = item.tag.title
         guard !title.isEmpty else { return nil }
 
@@ -341,7 +349,55 @@ enum MenuBarAgentPositionStore {
                 return match
             }
         }
-        return nil
+
+        // Every title-based tier failed outright. Apps like iStat Menus rewrite
+        // their item's AX title every second ("CPU 10%" → "CPU 9%" → …), but
+        // register their MenuBarAgent key under a stable internal identifier
+        // instead (e.g. "com.bjango.istatmenus.cpu") that never appears in the
+        // live title, so no title-based tier can ever match it. When the item
+        // has sibling items from the same owning app, the bar's left-to-right
+        // order is the last stable signal: pair the Nth sibling by X position
+        // with the Nth sibling key by weight.
+        return resolvePositionalKey(for: item, existingKeys: existingKeys, positions: positions, liveItems: liveItems)
+    }
+
+    /// Last-resort key resolution for items whose title never matches their
+    /// store key (see ``resolveKey(for:existingKeys:positions:liveItems:)``).
+    /// Requires the owning app's family of live items and the family's keys in
+    /// the store to be the same size — an exact count match is the only way to
+    /// pair them without guessing at which sibling is which. The pairing
+    /// assumes the weight axis ascends left-to-right, matching the convention
+    /// the OS uses elsewhere (e.g. `module:Clock` = 0 at the leading edge); a
+    /// reversed axis pairs items backwards, but the caller verifies the
+    /// resulting live order and falls back to the synthetic drag when it
+    /// doesn't hold, so a wrong guess here is self-correcting, not destructive.
+    private static func resolvePositionalKey(
+        for item: MenuBarItem,
+        existingKeys: [String],
+        positions: [String: Int],
+        liveItems: [MenuBarItem]
+    ) -> String? {
+        let family = liveItems
+            .filter { !$0.isSystemClone && $0.tag.namespace == item.tag.namespace }
+            .sorted { $0.bounds.minX < $1.bounds.minX }
+        guard
+            family.count > 1,
+            let itemIndex = family.firstIndex(where: { $0.tag.matchesIgnoringWindowID(item.tag) })
+        else {
+            return nil
+        }
+
+        var familyKeys = existingKeys.filter { $0.hasPrefix("status:\(item.tag.namespace.description)::") }
+        if familyKeys.count != family.count {
+            // Some apps register under a display name instead of their bundle
+            // ID; retry with that prefix before giving up.
+            let displayPrefixes = candidateAppNames(for: item).map { "status:\($0)::" }
+            familyKeys = existingKeys.filter { key in displayPrefixes.contains { key.hasPrefix($0) } }
+        }
+        guard familyKeys.count == family.count else { return nil }
+
+        let orderedKeys = familyKeys.sorted { (positions[$0] ?? 0) < (positions[$1] ?? 0) }
+        return orderedKeys[itemIndex]
     }
 
     /// Display-name candidates MenuBarAgent might use for the item's owning app.
