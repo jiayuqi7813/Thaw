@@ -667,7 +667,6 @@ private struct IceBarContentView: View {
                 Self.diagLog.warning("IceBar content: showing '\(self.cacheGracePeriodActive ? "Loading…" : "Unable to display")' for section \(self.section.logString) — imageCache.cacheFailed=true (grace period active: \(self.cacheGracePeriodActive), loadingTimedOut: \(self.loadingTimedOut), cached images count: \(self.imageCache.images.count), items in section: \(self.itemManager.itemCache[self.section].count))")
             }
         } else {
-            let isLightBackground = colorManager.colorInfo?.isBright(for: screen) == true
             switch layout {
             case .horizontal:
                 ScrollView(.horizontal) {
@@ -681,9 +680,7 @@ private struct IceBarContentView: View {
                                 section: section,
                                 displayID: screen.displayID,
                                 maxHeight: itemMaxHeight,
-                                hasRoundedShape: configuration.hasRoundedShape,
-                                tooltipDelay: appState.settings.advanced.tooltipDelay,
-                                isLightBackground: isLightBackground
+                                tooltipDelay: appState.settings.advanced.tooltipDelay
                             )
                         }
                     }
@@ -708,9 +705,7 @@ private struct IceBarContentView: View {
                                 section: section,
                                 displayID: screen.displayID,
                                 maxHeight: itemMaxHeight,
-                                hasRoundedShape: configuration.hasRoundedShape,
-                                tooltipDelay: appState.settings.advanced.tooltipDelay,
-                                isLightBackground: isLightBackground
+                                tooltipDelay: appState.settings.advanced.tooltipDelay
                             )
                         }
                     }
@@ -737,9 +732,7 @@ private struct IceBarContentView: View {
                                         section: section,
                                         displayID: screen.displayID,
                                         maxHeight: itemMaxHeight,
-                                        hasRoundedShape: configuration.hasRoundedShape,
-                                        tooltipDelay: appState.settings.advanced.tooltipDelay,
-                                        isLightBackground: isLightBackground
+                                        tooltipDelay: appState.settings.advanced.tooltipDelay
                                     )
                                     if rows.count > 1 {
                                         itemView
@@ -779,20 +772,11 @@ private struct IceBarItemView: View {
     @ObservedObject var itemManager: MenuBarItemManager
     @ObservedObject var menuBarManager: MenuBarManager
 
-    @State private var isHovered = false
-
     let item: MenuBarItem
     let section: MenuBarSection.Name
     let displayID: CGDirectDisplayID
     let maxHeight: CGFloat?
-    let hasRoundedShape: Bool
     let tooltipDelay: TimeInterval
-    let isLightBackground: Bool
-
-    private var pillCornerRadius: CGFloat {
-        guard let h = maxHeight, h > 0 else { return 4 }
-        return hasRoundedShape ? h / 2 : h / 4
-    }
 
     private var leftClickAction: () -> Void {
         return { [weak itemManager, weak menuBarManager] in
@@ -903,11 +887,6 @@ private struct IceBarItemView: View {
                 .antialiased(true)
                 .resizable()
                 .frame(width: size.width, height: size.height)
-                .background {
-                    RoundedRectangle(cornerRadius: pillCornerRadius, style: hasRoundedShape ? .circular : .continuous)
-                        .fill((isLightBackground ? Color.black : Color.white).opacity(isHovered ? 0.15 : 0))
-                        .padding(.vertical, 3)
-                }
                 .contentShape(Rectangle())
                 .overlay {
                     IceBarItemClickView(
@@ -915,12 +894,9 @@ private struct IceBarItemView: View {
                         tooltipDelay: tooltipDelay,
                         leftClickAction: leftClickAction,
                         rightClickAction: rightClickAction,
-                        onHover: { hovering in
-                            isHovered = hovering
-                        }
+                        onHover: { _ in }
                     )
                 }
-                .animation(.easeInOut(duration: 0.15), value: isHovered)
                 .accessibilityLabel(item.displayName)
                 .accessibilityAction(named: "left click", leftClickAction)
                 .accessibilityAction(named: "right click", rightClickAction)
