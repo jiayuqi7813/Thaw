@@ -30,6 +30,7 @@ final class AdvancedSettings: ObservableObject {
         if #available(macOS 27, *) { return false }
         return true
     }
+
     @Published var useOptionClickToShowAlwaysHiddenSection = Defaults.DefaultValue.useOptionClickToShowAlwaysHiddenSection
     @Published var useDoubleClickToShowAlwaysHiddenSection = Defaults.DefaultValue.useDoubleClickToShowAlwaysHiddenSection
 
@@ -54,6 +55,9 @@ final class AdvancedSettings: ObservableObject {
 
     /// The delay before showing on hover.
     @Published var showOnHoverDelay = Defaults.DefaultValue.showOnHoverDelay
+
+    /// Time interval temporarily shown menu bar items remain visible.
+    @Published var tempShowInterval = Defaults.DefaultValue.tempShowInterval
 
     /// The delay before showing a tooltip when hovering over a menu bar item.
     @Published var tooltipDelay = Defaults.DefaultValue.tooltipDelay
@@ -86,6 +90,12 @@ final class AdvancedSettings: ObservableObject {
     /// assertion, so hiding one item no longer reflows the bar and ghosts
     /// dynamic neighbors such as iStat. Complements, not replaces, the assertion.
     @Published var enableExperimentalWindowHiding = Defaults.DefaultValue.enableExperimentalWindowHiding
+
+    /// Attempts to prevent the macOS 27 native menu bar overflow (the chevron
+    /// that collapses items when space runs out) by pushing hidden items'
+    /// position weights to extreme values so they are collapsed first, keeping
+    /// visible items on screen. Only applies on macOS 27+ notched displays.
+    @Published var enableExperimentalOverflowPrevention = Defaults.DefaultValue.enableExperimentalOverflowPrevention
 
     /// The order in which menu bar sections appear in the search panel.
     @Published var searchSectionOrder: [MenuBarSection.Name] = Defaults.DefaultValue.searchSectionOrder
@@ -126,6 +136,7 @@ final class AdvancedSettings: ObservableObject {
         Defaults.ifPresent(key: .enableSecondaryContextMenu, assign: &enableSecondaryContextMenu)
         Defaults.ifPresent(key: .enableSecondaryContextMenuQuit, assign: &enableSecondaryContextMenuQuit)
         Defaults.ifPresent(key: .showOnHoverDelay, assign: &showOnHoverDelay)
+        Defaults.ifPresent(key: .tempShowInterval, assign: &tempShowInterval)
         Defaults.ifPresent(key: .tooltipDelay, assign: &tooltipDelay)
         Defaults.ifPresent(key: .showMenuBarTooltips, assign: &showMenuBarTooltips)
         Defaults.ifPresent(key: .iconRefreshInterval, assign: &iconRefreshInterval)
@@ -134,6 +145,7 @@ final class AdvancedSettings: ObservableObject {
         Defaults.ifPresent(key: .enableMenuBarItemOverflow, assign: &enableMenuBarItemOverflow)
         Defaults.ifPresent(key: .enableExperimentalSystemItemHiding, assign: &enableExperimentalSystemItemHiding)
         Defaults.ifPresent(key: .enableExperimentalWindowHiding, assign: &enableExperimentalWindowHiding)
+        Defaults.ifPresent(key: .enableExperimentalOverflowPrevention, assign: &enableExperimentalOverflowPrevention)
         Defaults.ifPresent(key: .searchIncludeVisible, assign: &searchIncludeVisible)
         Defaults.ifPresent(key: .searchIncludeHidden, assign: &searchIncludeHidden)
         Defaults.ifPresent(key: .searchIncludeAlwaysHidden, assign: &searchIncludeAlwaysHidden)
@@ -182,6 +194,7 @@ final class AdvancedSettings: ObservableObject {
         $enableSecondaryContextMenu.persistToDefaults(key: .enableSecondaryContextMenu, in: &c)
         $enableSecondaryContextMenuQuit.persistToDefaults(key: .enableSecondaryContextMenuQuit, in: &c)
         $showOnHoverDelay.persistToDefaults(key: .showOnHoverDelay, in: &c)
+        $tempShowInterval.persistToDefaults(key: .tempShowInterval, in: &c)
         $tooltipDelay.persistToDefaults(key: .tooltipDelay, in: &c)
         $showMenuBarTooltips.persistToDefaults(key: .showMenuBarTooltips, in: &c)
         $iconRefreshInterval.persistToDefaults(key: .iconRefreshInterval, in: &c)
@@ -202,6 +215,7 @@ final class AdvancedSettings: ObservableObject {
         $enableMenuBarItemOverflow.persistToDefaults(key: .enableMenuBarItemOverflow, in: &c)
         $enableExperimentalSystemItemHiding.persistToDefaults(key: .enableExperimentalSystemItemHiding, in: &c)
         $enableExperimentalWindowHiding.persistToDefaults(key: .enableExperimentalWindowHiding, in: &c)
+        $enableExperimentalOverflowPrevention.persistToDefaults(key: .enableExperimentalOverflowPrevention, in: &c)
         $searchSectionOrder.persistToDefaults(
             key: .searchSectionOrder,
             transform: { $0.map(\.rawValue) },
@@ -256,6 +270,10 @@ final class AdvancedSettings: ObservableObject {
                 enableMenuBarItemOverflow = boolValue
             case "enableExperimentalSystemItemHiding":
                 enableExperimentalSystemItemHiding = boolValue
+            case "enableExperimentalWindowHiding":
+                enableExperimentalWindowHiding = boolValue
+            case "enableExperimentalOverflowPrevention":
+                enableExperimentalOverflowPrevention = boolValue
             case "searchIncludeVisible":
                 searchIncludeVisible = boolValue
             case "searchIncludeHidden":
@@ -273,6 +291,8 @@ final class AdvancedSettings: ObservableObject {
             switch key {
             case "showOnHoverDelay":
                 showOnHoverDelay = doubleValue
+            case "tempShowInterval":
+                tempShowInterval = doubleValue
             case "tooltipDelay":
                 tooltipDelay = doubleValue
             case "iconRefreshInterval":
