@@ -80,6 +80,7 @@ final class MenuBarManager: ObservableObject {
     /// A Boolean value that indicates whether the application menus were hidden
     /// by a manual toggle (URL/hotkey), rather than automatically by section state.
     private var isManuallyHidingApplicationMenus = false
+    private var nativeMenuBarStateChangedAt: ContinuousClock.Instant?
 
     /// The panel that contains the Thaw Bar interface.
     let iceBarPanel = IceBarPanel()
@@ -94,6 +95,12 @@ final class MenuBarManager: ObservableObject {
     /// macOS 27 only: assignment-backed hiding through the Assessment Mode
     /// visibility restriction. `nil` on macOS <=26.
     private(set) var simpleItemHider: SimpleItemHider?
+
+    var shouldDeferMacOS27MenuBarMutation: Bool {
+        guard #available(macOS 27, *) else { return false }
+        guard let nativeMenuBarStateChangedAt else { return false }
+        return nativeMenuBarStateChangedAt.duration(to: .now) < .milliseconds(900)
+    }
 
     /// The managed sections in the menu bar.
     let sections = [
@@ -141,6 +148,9 @@ final class MenuBarManager: ObservableObject {
                     return
                 }
                 let hidden = options.contains(.hideMenuBar) || options.contains(.autoHideMenuBar)
+                if hidden != isMenuBarHiddenBySystem {
+                    nativeMenuBarStateChangedAt = .now
+                }
                 isMenuBarHiddenBySystem = hidden
             }
             .store(in: &c)
