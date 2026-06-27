@@ -89,4 +89,65 @@ final class MenuBarItemManagerRearmTests: XCTestCase {
         )
         XCTAssertEqual(manager.activeProfileItemIdentifiers, [uid])
     }
+
+    func testMacOS27RetainsLastGoodCacheWhenVisibleControlItemDisappears() {
+        let previous = [
+            MenuBarItem.fixture(
+                tag: .visibleControlItem,
+                windowID: 1,
+                bounds: CGRect(x: 2368, y: 3, width: 35, height: 24)
+            ),
+            MenuBarItem.fixture(
+                tag: .appItem(bundleID: "com.example.status", title: "Status"),
+                windowID: 2
+            ),
+        ]
+        let snapshot = [
+            MenuBarItem.fixture(
+                tag: .appItem(bundleID: "com.example.status", title: "Status"),
+                windowID: 2
+            ),
+        ]
+
+        XCTAssertTrue(
+            MenuBarItemManager.shouldRetainLastGoodCacheForMissingVisibleControlItem(
+                snapshotItems: snapshot,
+                previousCachedItems: previous,
+                supportsLegacySectionHiding: false
+            )
+        )
+    }
+
+    func testMacOS27SynthesizesDividerControlsOnlyWhenVisibleControlItemPresent() {
+        let snapshotWithVisibleControl = [
+            MenuBarItem.fixture(
+                tag: .visibleControlItem,
+                windowID: 1,
+                bounds: CGRect(x: 2368, y: 3, width: 35, height: 24)
+            ),
+            MenuBarItem.fixture(
+                tag: .appItem(bundleID: "com.example.status", title: "Status"),
+                windowID: 2
+            ),
+        ]
+        let snapshotWithoutVisibleControl = [
+            MenuBarItem.fixture(
+                tag: .appItem(bundleID: "com.example.status", title: "Status"),
+                windowID: 2
+            ),
+        ]
+
+        XCTAssertTrue(
+            MenuBarItemManager.canSynthesizeMacOS27ControlItems(
+                snapshotItems: snapshotWithVisibleControl,
+                supportsLegacySectionHiding: false
+            )
+        )
+        XCTAssertFalse(
+            MenuBarItemManager.canSynthesizeMacOS27ControlItems(
+                snapshotItems: snapshotWithoutVisibleControl,
+                supportsLegacySectionHiding: false
+            )
+        )
+    }
 }
