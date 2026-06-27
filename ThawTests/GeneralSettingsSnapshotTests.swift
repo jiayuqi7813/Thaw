@@ -90,6 +90,7 @@ final class GeneralSettingsSnapshotTests: XCTestCase {
         XCTAssertTrue(snapshot.autoRehide)
         XCTAssertEqual(snapshot.rehideStrategyRawValue, 0)
         XCTAssertEqual(snapshot.rehideInterval, 15)
+        XCTAssertEqual(snapshot.tempShowInterval, Defaults.DefaultValue.tempShowInterval)
     }
 
     func testCustomSnapshotValues() {
@@ -109,6 +110,7 @@ final class GeneralSettingsSnapshotTests: XCTestCase {
         XCTAssertFalse(snapshot.autoRehide)
         XCTAssertEqual(snapshot.rehideStrategyRawValue, 2)
         XCTAssertEqual(snapshot.rehideInterval, 30)
+        XCTAssertEqual(snapshot.tempShowInterval, Defaults.DefaultValue.tempShowInterval)
     }
 
     // MARK: - Encode/Decode Tests
@@ -127,6 +129,7 @@ final class GeneralSettingsSnapshotTests: XCTestCase {
         XCTAssertEqual(decoded.autoRehide, original.autoRehide)
         XCTAssertEqual(decoded.rehideStrategyRawValue, original.rehideStrategyRawValue)
         XCTAssertEqual(decoded.rehideInterval, original.rehideInterval)
+        XCTAssertEqual(decoded.tempShowInterval, original.tempShowInterval)
     }
 
     func testEncodeDecodeCustomSnapshot() throws {
@@ -148,6 +151,7 @@ final class GeneralSettingsSnapshotTests: XCTestCase {
         XCTAssertEqual(decoded.autoRehide, false)
         XCTAssertEqual(decoded.rehideStrategyRawValue, 2)
         XCTAssertEqual(decoded.rehideInterval, 30)
+        XCTAssertEqual(decoded.tempShowInterval, Defaults.DefaultValue.tempShowInterval)
     }
 
     func testEncodeDecodeWithNilLastCustomIcon() throws {
@@ -229,5 +233,30 @@ final class GeneralSettingsSnapshotTests: XCTestCase {
         let decoded = try decoder.decode(GeneralSettingsSnapshot.self, from: data)
 
         XCTAssertEqual(decoded.rehideInterval, 15.5, accuracy: 0.001)
+    }
+
+    func testTempShowIntervalRoundTrip() throws {
+        var snapshot = makeDefaultSnapshot()
+        snapshot.tempShowInterval = 22
+
+        let data = try encoder.encode(snapshot)
+        let decoded = try decoder.decode(GeneralSettingsSnapshot.self, from: data)
+
+        XCTAssertEqual(decoded.tempShowInterval, 22)
+    }
+
+    func testDecodeOlderProfileMissingTempShowInterval() throws {
+        let original = makeDefaultSnapshot()
+        let encoded = try encoder.encode(original)
+        guard var object = try JSONSerialization.jsonObject(with: encoded) as? [String: Any] else {
+            XCTFail("Expected encoded general settings object")
+            return
+        }
+        object.removeValue(forKey: "tempShowInterval")
+        let data = try JSONSerialization.data(withJSONObject: object)
+
+        let decoded = try decoder.decode(GeneralSettingsSnapshot.self, from: data)
+
+        XCTAssertEqual(decoded.tempShowInterval, Defaults.DefaultValue.tempShowInterval)
     }
 }
