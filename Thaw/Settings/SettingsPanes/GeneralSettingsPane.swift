@@ -21,6 +21,11 @@ struct GeneralSettingsPane: View {
         return LocalizedStringKey(String(localized: "\(count) seconds"))
     }
 
+    private var tempShowIntervalKey: LocalizedStringKey {
+        let count = Int(settings.tempShowInterval)
+        return LocalizedStringKey(String(localized: "\(count) seconds"))
+    }
+
     var body: some View {
         IceForm {
             IceSection {
@@ -171,6 +176,13 @@ struct GeneralSettingsPane: View {
         if settings.autoRehide {
             rehideStrategyPicker
         }
+        IceSlider(
+            tempShowIntervalKey,
+            value: $settings.tempShowInterval,
+            in: 0 ... 30,
+            step: 1
+        )
+        .annotation("The amount of time to wait before hiding temporarily shown menu bar items.")
     }
 
     private var autoRehide: some View {
