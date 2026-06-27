@@ -34,6 +34,11 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
             NSImage(cgImage: cgImage, size: scaledSize)
         }
 
+        /// Whether the capture is effectively blank for UI thumbnail purposes.
+        var isEffectivelyBlank: Bool {
+            cgImage.isTransparent(alphaThreshold: 0.05)
+        }
+
         /// Returns whether two optional captured images have equivalent visual content.
         ///
         /// Uses pointer equality on `CGImage` as a fast path, falling back to
@@ -1005,9 +1010,9 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                 continue
             }
 
-            guard !croppedImage.isTransparent() else {
+            guard !croppedImage.isTransparent(alphaThreshold: 0.05) else {
                 MenuBarItemImageCache.diagLog.debug(
-                    "axBoundsCapture: transparent crop for \(item.logString)"
+                    "axBoundsCapture: blank image for \(item.logString)"
                 )
                 recordCaptureFailure(for: item)
                 result.excluded.append(item)
@@ -1302,15 +1307,19 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         let items = await appState.itemManager.itemCache.managedItems(
             for: section
         )
+        let revealedSection = await MainActor.run {
+            appState.menuBarManager.simpleItemHider?.revealedSection
+        }
+        let shouldUseFreshBounds = section != .visible && revealedSection == section
         let captureResult = await captureImages(
             of: items,
             scale: scale,
             appState: appState,
-            // Always crop against fresh live bounds on macOS 27: even Visible-section
-            // system items (Spotlight/Sound) shift position constantly, so stale
-            // cache bounds misalign the crop and blank the icon. The extra AX walk
-            // is affordable because the capture rate itself is throttled.
-            freshBounds: true
+            // Revealed concealed sections need fresh AX bounds because cached
+            // snapshot bounds are stale while MenuBarAgent temporarily publishes
+            // their live glyphs. Visible uses its cache-cycle bounds: an extra
+            // all-items AX walk can mismatch dynamic items and crop neighbors.
+            freshBounds: shouldUseFreshBounds
         )
         if !captureResult.excluded.isEmpty {
             MenuBarItemImageCache.diagLog.debug(
@@ -1449,14 +1458,15 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
     /// exact tag (including windowID) is not found. This handles disk-loaded
     /// entries where the windowID is unavailable.
     func image(for tag: MenuBarItemTag) -> CapturedImage? {
-        if let image = images[tag] {
+        if let image = images[tag], !image.isEffectivelyBlank {
             updateAccessOrder(for: tag)
             return image
         }
         // Fallback: match by namespace and title only (ignoring windowID).
         // This covers disk-loaded entries that were stored without a windowID.
         if !tag.isSystemItem,
-           let entry = images.first(where: { $0.key.matchesIgnoringWindowID(tag) })
+           let entry = images.first(where: { $0.key.matchesIgnoringWindowID(tag) }),
+           !entry.value.isEffectivelyBlank
         {
             updateAccessOrder(for: entry.key)
             return entry.value
@@ -1654,10 +1664,12 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
             newImages.merge(sectionImages) { _, new in new }
         }
 
-        guard !Task.isCancelled else {
-            MenuBarItemImageCache.diagLog.debug("updateCacheWithoutChecks: cancelled before applying cache update")
-            return
-        }
+        // Do NOT check Task.isCancelled here: if any captures succeeded (e.g.
+        // the prewarm completed its hidden-section AX crop), we must apply them
+        // even when the parent task was cancelled mid-settle (user re-clicked the
+        // IceBar before the settle delay expired). The per-section guard above
+        // already prevents starting new captures when cancelled.
+        guard !newImages.isEmpty else { return }
 
         // Get the set of valid item tags from all sections to clean up stale entries
         let allValidTags = Set(
@@ -1774,6 +1786,111 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                     "Cache inconsistency: \(afterCount) cached images vs \(finalAccessOrderCount) LRU entries"
                 )
             }
+        }
+    }
+
+    /// Restoration action after temporarily revealing a section for prewarm capture.
+    enum PrewarmRevealRestorationAction: Equatable {
+        case hide
+        case noOp
+        case show(MenuBarSection.Name)
+
+        static func resolve(
+            previous: MenuBarSection.Name?,
+            currentAfterShow: MenuBarSection.Name?
+        ) -> PrewarmRevealRestorationAction {
+            if previous == nil {
+                return .hide
+            }
+            if previous == currentAfterShow {
+                return .noOp
+            }
+            if let previous {
+                return .show(previous)
+            }
+            return .noOp
+        }
+    }
+
+    /// Whether prewarm should recapture an item given its cached image state.
+    static func prewarmNeedsCapture(
+        cachedImage: CapturedImage?,
+        wouldAttemptCapture: Bool
+    ) -> Bool {
+        guard wouldAttemptCapture else { return false }
+        guard let cachedImage, !cachedImage.isEffectivelyBlank else { return true }
+        return false
+    }
+
+    /// Briefly reveals concealed macOS 27 sections so their live glyphs can be
+    /// captured before the assertion hides them again.
+    @available(macOS 27, *)
+    @MainActor
+    func prewarmConcealedImagesMacOS27(
+        sections requestedSections: [MenuBarSection.Name],
+        onlyMissingImages: Bool = true
+    ) async {
+        guard appState?.menuBarManager.simpleItemHider != nil else {
+            return
+        }
+
+        let sections = requestedSections.reduce(into: [MenuBarSection.Name]()) { result, section in
+            guard section != .visible, !result.contains(section) else { return }
+            result.append(section)
+        }
+
+        for section in sections {
+            await Task { @MainActor [weak self, weak appState] in
+                guard let self, let appState, let hider = appState.menuBarManager.simpleItemHider else {
+                    return
+                }
+
+                let sectionItems = appState.itemManager.itemCache[section]
+                guard !sectionItems.isEmpty else { return }
+
+                if onlyMissingImages {
+                    let needsCapture = sectionItems.contains { item in
+                        Self.prewarmNeedsCapture(
+                            cachedImage: self.images[item.tag],
+                            wouldAttemptCapture: self.wouldAttemptCapture(of: item)
+                        )
+                    }
+                    guard needsCapture else { return }
+                }
+
+                guard !Task.isCancelled else {
+                    MenuBarItemImageCache.diagLog.debug(
+                        "prewarmConcealedImagesMacOS27: capture cancelled before start for \(section.logString)"
+                    )
+                    return
+                }
+
+                let previousRevealedSection = hider.revealedSection
+                hider.show(section, reconcileBoundary: false)
+                defer {
+                    switch Self.PrewarmRevealRestorationAction.resolve(
+                        previous: previousRevealedSection,
+                        currentAfterShow: hider.revealedSection
+                    ) {
+                    case .hide:
+                        hider.hideRevealedSections()
+                    case .noOp:
+                        break
+                    case .show(let section):
+                        hider.show(section, reconcileBoundary: false)
+                    }
+                }
+                guard hider.revealedSection == section else {
+                    MenuBarItemImageCache.diagLog.debug(
+                        "prewarmConcealedImagesMacOS27: section not revealed for \(section.logString)"
+                    )
+                    return
+                }
+                try? await Task.detached {
+                    try await Task.sleep(for: Constants.MenuBarTuning.iceBarCaptureSettle)
+                }.value
+                await self.updateCacheWithoutChecks(sections: [section])
+            }.value
         }
     }
 
