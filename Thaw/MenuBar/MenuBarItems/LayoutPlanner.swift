@@ -172,24 +172,89 @@ enum LayoutPlanner {
         experimentalSystemItemHiding: Bool = false
     ) -> (item: MenuBarItem, destination: MoveDestination)? {
         guard let item = items.first(where: { $0.tag.matchesVisibleControlItem }),
-              desiredOrder.contains(item.uniqueIdentifier),
-              let destination = achievableDestination(
-                items: items,
-                item: item,
-                desiredOrder: desiredOrder,
-                experimentalSystemItemHiding: experimentalSystemItemHiding
-              ),
-              !liveOrderSatisfiesDestination(
-                items: items,
-                item: item,
-                destination: destination,
-                experimentalSystemItemHiding: experimentalSystemItemHiding
-              )
+              desiredOrder.contains(item.uniqueIdentifier)
         else {
             return nil
         }
 
+        let stranded = visibleControlIsStranded(item, among: items)
+        let destination = achievableDestination(
+            items: items,
+            item: item,
+            desiredOrder: desiredOrder,
+            experimentalSystemItemHiding: experimentalSystemItemHiding
+        ) ?? (stranded
+            ? strandedVisibleControlRecoveryDestination(
+                items: items,
+                item: item,
+                desiredOrder: desiredOrder,
+                experimentalSystemItemHiding: experimentalSystemItemHiding
+            )
+            : nil)
+
+        guard let destination else {
+            return nil
+        }
+
+        if !stranded,
+           liveOrderSatisfiesDestination(
+               items: items,
+               item: item,
+               destination: destination,
+               experimentalSystemItemHiding: experimentalSystemItemHiding
+           )
+        {
+            return nil
+        }
+
         return (item, destination)
+    }
+
+    /// Whether the visible Thaw chevron is parked off the live menu bar band or
+    /// stuck at macOS's blocked sentinel (x=-1). AX sort order can still look
+    /// correct while the icon is invisible to the user.
+    static func visibleControlIsStranded(_ item: MenuBarItem, among peers: [MenuBarItem]) -> Bool {
+        guard item.tag.matchesVisibleControlItem else { return false }
+        return item.bounds.origin.x == -1 || item.isParkedOffMenuBarBand(among: peers)
+    }
+
+    /// Recovery anchor when the visible control is stranded but segment
+    /// planning sees no order delta (x=-1 still sorts ahead of on-bar items).
+    static func strandedVisibleControlRecoveryDestination(
+        items: [MenuBarItem],
+        item: MenuBarItem,
+        desiredOrder: [String],
+        experimentalSystemItemHiding: Bool
+    ) -> MoveDestination? {
+        func isOnBar(_ candidate: MenuBarItem) -> Bool {
+            candidate.bounds.origin.x != -1 && !candidate.isParkedOffMenuBarBand(among: items)
+        }
+
+        guard let thawIndex = desiredOrder.firstIndex(of: item.uniqueIdentifier) else {
+            return nil
+        }
+
+        for identifier in desiredOrder.dropFirst(thawIndex + 1) {
+            guard let neighbor = items.first(where: { $0.uniqueIdentifier == identifier }),
+                  isOnBar(neighbor),
+                  neighbor.isPhysicallyOrderable(experimentalSystemItemHiding: experimentalSystemItemHiding)
+            else {
+                continue
+            }
+            return .leftOfItem(neighbor)
+        }
+
+        for identifier in desiredOrder.prefix(thawIndex).reversed() {
+            guard let neighbor = items.first(where: { $0.uniqueIdentifier == identifier }),
+                  isOnBar(neighbor),
+                  neighbor.isPhysicallyOrderable(experimentalSystemItemHiding: experimentalSystemItemHiding)
+            else {
+                continue
+            }
+            return .rightOfItem(neighbor)
+        }
+
+        return nil
     }
 
     static func liveOrderSatisfiesSectionBoundary(
