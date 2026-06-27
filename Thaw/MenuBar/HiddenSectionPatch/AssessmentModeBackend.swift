@@ -90,14 +90,17 @@ final class AssessmentModeBackend {
     /// Bundle-level concealment of these hosts would blank every item the host
     /// owns on each restriction reflow (the whole system side of the bar).
     ///
-    /// `com.apple.systemuiserver` is included even when it appears to host only
-    /// Siri. Concealing that bundle can blank more of the menu bar than the
-    /// single assigned item during restriction reflows, so Siri may remain
-    /// visible rather than risking a whole-bar disappearance.
+    /// `com.apple.MenuBarAgent` and `com.apple.controlcenter` are listed because
+    /// they host many system items (Clock, Control Center, sound, …) each with a
+    /// known `MBSystemItemIdentifier` raw value that the index path can conceal
+    /// precisely. `com.apple.systemuiserver` is intentionally NOT listed here:
+    /// on macOS 27 it hosts only Siri, which has no `MBSystemItemIdentifier` entry
+    /// and therefore falls through to bundle-level concealment — the
+    /// `bundlesWithVisibleItem` guard is sufficient to prevent collateral damage
+    /// if a sibling ever appears.
     private static let systemHostBundleIDs: Set<String> = [
         "com.apple.MenuBarAgent",
         "com.apple.controlcenter",
-        "com.apple.systemuiserver",
     ]
 
     static func isSystemHostBundleID(_ bundleID: String) -> Bool {
