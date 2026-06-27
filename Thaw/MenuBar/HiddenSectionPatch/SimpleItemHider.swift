@@ -33,17 +33,23 @@ import Cocoa
 /// implicitly gated to that OS — macOS 26 keeps its native section machinery.
 @MainActor
 final class SimpleItemHider: ObservableObject {
-    /// UserDefaults key for the persisted per-item section assignment
-    /// (`[uniqueIdentifier: sectionRawValue]`, `.visible` entries omitted).
-    private static let assignmentKey = "Thaw.simpleSectionAssignment"
+    /// Shared UserDefaults key for the persisted per-section item order
+    /// (`[sectionRawValue: [uniqueIdentifier]]`). Uses the same key as
+    /// `MenuBarItemManager.savedSectionOrder` so both subsystems read from
+    /// and write to a single source of truth — no separate assignment or
+    /// order keys needed. On macOS 27 this replaces both the old
+    /// `Thaw.simpleSectionAssignment` and `Thaw.simpleSectionOrder` keys.
+    private static let orderKey = "MenuBarItemManager.savedSectionOrder"
 
     /// Legacy UserDefaults key from the binary switch-list era. Read once at
     /// first launch to migrate hidden items into the new assignment map.
     private static let legacyHiddenKey = "Thaw.simpleHiddenItemIdentifiers"
 
-    /// UserDefaults key for the persisted per-section item order
-    /// (`[sectionRawValue: [uniqueIdentifier]]`).
-    private static let orderKey = "Thaw.simpleSectionOrder"
+    /// Legacy per-item assignment key from early macOS 27 preview builds.
+    private static let oldAssignmentKey = "Thaw.simpleSectionAssignment"
+
+    /// Legacy per-section order key from early macOS 27 preview builds.
+    private static let oldOrderKey = "Thaw.simpleSectionOrder"
 
     private weak var appState: AppState?
     private let diagLog = DiagLog(category: "SimpleItemHider")
@@ -108,8 +114,12 @@ final class SimpleItemHider: ObservableObject {
 
     init(appState: AppState) {
         self.appState = appState
-        self.sectionAssignment = Self.loadAssignment()
-        self.sectionItemOrder = Self.loadOrder()
+        let order = Self.loadOrder()
+        self.sectionItemOrder = order
+self.sectionAssignment = Self.assignmentFromOrder(
+    order,
+    alwaysHiddenEnabled: appState.settings.advanced.isAlwaysHiddenSectionEnabled
+)
         self.backend = AssessmentModeBackend()
         self.ccModuleManager = ControlCenterModuleManager()
         self.cgsWindowHider = CGSWindowHider()
@@ -120,25 +130,37 @@ final class SimpleItemHider: ObservableObject {
         diagLog.info("hiding backend: AssessmentMode (\(assessmentModeAvailable ? "available" : "unavailable")); \(sectionAssignment.count) assigned item(s)")
     }
 
-    /// Loads the persisted section assignment, migrating from the old binary
-    /// hidden set on first launch.
-    private static func loadAssignment() -> [String: MenuBarSection.Name] {
-        let defaults = UserDefaults.standard
-        if let stored = defaults.dictionary(forKey: assignmentKey) as? [String: String] {
-            var map = [String: MenuBarSection.Name]()
-            for (identifier, raw) in stored {
-                if let section = MenuBarSection.Name(rawValue: raw), section != .visible {
-                    map[identifier] = section
-                }
+    /// Derives the section assignment map from a section-order dict.
+    /// Items listed in any non-visible section key are assigned to that section;
+    /// everything else defaults to `.visible` (absence from the map).
+    static func assignmentFromOrder(
+        _ order: [MenuBarSection.Name: [String]],
+        alwaysHiddenEnabled: Bool = true
+    ) -> [String: MenuBarSection.Name] {
+        var map = [String: MenuBarSection.Name]()
+        for (section, identifiers) in order where section != .visible {
+            let effectiveSection: MenuBarSection.Name
+            if section == .alwaysHidden, !alwaysHiddenEnabled {
+                effectiveSection = .hidden
+            } else {
+                effectiveSection = section
             }
-            return sanitizedSectionAssignment(map)
+            for identifier in identifiers {
+                map[identifier] = effectiveSection
+            }
         }
-        // One-time migration: every item the user had hidden in the switch-list
-        // era becomes a member of the Hidden section.
-        if let legacy = defaults.stringArray(forKey: legacyHiddenKey), !legacy.isEmpty {
-            return sanitizedSectionAssignment(legacy.reduce(into: [:]) { $0[$1] = .hidden })
-        }
-        return [:]
+        return sanitizedSectionAssignment(map)
+    }
+
+    private var alwaysHiddenSectionEnabled: Bool {
+        appState?.settings.advanced.isAlwaysHiddenSectionEnabled ?? true
+    }
+
+    private func rebuildSectionAssignmentFromOrder() {
+        sectionAssignment = Self.assignmentFromOrder(
+            sectionItemOrder,
+            alwaysHiddenEnabled: alwaysHiddenSectionEnabled
+        )
     }
 
     /// Drops assignments that can never be valid hidden-section entries.
@@ -216,22 +238,79 @@ final class SimpleItemHider: ObservableObject {
         return thawControlIdentifiers.contains(identifier)
     }
 
-    private func persistAssignment() {
-        let raw = sectionAssignment.mapValues(\.rawValue)
-        UserDefaults.standard.set(raw, forKey: Self.assignmentKey)
-    }
-
-    /// Loads the persisted per-section item order.
-    private static func loadOrder() -> [MenuBarSection.Name: [String]] {
-        guard let stored = UserDefaults.standard.dictionary(forKey: orderKey) as? [String: [String]] else {
-            return [:]
-        }
+    /// Merges shared, legacy order, and legacy assignment dictionaries into a
+    /// single section-order map. Pure helper used by ``loadOrder(defaults:)`` and tests.
+    static func mergeMigratedSectionOrder(
+        sharedOrder: [String: [String]]?,
+        legacyOrder: [String: [String]]?,
+        legacyAssignment: [String: String]?
+    ) -> [MenuBarSection.Name: [String]] {
         var map = [MenuBarSection.Name: [String]]()
-        for (raw, ids) in stored {
-            if let section = MenuBarSection.Name(rawValue: raw) {
-                map[section] = ids
+        if let sharedOrder {
+            for (raw, ids) in sharedOrder {
+                if let section = MenuBarSection.Name(rawValue: raw) {
+                    map[section] = ids
+                }
             }
         }
+
+        if let legacyOrder {
+            for (raw, ids) in legacyOrder {
+                guard let section = MenuBarSection.Name(rawValue: raw) else { continue }
+                var sectionIDs = map[section] ?? []
+                for identifier in ids where !sectionIDs.contains(identifier) {
+                    sectionIDs.append(identifier)
+                }
+                if !sectionIDs.isEmpty {
+                    map[section] = sectionIDs
+                }
+            }
+        }
+
+        if let legacyAssignment {
+            for (identifier, sectionRaw) in legacyAssignment {
+                guard let section = MenuBarSection.Name(rawValue: sectionRaw),
+                      section != .visible
+                else { continue }
+                if map[section]?.contains(identifier) != true {
+                    map[section, default: []].append(identifier)
+                }
+            }
+        }
+
+        return map
+    }
+
+    /// Loads the persisted per-section item order, migrating from the old
+    /// `Thaw.simpleSectionAssignment` / `Thaw.simpleSectionOrder` keys on
+    /// first run, and from the even-older binary switch-list key.
+    static func loadOrder(defaults: UserDefaults = .standard) -> [MenuBarSection.Name: [String]] {
+        let sharedOrder = defaults.dictionary(forKey: orderKey) as? [String: [String]]
+        let legacyOrder = defaults.dictionary(forKey: oldOrderKey) as? [String: [String]]
+        let legacyAssignment = defaults.dictionary(forKey: oldAssignmentKey) as? [String: String]
+        let hadLegacyData = legacyOrder != nil || legacyAssignment != nil
+
+        var map = mergeMigratedSectionOrder(
+            sharedOrder: sharedOrder,
+            legacyOrder: legacyOrder,
+            legacyAssignment: legacyAssignment
+        )
+
+        if hadLegacyData {
+            let raw = Dictionary(uniqueKeysWithValues: map.map { ($0.key.rawValue, $0.value) })
+            defaults.set(raw, forKey: orderKey)
+            defaults.removeObject(forKey: oldAssignmentKey)
+            defaults.removeObject(forKey: oldOrderKey)
+        }
+
+        // One-time migration from the even-older binary switch-list key.
+        if map.isEmpty,
+           let legacy = defaults.stringArray(forKey: legacyHiddenKey),
+           !legacy.isEmpty
+        {
+            map[.hidden] = legacy
+        }
+
         return map
     }
 
@@ -565,22 +644,39 @@ final class SimpleItemHider: ObservableObject {
         guard !Self.isControlItemAssignmentIdentifier(identifier),
               !Self.isOwnAppAssignmentIdentifier(identifier)
         else {
-            if sectionAssignment.removeValue(forKey: identifier) != nil {
-                persistAssignment()
+            if sectionAssignment[identifier] != nil {
+                removeFromOrder(identifier: identifier)
+                rebuildSectionAssignmentFromOrder()
+                persistOrder()
                 refresh()
             }
             diagLog.warning("ignored protected section assignment for \(identifier)")
             return
         }
 
-        if section == .visible {
-            sectionAssignment.removeValue(forKey: identifier)
-        } else {
-            sectionAssignment[identifier] = section
+        // Move the identifier to its new section in the order dict so assignment
+        // and order stay consistent in a single write (no separate assignment key).
+        removeFromOrder(identifier: identifier)
+        if section != .visible {
+            sectionItemOrder[section, default: []].append(identifier)
         }
-        persistAssignment()
+        rebuildSectionAssignmentFromOrder()
+        persistOrder()
         diagLog.info("setSection(\(section.rawValue)) \(identifier); \(sectionAssignment.count) assigned item(s)")
         refresh()
+    }
+
+    /// Removes an identifier from every section in `sectionItemOrder`.
+    private func removeFromOrder(identifier: String) {
+        for section in MenuBarSection.Name.allCases {
+            guard var identifiers = sectionItemOrder[section] else { continue }
+            identifiers.removeAll { $0 == identifier }
+            if identifiers.isEmpty {
+                sectionItemOrder.removeValue(forKey: section)
+            } else {
+                sectionItemOrder[section] = identifiers
+            }
+        }
     }
 
     /// Assigns a live item to a section, rejecting items that can never be
@@ -602,8 +698,10 @@ final class SimpleItemHider: ObservableObject {
             item,
             experimentalSystemItemHiding: experimentalSystemItemHiding
         ), !cannotHideHere else {
-            if sectionAssignment.removeValue(forKey: item.uniqueIdentifier) != nil {
-                persistAssignment()
+            if sectionAssignment[item.uniqueIdentifier] != nil {
+                removeFromOrder(identifier: item.uniqueIdentifier)
+                rebuildSectionAssignmentFromOrder()
+                persistOrder()
                 refresh()
             }
             diagLog.warning("ignored section assignment for protected/non-hideable item \(item.uniqueIdentifier)")
@@ -625,8 +723,25 @@ final class SimpleItemHider: ObservableObject {
     /// `.visible` entries are dropped (the default), then the restriction is
     /// persisted and re-applied.
     func resetAssignment(to assignment: [String: MenuBarSection.Name]) {
-        sectionAssignment = Self.sanitizedSectionAssignment(assignment)
-        persistAssignment()
+        let sanitized = Self.sanitizedSectionAssignment(assignment)
+        // Rebuild order from the new assignment, preserving relative order for
+        // items that remain in the same section.
+        var newOrder = [MenuBarSection.Name: [String]]()
+        for section in MenuBarSection.Name.allCases where section != .visible {
+            let oldOrder = sectionItemOrder[section] ?? []
+            let newIDs = Set(sanitized.filter { $0.value == section }.map(\.key))
+            var ordered = oldOrder.filter { newIDs.contains($0) }
+            let orderedSet = Set(ordered)
+            for id in newIDs where !orderedSet.contains(id) {
+                ordered.append(id)
+            }
+            if !ordered.isEmpty {
+                newOrder[section] = ordered
+            }
+        }
+        sectionItemOrder = newOrder
+        rebuildSectionAssignmentFromOrder()
+        persistOrder()
         diagLog.info("resetAssignment; \(sectionAssignment.count) assigned item(s)")
         refresh()
     }
@@ -656,9 +771,8 @@ final class SimpleItemHider: ObservableObject {
                 identifier.hasPrefix("\(bundleID):")
             }
         }
-        sectionAssignment = Self.sanitizedSectionAssignment(assignment)
-        persistAssignment()
-
+        // Build order from the profile's section layout; derive assignment from
+        // that — no separate assignment write needed.
         var newOrder = [MenuBarSection.Name: [String]]()
         for (sectionKey, identifiers) in itemOrder {
             guard let section = MenuBarSection.Name(rawValue: sectionKey) else { continue }
@@ -667,7 +781,15 @@ final class SimpleItemHider: ObservableObject {
                 newOrder[section] = filtered
             }
         }
+        // Seed any assigned-but-not-yet-ordered items into their section lists.
+        let sanitized = Self.sanitizedSectionAssignment(assignment)
+        for (identifier, section) in sanitized where section != .visible {
+            if newOrder[section]?.contains(identifier) != true {
+                newOrder[section, default: []].append(identifier)
+            }
+        }
         sectionItemOrder = newOrder
+        rebuildSectionAssignmentFromOrder()
         persistOrder()
         diagLog.info(
             "applyProfileLayout; \(sectionAssignment.count) assigned item(s), order sections=\(sectionItemOrder.keys.map(\.rawValue))"
@@ -782,9 +904,10 @@ final class SimpleItemHider: ObservableObject {
             .union(missingLiveIDs)
         if !invalidAssignmentIDs.isEmpty {
             for identifier in invalidAssignmentIDs {
-                sectionAssignment.removeValue(forKey: identifier)
+                removeFromOrder(identifier: identifier)
             }
-            persistAssignment()
+            rebuildSectionAssignmentFromOrder()
+            persistOrder()
             diagLog.info("removed \(invalidAssignmentIDs.count) stale/invalid assignment(s)")
         }
         // Snapshot every assigned item while it's still live, so it can keep
@@ -847,13 +970,14 @@ final class SimpleItemHider: ObservableObject {
             // weights to extreme values so the native macOS 27 menu bar
             // overflow (notched displays) collapses them before visible items.
             applyExperimentalOverflowPreventionIfEnabled(allItems: allItems)
+            // Post-assertion safety net: verify hiding-unsupported items are
+            // still visible after the restriction reflow. Runs async so the
+            // main thread isn't blocked by a fresh AX walk on every refresh.
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .milliseconds(200))
+                self?.verifyHidingUnsupportedItemsVisiblePostAssertion()
+            }
         }
-
-        // Post-assertion safety net: re-enumerate from AX after the assertion
-        // reflow (stale `allItems` would show `isOnScreen = true` for items the
-        // assertion just hid). If any hiding-unsupported item became invisible,
-        // tear down the restriction immediately.
-        verifyHidingUnsupportedItemsVisiblePostAssertion()
     }
 
     /// Re-enumerates from AX after the assertion fires and tears down the
@@ -911,6 +1035,10 @@ final class SimpleItemHider: ObservableObject {
         guard let appState,
               appState.settings.advanced.enableExperimentalOverflowPrevention
         else { return }
+        guard !appState.menuBarManager.shouldDeferMacOS27MenuBarMutation else {
+            diagLog.debug("Skipping experimental overflow prevention: native menu bar unavailable/transitioning")
+            return
+        }
 
         var positions = positionStore.readPositions()
         let existingKeys = Array(positions.keys)
