@@ -455,7 +455,7 @@ self.sectionAssignment = Self.assignmentFromOrder(
     /// Time spent with a menu open does not count toward the delay.
     func scheduleTemporaryItemConceal(_ identifier: String) {
         temporaryRevealConcealTasks[identifier]?.cancel()
-        let interval = appState?.settings.advanced.tempShowInterval ?? Defaults.DefaultValue.tempShowInterval
+        let interval = appState?.settings.general.tempShowInterval ?? Defaults.DefaultValue.tempShowInterval
         guard interval > 0 else {
             concealTemporarilyRevealedItem(identifier)
             return
