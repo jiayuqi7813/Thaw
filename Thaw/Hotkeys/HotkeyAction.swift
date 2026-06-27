@@ -44,7 +44,10 @@ enum HotkeyAction: String, Codable, CaseIterable {
                 appState.menuBarManager.showOnHoverAllowed = false
             }
         case .toggleAlwaysHiddenSection:
-            guard let section = appState.menuBarManager.section(withName: .alwaysHidden) else {
+            guard
+                let section = appState.menuBarManager.section(withName: .alwaysHidden),
+                section.isEnabled
+            else {
                 return
             }
             section.toggle(triggeredByHotkey: true)
