@@ -211,12 +211,16 @@ final class MenuBarItemManager: ObservableObject {
     /// latter embeds the item's transient windowID, which would defeat the
     /// backoff the moment either item's synthetic windowID churns between
     /// cycles even though the logical move being retried hasn't changed.
-    private static func macOS27MoveFailureKey(item: MenuBarItem, destination: MoveDestination) -> String {
+    private static func macOS27MoveFailureKey(
+        item: MenuBarItem,
+        destination: MoveDestination,
+        desiredOrder: [String]
+    ) -> String {
         let side = switch destination {
         case .leftOfItem: "leftOf"
         case .rightOfItem: "rightOf"
         }
-        return "\(item.uniqueIdentifier)|\(side)|\(destination.targetItem.uniqueIdentifier)"
+        return "\(desiredOrder.joined(separator: ">"))|\(item.uniqueIdentifier)|\(side)|\(destination.targetItem.uniqueIdentifier)"
     }
 
     /// Cached timeouts for move operations.
@@ -547,6 +551,13 @@ final class MenuBarItemManager: ObservableObject {
     @available(macOS 27, *)
     @discardableResult
     private func repairVisibleLayoutAfterRestrictionChange() async -> Bool {
+        if appState?.menuBarManager.shouldDeferMacOS27MenuBarMutation == true {
+            MenuBarItemManager.diagLog.debug(
+                "post-restriction repair: deferred; native menu bar unavailable/transitioning"
+            )
+            return true
+        }
+
         guard let appState,
               let hider = appState.menuBarManager.simpleItemHider
         else {
@@ -680,13 +691,16 @@ final class MenuBarItemManager: ObservableObject {
         for section: MenuBarSection.Name
     ) {
         guard !MenuBarBackendFactory.current.supportsLegacySectionHiding else { return }
+        // On macOS 27 SimpleItemHider.persistOrder() is the single writer to
+        // "MenuBarItemManager.savedSectionOrder" defaults; this method only
+        // keeps the in-memory dict in sync so LayoutSolver reads fresh data
+        // without waiting for the next cache-cycle mirror.
         let key = sectionKey(for: section)
         if identifiers.isEmpty {
             savedSectionOrder.removeValue(forKey: key)
         } else {
             savedSectionOrder[key] = identifiers
         }
-        persistSavedSectionOrder()
         MenuBarItemManager.diagLog.debug(
             "Mirrored macOS 27 layout drop into saved order for \(section.logString): \(identifiers.count) item(s)"
         )
@@ -4244,6 +4258,13 @@ extension MenuBarItemManager {
         whileRevealing revealedSection: MenuBarSection.Name? = nil,
         repairAfterRestriction: Bool = false
     ) async {
+        if appState?.menuBarManager.shouldDeferMacOS27MenuBarMutation == true {
+            MenuBarItemManager.diagLog.debug(
+                "Skipping macOS 27 section order: native menu bar unavailable/transitioning"
+            )
+            return
+        }
+
         // The settle window only defers *automatic* visible-section reorders
         // (see `isWithinRestrictionReflowSettleWindow`'s doc comment) that run
         // opportunistically while idle. The hidden/always-hidden path here is
@@ -4336,7 +4357,11 @@ extension MenuBarItemManager {
                 // since the failure never resolves the divergence that
                 // triggered it — a perpetual cursor-warp/hide loop that also
                 // disrupts the dragged item's own AX state.
-                let failureKey = Self.macOS27MoveFailureKey(item: plannedMove.item, destination: plannedMove.destination)
+                let failureKey = Self.macOS27MoveFailureKey(
+                    item: plannedMove.item,
+                    destination: plannedMove.destination,
+                    desiredOrder: desiredOrder
+                )
                 if !repairAfterRestriction,
                    let lastFailure = recentMacOS27MoveFailures[failureKey],
                    ContinuousClock.now - lastFailure < Self.macOS27MoveFailureBackoff
