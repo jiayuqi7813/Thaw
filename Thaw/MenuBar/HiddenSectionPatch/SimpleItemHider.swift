@@ -175,12 +175,47 @@ self.sectionAssignment = Self.assignmentFromOrder(
         }
     }
 
-    /// Whether the identifier belongs to an app whose hiding is not yet
-    /// supported (e.g. iStat Menus with its per-second title rotation).
-    /// These items can be reordered but must never be assigned to a hidden
-    /// section — the assertion cannot reliably hide them and the dynamic
-    /// titles create stale-assignment leaks. Such items are simply never
-    /// placed in the hidden-assignment list.
+    // Whether the identifier belongs to an app whose hiding is not yet
+    // supported (e.g. iStat Menus with its per-second title rotation).
+    // These items can be reordered but must never be assigned to a hidden
+    // section — the assertion cannot reliably hide them and the dynamic
+    // titles create stale-assignment leaks. Such items are simply never
+    // placed in the hidden-assignment list.
+    // Invalid-assignment cleanup preserves missing live items because a hidden
+    // item may be absent from AX while concealed or while its app is not running.
+    static func invalidAssignmentIdentifiers(
+        sectionAssignment: [String: MenuBarSection.Name],
+        liveItems: [MenuBarItem],
+        experimentalSystemItemHiding: Bool
+    ) -> Set<String> {
+        let assignedControlItemIDs = Set(
+            sectionAssignment.keys.filter(Self.isControlItemAssignmentIdentifier)
+        )
+        let assignedOwnAppIDs = Set(
+            sectionAssignment.keys.filter(Self.isOwnAppAssignmentIdentifier)
+        )
+        let protectedAssignedIDs = Set(
+            liveItems
+                .filter {
+                    sectionAssignment[$0.uniqueIdentifier] != nil
+                        && (Self.isProtectedAssignmentItem(
+                            $0,
+                            experimentalSystemItemHiding: experimentalSystemItemHiding
+                        )
+                            || !Self.canAssign(
+                                $0,
+                                to: sectionAssignment[$0.uniqueIdentifier] ?? .visible,
+                                experimentalSystemItemHiding: experimentalSystemItemHiding
+                            ))
+                }
+                .map(\.uniqueIdentifier)
+        )
+
+        return assignedControlItemIDs
+            .union(assignedOwnAppIDs)
+            .union(protectedAssignedIDs)
+    }
+
     private static func isHidingUnsupportedAssignmentIdentifier(_ identifier: String) -> Bool {
         MenuBarItemTag.hidingUnsupportedBundleIDs.contains { bundleID in
             identifier.hasPrefix("\(bundleID):")
@@ -878,30 +913,11 @@ self.sectionAssignment = Self.assignmentFromOrder(
         guard let appState else { return }
         let experimentalSystemItemHiding = appState.settings.advanced.enableExperimentalSystemItemHiding
         let allItems = appState.itemManager.itemCache.managedItems
-        let assignedControlItemIDs = Set(sectionAssignment.keys.filter(Self.isControlItemAssignmentIdentifier))
-        let protectedAssignedIDs = Set(
-            allItems
-                .filter {
-                    (Self.isProtectedAssignmentItem(
-                        $0,
-                        experimentalSystemItemHiding: experimentalSystemItemHiding
-                    ) ||
-                        !Self.canAssign(
-                            $0,
-                            to: sectionAssignment[$0.uniqueIdentifier] ?? .visible,
-                            experimentalSystemItemHiding: experimentalSystemItemHiding
-                        )) &&
-                        sectionAssignment[$0.uniqueIdentifier] != nil
-                }
-                .map(\.uniqueIdentifier)
+        let invalidAssignmentIDs = Self.invalidAssignmentIdentifiers(
+            sectionAssignment: sectionAssignment,
+            liveItems: allItems,
+            experimentalSystemItemHiding: experimentalSystemItemHiding
         )
-        let assignedOwnAppIDs = Set(sectionAssignment.keys.filter(Self.isOwnAppAssignmentIdentifier))
-        let liveItemIDs = Set(allItems.map(\.uniqueIdentifier))
-        let missingLiveIDs = Set(sectionAssignment.keys).subtracting(liveItemIDs)
-        let invalidAssignmentIDs = assignedControlItemIDs
-            .union(assignedOwnAppIDs)
-            .union(protectedAssignedIDs)
-            .union(missingLiveIDs)
         if !invalidAssignmentIDs.isEmpty {
             for identifier in invalidAssignmentIDs {
                 removeFromOrder(identifier: identifier)
