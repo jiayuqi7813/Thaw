@@ -141,11 +141,10 @@ enum MenuBarAgentPositionStore {
         if let midpoint = midpointPosition(between: anchorValue, and: farValue) {
             newValue = midpoint
         } else {
-            // No numeric gap between neighbors — shift by 1 in the move direction.
-            newValue = destination.isRightward ? anchorValue + 1 : anchorValue - 1
             diagLog.debug(
-                "No numeric gap between \(anchorKey)=\(anchorValue) and far=\(farValue); using adjacent weight \(newValue)"
+                "No numeric gap between \(anchorKey)=\(anchorValue) and far=\(farValue); deferring synthetic drag"
             )
+            return false
         }
 
         var updated = positions
