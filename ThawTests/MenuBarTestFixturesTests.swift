@@ -7,6 +7,7 @@
 //  Licensed under the GNU GPLv3
 
 @testable import Thaw
+import CoreGraphics
 import XCTest
 
 /// Sanity tests for the synthetic fixture builders in
@@ -423,6 +424,84 @@ final class MenuBarItemCaptureSectionTests: XCTestCase {
 // MARK: - Image Capture Invalidation Tests
 
 final class ImageCaptureInvalidationTests: XCTestCase {
+    func testTransparentCapturedImageIsEffectivelyBlank() throws {
+        let image = try makeImage(alpha: 0)
+        let captured = MenuBarItemImageCache.CapturedImage(cgImage: image, scale: 2)
+        XCTAssertTrue(captured.isEffectivelyBlank)
+    }
+
+    func testOpaqueCapturedImageIsNotEffectivelyBlank() throws {
+        let image = try makeImage(alpha: 255)
+        let captured = MenuBarItemImageCache.CapturedImage(cgImage: image, scale: 2)
+        XCTAssertFalse(captured.isEffectivelyBlank)
+    }
+
+    func testPrewarmRevealRestorationHidesWhenPrewarmCreatedReveal() {
+        XCTAssertEqual(
+            MenuBarItemImageCache.PrewarmRevealRestorationAction.resolve(
+                previous: nil,
+                currentAfterShow: .hidden
+            ),
+            .hide
+        )
+    }
+
+    func testPrewarmRevealRestorationNoOpsWhenRevealAlreadyOpen() {
+        XCTAssertEqual(
+            MenuBarItemImageCache.PrewarmRevealRestorationAction.resolve(
+                previous: .hidden,
+                currentAfterShow: .hidden
+            ),
+            .noOp
+        )
+    }
+
+    func testPrewarmRevealRestorationRestoresPreviousReveal() {
+        XCTAssertEqual(
+            MenuBarItemImageCache.PrewarmRevealRestorationAction.resolve(
+                previous: .alwaysHidden,
+                currentAfterShow: .hidden
+            ),
+            .show(.alwaysHidden)
+        )
+    }
+
+    func testPrewarmNeedsCaptureWhenImageMissing() throws {
+        let image = try makeImage(alpha: 255)
+        let captured = MenuBarItemImageCache.CapturedImage(cgImage: image, scale: 2)
+
+        XCTAssertTrue(
+            MenuBarItemImageCache.prewarmNeedsCapture(
+                cachedImage: nil,
+                wouldAttemptCapture: true
+            )
+        )
+        XCTAssertFalse(
+            MenuBarItemImageCache.prewarmNeedsCapture(
+                cachedImage: captured,
+                wouldAttemptCapture: true
+            )
+        )
+    }
+
+    func testPrewarmNeedsCaptureWhenImageBlank() throws {
+        let image = try makeImage(alpha: 0)
+        let captured = MenuBarItemImageCache.CapturedImage(cgImage: image, scale: 2)
+
+        XCTAssertTrue(
+            MenuBarItemImageCache.prewarmNeedsCapture(
+                cachedImage: captured,
+                wouldAttemptCapture: true
+            )
+        )
+        XCTAssertFalse(
+            MenuBarItemImageCache.prewarmNeedsCapture(
+                cachedImage: captured,
+                wouldAttemptCapture: false
+            )
+        )
+    }
+
     func testPositionOnlyJitterDoesNotInvalidateCapture() {
         let tag = MenuBarItemTag.appItem(bundleID: "com.example.app", title: "Status")
         let original = cache(containing: .fixture(
@@ -465,5 +544,27 @@ final class ImageCaptureInvalidationTests: XCTestCase {
         var cache = MenuBarItemManager.ItemCache(displayID: 1)
         cache[.visible] = [item]
         return cache
+    }
+
+    private func makeImage(alpha: UInt8) throws -> CGImage {
+        let width = 2
+        let height = 2
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        for index in stride(from: 3, to: pixels.count, by: 4) {
+            pixels[index] = alpha
+        }
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let context = CGContext(
+            data: &pixels,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width * 4,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ), let image = context.makeImage() else {
+            throw XCTSkip("Unable to create test image")
+        }
+        return image
     }
 }
