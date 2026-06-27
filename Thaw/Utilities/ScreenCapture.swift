@@ -180,6 +180,51 @@ enum ScreenCapture {
     }
 
     @available(macOS 27, *)
+    private static func captureMenuBarDisplayStripAsync(
+        display: SCDisplay
+    ) async -> MenuBarHostingCapture? {
+        let displayFrame = display.frame
+        let stripHeight = min(CGFloat(40), displayFrame.height)
+        let stripFrame = CGRect(
+            x: displayFrame.minX,
+            y: displayFrame.minY,
+            width: displayFrame.width,
+            height: stripHeight
+        )
+
+        let filter = SCContentFilter(display: display, excludingWindows: [])
+        let scale = CGFloat(filter.pointPixelScale)
+
+        let configuration = SCStreamConfiguration()
+        configuration.showsCursor = false
+        configuration.width = Int((stripFrame.width * scale).rounded())
+        configuration.height = Int((stripFrame.height * scale).rounded())
+        configuration.sourceRect = CGRect(
+            x: stripFrame.minX - displayFrame.minX,
+            y: stripFrame.minY - displayFrame.minY,
+            width: stripFrame.width,
+            height: stripFrame.height
+        )
+
+        do {
+            let image = try await SCScreenshotManager.captureImage(
+                contentFilter: filter,
+                configuration: configuration
+            )
+            diagLog.debug(
+                "captureMenuBarHostingWindowAsync: captured fallback display strip " +
+                "\(image.width)×\(image.height)px displayID=\(display.displayID)"
+            )
+            return MenuBarHostingCapture(image: image, windowFrame: stripFrame, scale: scale)
+        } catch {
+            diagLog.error(
+                "captureMenuBarHostingWindowAsync: fallback display strip failed: \(error)"
+            )
+            return nil
+        }
+    }
+
+    @available(macOS 27, *)
     static func logMenuBarHostingWindowCandidates(
         displayID: CGDirectDisplayID,
         reason: String
@@ -257,7 +302,7 @@ enum ScreenCapture {
 
         guard let window else {
             diagLog.warning("captureMenuBarHostingWindowAsync: no MenuBarAgent hosting window on display \(displayID)")
-            return nil
+            return await captureMenuBarDisplayStripAsync(display: display)
         }
 
         let filter = SCContentFilter(desktopIndependentWindow: window)
@@ -281,7 +326,7 @@ enum ScreenCapture {
             return MenuBarHostingCapture(image: image, windowFrame: window.frame, scale: scale)
         } catch {
             diagLog.error("captureMenuBarHostingWindowAsync: SCScreenshotManager.captureImage failed: \(error)")
-            return nil
+            return await captureMenuBarDisplayStripAsync(display: display)
         }
     }
 
