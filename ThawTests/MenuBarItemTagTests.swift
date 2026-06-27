@@ -899,17 +899,51 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
             alwaysHiddenEnabled: true
         )
 
-        XCTAssertEqual(
-            assignment,
-            [
-                "com.example.hidden:Hidden": .hidden,
-                "com.example.always:Always": .alwaysHidden,
-            ]
-        )
-    }
+    XCTAssertEqual(
+        assignment,
+        [
+            "com.example.hidden:Hidden": .hidden,
+            "com.example.always:Always": .alwaysHidden,
+        ]
+    )
+}
 
-    @MainActor
-    func testMergeMigratedSectionOrderFromLegacyOrderOnly() {
+@MainActor
+func testInvalidAssignmentIdentifiersPreservesMissingHiddenItems() {
+    let assignment: [String: MenuBarSection.Name] = [
+        "com.example.hidden:Hidden": .hidden,
+    ]
+
+    let invalid = SimpleItemHider.invalidAssignmentIdentifiers(
+        sectionAssignment: assignment,
+        liveItems: [],
+        experimentalSystemItemHiding: false
+    )
+
+    XCTAssertTrue(invalid.isEmpty)
+}
+
+@MainActor
+func testInvalidAssignmentIdentifiersRejectsProtectedLiveItems() {
+    let clock = MenuBarItem.fixture(
+        tag: .appItem(bundleID: "com.apple.systemuiserver", title: "Clock"),
+        windowID: 1900
+    )
+    let assignment: [String: MenuBarSection.Name] = [
+        clock.uniqueIdentifier: .hidden,
+    ]
+
+    let invalid = SimpleItemHider.invalidAssignmentIdentifiers(
+        sectionAssignment: assignment,
+        liveItems: [clock],
+        experimentalSystemItemHiding: false
+    )
+
+    XCTAssertEqual(invalid, [clock.uniqueIdentifier])
+}
+
+@MainActor
+func testMergeMigratedSectionOrderFromLegacyOrderOnly() {
         let order = SimpleItemHider.mergeMigratedSectionOrder(
             sharedOrder: nil,
             legacyOrder: ["hidden": ["a", "b"]],
@@ -1073,11 +1107,33 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         guard case let .leftOfItem(target) = destination else {
             return XCTFail("expected Thaw to move left of Alpha")
         }
-        XCTAssertEqual(target.uniqueIdentifier, alpha.uniqueIdentifier)
+    XCTAssertEqual(target.uniqueIdentifier, alpha.uniqueIdentifier)
+}
+
+@MainActor
+func testMacOS27VisibleThawControlRestoreMoveUsesSavedOrder() throws {
+    guard #available(macOS 27, *) else {
+        throw XCTSkip("macOS 27 layout dragging is OS-specific")
     }
 
-    @MainActor
-    func testAssigningLiveItemToHiddenRetainsImmediateSnapshot() throws {
+    let alpha = appItem(bundleID: "com.example.alpha", title: "Alpha", x: 100, windowID: 1530)
+    let thaw = item(tag: .visibleControlItem, x: 140, windowID: 1531)
+    let beta = appItem(bundleID: "com.example.beta", title: "Beta", x: 180, windowID: 1532)
+
+    let plannedMove = LayoutPlanner.visibleControlRestoreMove(
+        items: [alpha, thaw, beta],
+        desiredOrder: [thaw.uniqueIdentifier, alpha.uniqueIdentifier, beta.uniqueIdentifier]
+    )
+
+    XCTAssertEqual(plannedMove?.item.uniqueIdentifier, thaw.uniqueIdentifier)
+    guard case let .leftOfItem(target) = plannedMove?.destination else {
+        return XCTFail("expected Thaw control to move left of Alpha")
+    }
+    XCTAssertEqual(target.uniqueIdentifier, alpha.uniqueIdentifier)
+}
+
+@MainActor
+func testAssigningLiveItemToHiddenRetainsImmediateSnapshot() throws {
         guard #available(macOS 27, *) else {
             throw XCTSkip("SimpleItemHider snapshots are macOS 27-specific")
         }
