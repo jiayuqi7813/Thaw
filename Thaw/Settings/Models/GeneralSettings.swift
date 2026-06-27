@@ -83,6 +83,9 @@ final class GeneralSettings: ObservableObject {
     /// is ``RehideStrategy/timed``.
     @Published var rehideInterval = Defaults.DefaultValue.rehideInterval
 
+    /// Time interval temporarily shown menu bar items remain visible.
+    @Published var tempShowInterval = Defaults.DefaultValue.tempShowInterval
+
     /// Encoder for properties.
     private let encoder = JSONEncoder()
 
@@ -115,6 +118,7 @@ final class GeneralSettings: ObservableObject {
         Defaults.ifPresent(key: .showOnScroll, assign: &showOnScroll)
         Defaults.ifPresent(key: .autoRehide, assign: &autoRehide)
         Defaults.ifPresent(key: .rehideInterval, assign: &rehideInterval)
+        Defaults.ifPresent(key: .tempShowInterval, assign: &tempShowInterval)
 
         Defaults.ifPresent(key: .iceBarLocation) { rawValue in
             if let location = IceBarLocation(rawValue: rawValue) {
@@ -177,6 +181,7 @@ final class GeneralSettings: ObservableObject {
         $autoRehide.persistToDefaults(key: .autoRehide, in: &c)
         $rehideStrategy.persistToDefaults(key: .rehideStrategy, transform: \.rawValue, in: &c)
         $rehideInterval.persistToDefaults(key: .rehideInterval, in: &c)
+        $tempShowInterval.persistToDefaults(key: .tempShowInterval, in: &c)
 
         // Observe external settings changes via Settings URI
         NotificationCenter.default
@@ -233,6 +238,8 @@ final class GeneralSettings: ObservableObject {
 
             if key == "rehideInterval", rehideInterval != doubleValue {
                 rehideInterval = doubleValue
+            } else if key == "tempShowInterval", tempShowInterval != doubleValue {
+                tempShowInterval = doubleValue
             }
         }
 
