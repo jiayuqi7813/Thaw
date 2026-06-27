@@ -8332,10 +8332,7 @@ extension MenuBarItemManager {
         // control are still visible-assigned), which collided with volatile
         // neighbours like iStat and stranded them off the bar.
         guard MenuBarBackendFactory.current.supportsLegacySectionHiding else {
-            MenuBarItemManager.diagLog.debug(
-                "applySavedLayout: skipping, macOS 27 uses assignment mirror"
-            )
-            return false
+            return await restoreMacOS27VisibleControlOrder(items: items)
         }
 
         // Trigger detection. The cache cycle calls this on every tick;
@@ -8429,6 +8426,55 @@ extension MenuBarItemManager {
     /// Only items at x=-1 are restored; normally hidden items are left as-is.
     ///
     /// - Returns: The number of items that failed to move.
+    private func restoreMacOS27VisibleControlOrder(items: [MenuBarItem]) async -> Bool {
+        let desiredOrder = savedSectionOrder[sectionKey(for: .visible)] ?? []
+        guard let plannedMove = LayoutPlanner.visibleControlRestoreMove(
+            items: items,
+            desiredOrder: desiredOrder,
+            experimentalSystemItemHiding: appState?.settings.advanced.enableExperimentalSystemItemHiding ?? false
+        ) else {
+            MenuBarItemManager.diagLog.debug(
+                "applySavedLayout: skipping, macOS 27 visible control order already matches saved layout"
+            )
+            return false
+        }
+
+        let failureKey = Self.macOS27MoveFailureKey(
+            item: plannedMove.item,
+            destination: plannedMove.destination,
+            desiredOrder: desiredOrder
+        )
+        if let lastFailure = recentMacOS27MoveFailures[failureKey],
+           ContinuousClock.now - lastFailure < Self.macOS27MoveFailureBackoff
+        {
+            MenuBarItemManager.diagLog.debug(
+                "applySavedLayout: skipping recently-failed macOS 27 visible control restore \(plannedMove.item.logString) \(plannedMove.destination.logString)"
+            )
+            return false
+        }
+
+        do {
+            try await move(
+                item: plannedMove.item,
+                to: plannedMove.destination,
+                skipInputPause: true,
+                watchdogTimeout: Self.layoutWatchdogTimeout
+            )
+            recentMacOS27MoveFailures.removeValue(forKey: failureKey)
+            MenuBarItemManager.diagLog.info(
+                "applySavedLayout: restored macOS 27 visible control order for \(plannedMove.item.logString)"
+            )
+            scheduleDeferredCacheRefresh()
+            return true
+        } catch {
+            recentMacOS27MoveFailures[failureKey] = .now
+            MenuBarItemManager.diagLog.error(
+                "applySavedLayout: failed macOS 27 visible control restore \(plannedMove.item.logString): \(error)"
+            )
+            return false
+        }
+    }
+
     @MainActor
     func restoreBlockedItemsToVisible() async -> Int {
         // macOS 27: items are composited inside MenuBarAgent and can't be moved
