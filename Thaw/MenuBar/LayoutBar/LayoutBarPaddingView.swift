@@ -469,11 +469,15 @@ final class LayoutBarPaddingView: NSView {
                 await appState.imageCache.updateCacheWithoutChecks(sections: MenuBarSection.Name.allCases)
             }
             do {
+                let recoveringStrandedVisibleControl = item.tag.matchesVisibleControlItem
+                    && (item.bounds.origin.x == -1 || item.bounds.midY > 80)
                 try await appState.itemManager.move(
                     item: item,
                     to: destination,
                     skipInputPause: true,
-                    watchdogTimeout: MenuBarItemManager.layoutWatchdogTimeout
+                    watchdogTimeout: MenuBarItemManager.layoutWatchdogTimeout,
+                    allowParkedOffMenuBarSource: recoveringStrandedVisibleControl,
+                    skipPreferredPositionMove: recoveringStrandedVisibleControl
                 )
                 if let sectionOrderToCommit {
                     appState.menuBarManager.simpleItemHider?.setSectionOrder(
@@ -727,11 +731,15 @@ final class LayoutBarPaddingView: NSView {
             // Allow macOS a brief moment to settle, then retry once.
             try? await Task.sleep(for: .milliseconds(120))
             do {
+                let recoveringStrandedVisibleControl = item.tag.matchesVisibleControlItem
+                    && (item.bounds.origin.x == -1 || item.bounds.midY > 80)
                 try await appState.itemManager.move(
                     item: item,
                     to: destination,
                     skipInputPause: true,
-                    watchdogTimeout: MenuBarItemManager.layoutWatchdogTimeout
+                    watchdogTimeout: MenuBarItemManager.layoutWatchdogTimeout,
+                    allowParkedOffMenuBarSource: recoveringStrandedVisibleControl,
+                    skipPreferredPositionMove: recoveringStrandedVisibleControl
                 )
                 await appState.itemManager.cacheItemsRegardless(skipRecentMoveCheck: true)
             } catch {
