@@ -460,6 +460,12 @@ final class LayoutBarPaddingView: NSView {
                 await self.resetStabilizingStateIfNeeded()
                 guard let appState else { return }
                 await appState.itemManager.cacheItemsRegardless(skipRecentMoveCheck: true)
+                if #available(macOS 27, *) {
+                    await appState.imageCache.prewarmConcealedImagesMacOS27(
+                        sections: MenuBarSection.Name.allCases,
+                        onlyMissingImages: false
+                    )
+                }
                 await appState.imageCache.updateCacheWithoutChecks(sections: MenuBarSection.Name.allCases)
             }
             do {
@@ -736,6 +742,12 @@ final class LayoutBarPaddingView: NSView {
         // Refresh images so icons show immediately in the UI without clearing to avoid temporary gaps.
         await MainActor.run {
             appState.imageCache.performCacheCleanup()
+        }
+        if #available(macOS 27, *) {
+            await appState.imageCache.prewarmConcealedImagesMacOS27(
+                sections: MenuBarSection.Name.allCases,
+                onlyMissingImages: false
+            )
         }
         await appState.imageCache.updateCacheWithoutChecks(sections: MenuBarSection.Name.allCases)
     }
