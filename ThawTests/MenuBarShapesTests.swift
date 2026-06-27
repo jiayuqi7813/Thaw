@@ -238,6 +238,212 @@ final class MenuBarSplitPillGeometryTests: XCTestCase {
         XCTAssertEqual(bounds.minX, 836)
         XCTAssertEqual(bounds.maxX, 1492)
     }
+
+    func testResolveSplitPathBoundsDoesNotResurrectStaleTrailingOnOverlap() {
+        let leading = CGRect(x: 0, y: 0, width: 400, height: 24)
+        let overlappingTrailing = CGRect(x: 350, y: 0, width: 200, height: 24)
+        let staleTrailing = CGRect(x: 200, y: 0, width: 800, height: 24)
+
+        let resolved = MenuBarSplitPillGeometry.resolveSplitPathBounds(
+            leading: leading,
+            trailing: overlappingTrailing,
+            geometryFrozen: false,
+            lastStableLeading: leading,
+            lastStableTrailing: staleTrailing
+        )
+
+        XCTAssertEqual(resolved.trailing, .zero)
+        XCTAssertEqual(resolved.nextStableTrailing, .zero)
+    }
+
+    @available(macOS 27, *)
+    func testTrailingPillBoundsExcludesHiddenSectionAppleItemsEvenIfNonConcealable() {
+        // CC-governable Apple items (Sound, WiFi, …) in Thaw's hidden section sit
+        // in the hidden slot far to the left when CC-hidden. They must be excluded
+        // by the section filter or the trailing pill stretches left over empty space.
+        let hiddenCCItem = MenuBarItem.fixture(
+            tag: .appItem(bundleID: "com.apple.controlcenter", title: "Sound"),
+            windowID: 1,
+            bounds: CGRect(x: 200, y: 3, width: 24, height: 24)
+        )
+        let visible = MenuBarItem.fixture(
+            tag: .appItem(bundleID: "com.apple.systemuiserver", title: "Clock"),
+            windowID: 2,
+            bounds: CGRect(x: 1450, y: 3, width: 60, height: 24)
+        )
+        let control = MenuBarItem.fixture(
+            tag: .visibleControlItem,
+            windowID: 100,
+            bounds: CGRect(x: 1400, y: 3, width: 35, height: 24)
+        )
+        let items = [hiddenCCItem, control, visible]
+        let context = MenuBarSplitPillGeometry.TrailingPillContext(
+            revealedSection: nil,
+            section: { item in
+                item.windowID == 1 ? .hidden : .visible
+            }
+        )
+
+        let bounds = MenuBarSplitPillGeometry.trailingPillBounds(
+            from: items,
+            context: context
+        )
+
+        // The hidden CC item must not contribute to the bounds.
+        XCTAssertFalse(bounds.contains(hiddenCCItem.bounds),
+                       "hidden-section CC item should be excluded from trailing pill")
+        XCTAssertTrue(bounds.contains(visible.bounds),
+                      "visible-section item should be included")
+    }
+
+    @available(macOS 27, *)
+    func testTrailingPillBoundsIncludesVisibleItemsLeftOfChevron() {
+        // Third-party status items can legitimately sit left of Thaw's chevron.
+        // The chevron position is not a visibility boundary.
+        let istatItem = MenuBarItem.fixture(
+            tag: .appItem(bundleID: "com.bjango.istatmenus.status", title: "iStat"),
+            windowID: 1,
+            bounds: CGRect(x: 300, y: 3, width: 24, height: 24)
+        )
+        let istatItem2 = MenuBarItem.fixture(
+            tag: .appItem(bundleID: "com.bjango.istatmenus.status", title: "iStat-2"),
+            windowID: 2,
+            bounds: CGRect(x: 330, y: 3, width: 24, height: 24)
+        )
+        let istatItem3 = MenuBarItem.fixture(
+            tag: .appItem(bundleID: "com.bjango.istatmenus.status", title: "iStat-3"),
+            windowID: 3,
+            bounds: CGRect(x: 360, y: 3, width: 24, height: 24)
+        )
+        let chevron = MenuBarItem.fixture(
+            tag: .visibleControlItem,
+            windowID: 100,
+            bounds: CGRect(x: 1150, y: 3, width: 35, height: 24)
+        )
+        let clock = MenuBarItem.fixture(
+            tag: .appItem(bundleID: "com.apple.systemuiserver", title: "Clock"),
+            windowID: 200,
+            bounds: CGRect(x: 1420, y: 3, width: 60, height: 24)
+        )
+        let items = [istatItem, istatItem2, istatItem3, chevron, clock]
+        let context = MenuBarSplitPillGeometry.TrailingPillContext(
+            revealedSection: nil,
+            section: { _ in .visible }
+        )
+
+        let bounds = MenuBarSplitPillGeometry.trailingPillBounds(
+            from: items,
+            context: context
+        )
+
+        XCTAssertTrue(bounds.contains(istatItem.bounds), "visible item left of chevron should be included")
+        XCTAssertTrue(bounds.contains(istatItem2.bounds), "visible item left of chevron should be included")
+        XCTAssertTrue(bounds.contains(istatItem3.bounds), "visible item left of chevron should be included")
+        XCTAssertTrue(bounds.contains(clock.bounds), "visible item right of chevron should be included")
+        XCTAssertTrue(bounds.contains(chevron.bounds), "visible control item should be included")
+    }
+
+    func testResolveSplitPathBoundsReturnsBothZeroWhenNoGeometryYet() {
+        // When no geometry is loaded yet (startup), resolve should return (.zero, .zero)
+        // so the caller draws nothing rather than a full-width fallback pill.
+        let resolved = MenuBarSplitPillGeometry.resolveSplitPathBounds(
+            leading: .zero,
+            trailing: .zero,
+            geometryFrozen: false,
+            lastStableLeading: .zero,
+            lastStableTrailing: .zero
+        )
+
+        XCTAssertEqual(resolved.leading, .zero)
+        XCTAssertEqual(resolved.trailing, .zero)
+    }
+
+    func testResolveSplitPathBoundsRestoresStablePairWhenFrozen() {
+        let leading = CGRect(x: 0, y: 0, width: 400, height: 24)
+        let trailing = CGRect(x: 500, y: 0, width: 200, height: 24)
+        let freshLeading = CGRect(x: 10, y: 0, width: 50, height: 24)
+
+        let resolved = MenuBarSplitPillGeometry.resolveSplitPathBounds(
+            leading: freshLeading,
+            trailing: .zero,
+            geometryFrozen: true,
+            lastStableLeading: leading,
+            lastStableTrailing: trailing
+        )
+
+        XCTAssertEqual(resolved.leading, leading)
+        XCTAssertEqual(resolved.trailing, trailing)
+    }
+
+    @available(macOS 27, *)
+    func testTrailingPillBoundsExcludesParkedItems() {
+        let control = MenuBarItem.fixture(
+            tag: .visibleControlItem,
+            windowID: 100,
+            bounds: CGRect(x: 1200, y: 3, width: 35, height: 24)
+        )
+        let onBar = MenuBarItem.fixture(
+            tag: .appItem(bundleID: "com.example.app", title: "Item"),
+            windowID: 1,
+            bounds: CGRect(x: 1250, y: 3, width: 24, height: 24)
+        )
+        let parked = MenuBarItem.fixture(
+            tag: .appItem(bundleID: "com.other.app", title: "Parked"),
+            windowID: 2,
+            bounds: CGRect(x: 7, y: 1413, width: 21, height: 24)
+        )
+        let items = [control, onBar, parked]
+        let context = MenuBarSplitPillGeometry.TrailingPillContext(
+            revealedSection: nil,
+            section: { _ in .visible }
+        )
+
+        let bounds = MenuBarSplitPillGeometry.trailingPillBounds(
+            from: items,
+            context: context
+        )
+
+        XCTAssertEqual(bounds.count, 2)
+        XCTAssertTrue(bounds.contains(control.bounds), "visible control item should be included")
+        XCTAssertTrue(bounds.contains(onBar.bounds), "on-bar item should be included")
+        XCTAssertFalse(bounds.contains(parked.bounds), "parked item should be excluded")
+    }
+
+    @available(macOS 27, *)
+    func testTrailingPillBoundsExcludesConcealedHiddenSectionGhosts() {
+        let ghost = MenuBarItem.fixture(
+            tag: .appItem(bundleID: "com.hidden.app", title: "Ghost"),
+            windowID: 1,
+            bounds: CGRect(x: 900, y: 3, width: 24, height: 24)
+        )
+        let visible = MenuBarItem.fixture(
+            tag: .appItem(bundleID: "com.visible.app", title: "Visible"),
+            windowID: 2,
+            bounds: CGRect(x: 1250, y: 3, width: 24, height: 24)
+        )
+        let control = MenuBarItem.fixture(
+            tag: .visibleControlItem,
+            windowID: 100,
+            bounds: CGRect(x: 1200, y: 3, width: 35, height: 24)
+        )
+        let items = [ghost, control, visible]
+        let context = MenuBarSplitPillGeometry.TrailingPillContext(
+            revealedSection: nil,
+            section: { item in
+                item.tag.title == "Ghost" ? .hidden : .visible
+            }
+        )
+
+        let bounds = MenuBarSplitPillGeometry.trailingPillBounds(
+            from: items,
+            context: context
+        )
+
+        XCTAssertEqual(bounds.count, 2)
+        XCTAssertTrue(bounds.contains(control.bounds), "visible control item should be included")
+        XCTAssertTrue(bounds.contains(visible.bounds), "visible item should be included")
+        XCTAssertFalse(bounds.contains(ghost.bounds), "concealed hidden-section ghost should be excluded")
+    }
 }
 
 // MARK: - MenuBarNotchShapeInfo Tests
