@@ -177,6 +177,69 @@ final class MenuBarSplitShapeInfoTests: XCTestCase {
     }
 }
 
+final class MenuBarSplitPillGeometryTests: XCTestCase {
+    func testTrailingBoundsEmptyWhenNoVisibleItems() {
+        let rect = CGRect(x: 0, y: 5, width: 1512, height: 37)
+        let screenFrame = CGRect(x: 0, y: 0, width: 1512, height: 982)
+
+        let bounds = MenuBarSplitPillGeometry.trailingBounds(
+            itemBounds: [],
+            in: rect,
+            screenFrame: screenFrame,
+            leadingOutset: 12,
+            trailingOutset: 12,
+            notchFrame: nil,
+            notchMargin: 8
+        )
+
+        XCTAssertEqual(bounds, .zero)
+    }
+
+    func testLeadingBoundsClampBeforeNotch() {
+        let rect = CGRect(x: 0, y: 5, width: 1512, height: 37)
+        let screenFrame = CGRect(x: 0, y: 0, width: 1512, height: 982)
+        let appMenuFrame = CGRect(x: 0, y: 945, width: 900, height: 37)
+        let notchFrame = CGRect(x: 684, y: 945, width: 144, height: 37)
+
+        let bounds = MenuBarSplitPillGeometry.leadingBounds(
+            applicationMenuFrame: appMenuFrame,
+            trailingContentMinX: nil,
+            in: rect,
+            screenFrame: screenFrame,
+            trailingPadding: 12,
+            leadingMargin: 0,
+            notchFrame: notchFrame,
+            notchMargin: 8
+        )
+
+        XCTAssertEqual(bounds.minX, 0)
+        XCTAssertEqual(bounds.maxX, 676)
+    }
+
+    func testTrailingBoundsClampAfterNotchAndConvertToLocalCoordinates() {
+        let rect = CGRect(x: 0, y: 5, width: 1512, height: 37)
+        let screenFrame = CGRect(x: 2000, y: 0, width: 1512, height: 982)
+        let notchFrame = CGRect(x: 2684, y: 945, width: 144, height: 37)
+        let itemBounds = [
+            CGRect(x: 2790, y: 945, width: 24, height: 37),
+            CGRect(x: 3400, y: 945, width: 80, height: 37),
+        ]
+
+        let bounds = MenuBarSplitPillGeometry.trailingBounds(
+            itemBounds: itemBounds,
+            in: rect,
+            screenFrame: screenFrame,
+            leadingOutset: 12,
+            trailingOutset: 12,
+            notchFrame: notchFrame,
+            notchMargin: 8
+        )
+
+        XCTAssertEqual(bounds.minX, 836)
+        XCTAssertEqual(bounds.maxX, 1492)
+    }
+}
+
 // MARK: - MenuBarNotchShapeInfo Tests
 
 final class MenuBarNotchShapeInfoTests: XCTestCase {
