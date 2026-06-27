@@ -41,6 +41,7 @@ struct GeneralSettingsSnapshot: Codable {
     var autoRehide: Bool
     var rehideStrategyRawValue: Int
     var rehideInterval: TimeInterval
+    var tempShowInterval: TimeInterval
 
     @MainActor
     static func capture(from settings: GeneralSettings) -> GeneralSettingsSnapshot {
@@ -59,7 +60,8 @@ struct GeneralSettingsSnapshot: Codable {
             showOnScroll: settings.showOnScroll,
             autoRehide: settings.autoRehide,
             rehideStrategyRawValue: settings.rehideStrategy.rawValue,
-            rehideInterval: settings.rehideInterval
+            rehideInterval: settings.rehideInterval,
+            tempShowInterval: settings.tempShowInterval
         )
     }
 
@@ -82,6 +84,102 @@ struct GeneralSettingsSnapshot: Codable {
             settings.rehideStrategy = strategy
         }
         settings.rehideInterval = rehideInterval
+        settings.tempShowInterval = tempShowInterval
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case showIceIcon
+        case iceIcon
+        case lastCustomIceIcon
+        case customIceIconIsTemplate
+        case useIceBar
+        case useIceBarOnlyOnNotchedDisplay
+        case iceBarLocation
+        case iceBarLocationOnHotkey
+        case showOnClick
+        case showOnDoubleClick
+        case showOnHover
+        case showOnScroll
+        case autoRehide
+        case rehideStrategyRawValue
+        case rehideInterval
+        case tempShowInterval
+    }
+
+    init(
+        showIceIcon: Bool,
+        iceIcon: ControlItemImageSet,
+        lastCustomIceIcon: ControlItemImageSet?,
+        customIceIconIsTemplate: Bool,
+        useIceBar: Bool,
+        useIceBarOnlyOnNotchedDisplay: Bool,
+        iceBarLocation: IceBarLocation,
+        iceBarLocationOnHotkey: Bool,
+        showOnClick: Bool,
+        showOnDoubleClick: Bool,
+        showOnHover: Bool,
+        showOnScroll: Bool,
+        autoRehide: Bool,
+        rehideStrategyRawValue: Int,
+        rehideInterval: TimeInterval,
+        tempShowInterval: TimeInterval = Defaults.DefaultValue.tempShowInterval
+    ) {
+        self.showIceIcon = showIceIcon
+        self.iceIcon = iceIcon
+        self.lastCustomIceIcon = lastCustomIceIcon
+        self.customIceIconIsTemplate = customIceIconIsTemplate
+        self.useIceBar = useIceBar
+        self.useIceBarOnlyOnNotchedDisplay = useIceBarOnlyOnNotchedDisplay
+        self.iceBarLocation = iceBarLocation
+        self.iceBarLocationOnHotkey = iceBarLocationOnHotkey
+        self.showOnClick = showOnClick
+        self.showOnDoubleClick = showOnDoubleClick
+        self.showOnHover = showOnHover
+        self.showOnScroll = showOnScroll
+        self.autoRehide = autoRehide
+        self.rehideStrategyRawValue = rehideStrategyRawValue
+        self.rehideInterval = rehideInterval
+        self.tempShowInterval = tempShowInterval
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        showIceIcon = try container.decodeIfPresent(Bool.self, forKey: .showIceIcon)
+            ?? Defaults.DefaultValue.showIceIcon
+        iceIcon = try container.decodeIfPresent(ControlItemImageSet.self, forKey: .iceIcon)
+            ?? Defaults.DefaultValue.iceIcon
+        lastCustomIceIcon = try container.decodeIfPresent(
+            ControlItemImageSet.self, forKey: .lastCustomIceIcon
+        )
+        customIceIconIsTemplate = try container.decodeIfPresent(
+            Bool.self, forKey: .customIceIconIsTemplate
+        ) ?? Defaults.DefaultValue.customIceIconIsTemplate
+        useIceBar = try container.decodeIfPresent(Bool.self, forKey: .useIceBar)
+            ?? Defaults.DefaultValue.useIceBar
+        useIceBarOnlyOnNotchedDisplay = try container.decodeIfPresent(
+            Bool.self, forKey: .useIceBarOnlyOnNotchedDisplay
+        ) ?? Defaults.DefaultValue.useIceBarOnlyOnNotchedDisplay
+        iceBarLocation = try container.decodeIfPresent(IceBarLocation.self, forKey: .iceBarLocation)
+            ?? Defaults.DefaultValue.iceBarLocation
+        iceBarLocationOnHotkey = try container.decodeIfPresent(
+            Bool.self, forKey: .iceBarLocationOnHotkey
+        ) ?? Defaults.DefaultValue.iceBarLocationOnHotkey
+        showOnClick = try container.decodeIfPresent(Bool.self, forKey: .showOnClick)
+            ?? Defaults.DefaultValue.showOnClick
+        showOnDoubleClick = try container.decodeIfPresent(Bool.self, forKey: .showOnDoubleClick)
+            ?? Defaults.DefaultValue.showOnDoubleClick
+        showOnHover = try container.decodeIfPresent(Bool.self, forKey: .showOnHover)
+            ?? Defaults.DefaultValue.showOnHover
+        showOnScroll = try container.decodeIfPresent(Bool.self, forKey: .showOnScroll)
+            ?? Defaults.DefaultValue.showOnScroll
+        autoRehide = try container.decodeIfPresent(Bool.self, forKey: .autoRehide)
+            ?? Defaults.DefaultValue.autoRehide
+        rehideStrategyRawValue = try container.decodeIfPresent(Int.self, forKey: .rehideStrategyRawValue)
+            ?? Defaults.DefaultValue.rehideStrategy.rawValue
+        rehideInterval = try container.decodeIfPresent(TimeInterval.self, forKey: .rehideInterval)
+            ?? Defaults.DefaultValue.rehideInterval
+        tempShowInterval = try container.decodeIfPresent(TimeInterval.self, forKey: .tempShowInterval)
+            ?? Defaults.DefaultValue.tempShowInterval
     }
 }
 
@@ -96,7 +194,6 @@ struct AdvancedSettingsSnapshot: Codable {
     var enableSecondaryContextMenu: Bool
     var enableSecondaryContextMenuQuit: Bool
     var showOnHoverDelay: TimeInterval
-    var tempShowInterval: TimeInterval
     var tooltipDelay: TimeInterval
     var showMenuBarTooltips: Bool
     var iconRefreshInterval: TimeInterval
@@ -121,7 +218,6 @@ struct AdvancedSettingsSnapshot: Codable {
             enableSecondaryContextMenu: settings.enableSecondaryContextMenu,
             enableSecondaryContextMenuQuit: settings.enableSecondaryContextMenuQuit,
             showOnHoverDelay: settings.showOnHoverDelay,
-            tempShowInterval: settings.tempShowInterval,
             tooltipDelay: settings.tooltipDelay,
             showMenuBarTooltips: settings.showMenuBarTooltips,
             iconRefreshInterval: settings.iconRefreshInterval,
@@ -149,7 +245,6 @@ struct AdvancedSettingsSnapshot: Codable {
         settings.enableSecondaryContextMenu = enableSecondaryContextMenu
         settings.enableSecondaryContextMenuQuit = enableSecondaryContextMenuQuit
         settings.showOnHoverDelay = showOnHoverDelay
-        settings.tempShowInterval = tempShowInterval
         settings.tooltipDelay = tooltipDelay
         settings.showMenuBarTooltips = showMenuBarTooltips
         settings.iconRefreshInterval = iconRefreshInterval
@@ -173,7 +268,6 @@ struct AdvancedSettingsSnapshot: Codable {
         case enableSecondaryContextMenu
         case enableSecondaryContextMenuQuit
         case showOnHoverDelay
-        case tempShowInterval
         case tooltipDelay
         case showMenuBarTooltips
         case iconRefreshInterval
@@ -197,7 +291,6 @@ struct AdvancedSettingsSnapshot: Codable {
         enableSecondaryContextMenu: Bool,
         enableSecondaryContextMenuQuit: Bool,
         showOnHoverDelay: TimeInterval,
-        tempShowInterval: TimeInterval = Defaults.DefaultValue.tempShowInterval,
         tooltipDelay: TimeInterval,
         showMenuBarTooltips: Bool,
         iconRefreshInterval: TimeInterval,
@@ -219,7 +312,6 @@ struct AdvancedSettingsSnapshot: Codable {
         self.enableSecondaryContextMenu = enableSecondaryContextMenu
         self.enableSecondaryContextMenuQuit = enableSecondaryContextMenuQuit
         self.showOnHoverDelay = showOnHoverDelay
-        self.tempShowInterval = tempShowInterval
         self.tooltipDelay = tooltipDelay
         self.showMenuBarTooltips = showMenuBarTooltips
         self.iconRefreshInterval = iconRefreshInterval
@@ -258,9 +350,6 @@ struct AdvancedSettingsSnapshot: Codable {
         showOnHoverDelay = try container.decodeIfPresent(
             TimeInterval.self, forKey: .showOnHoverDelay
         ) ?? Defaults.DefaultValue.showOnHoverDelay
-        tempShowInterval = try container.decodeIfPresent(
-            TimeInterval.self, forKey: .tempShowInterval
-        ) ?? Defaults.DefaultValue.tempShowInterval
         tooltipDelay = try container.decodeIfPresent(
             TimeInterval.self, forKey: .tooltipDelay
         ) ?? Defaults.DefaultValue.tooltipDelay
@@ -300,6 +389,39 @@ struct AdvancedSettingsSnapshot: Codable {
         searchIncludeAlwaysHidden = try container.decodeIfPresent(
             Bool.self, forKey: .searchIncludeAlwaysHidden
         ) ?? Defaults.DefaultValue.searchIncludeAlwaysHidden
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(enableAlwaysHiddenSection, forKey: .enableAlwaysHiddenSection)
+        try container.encode(showAllSectionsOnUserDrag, forKey: .showAllSectionsOnUserDrag)
+        try container.encode(sectionDividerStyle, forKey: .sectionDividerStyle)
+        try container.encode(hideApplicationMenus, forKey: .hideApplicationMenus)
+        try container.encode(enableSecondaryContextMenu, forKey: .enableSecondaryContextMenu)
+        try container.encode(enableSecondaryContextMenuQuit, forKey: .enableSecondaryContextMenuQuit)
+        try container.encode(showOnHoverDelay, forKey: .showOnHoverDelay)
+        try container.encode(tooltipDelay, forKey: .tooltipDelay)
+        try container.encode(showMenuBarTooltips, forKey: .showMenuBarTooltips)
+        try container.encode(iconRefreshInterval, forKey: .iconRefreshInterval)
+        try container.encode(enableDiagnosticLogging, forKey: .enableDiagnosticLogging)
+        try container.encode(
+            useDoubleClickToShowAlwaysHiddenSection,
+            forKey: .useDoubleClickToShowAlwaysHiddenSection
+        )
+        try container.encode(
+            useOptionClickToShowAlwaysHiddenSection,
+            forKey: .useOptionClickToShowAlwaysHiddenSection
+        )
+        try container.encode(useLCSSortingOnNotchedDisplays, forKey: .useLCSSortingOnNotchedDisplays)
+        try container.encode(enableMenuBarItemOverflow, forKey: .enableMenuBarItemOverflow)
+        try container.encode(
+            enableExperimentalSystemItemHiding,
+            forKey: .enableExperimentalSystemItemHiding
+        )
+        try container.encode(searchSectionOrder, forKey: .searchSectionOrder)
+        try container.encode(searchIncludeVisible, forKey: .searchIncludeVisible)
+        try container.encode(searchIncludeHidden, forKey: .searchIncludeHidden)
+        try container.encode(searchIncludeAlwaysHidden, forKey: .searchIncludeAlwaysHidden)
     }
 }
 
@@ -486,7 +608,8 @@ struct Profile: Codable, Identifiable {
             showOnScroll: Defaults.DefaultValue.showOnScroll,
             autoRehide: Defaults.DefaultValue.autoRehide,
             rehideStrategyRawValue: Defaults.DefaultValue.rehideStrategy.rawValue,
-            rehideInterval: Defaults.DefaultValue.rehideInterval
+            rehideInterval: Defaults.DefaultValue.rehideInterval,
+            tempShowInterval: Defaults.DefaultValue.tempShowInterval
         )
 
         advancedSettings = try container.decodeIfPresent(
@@ -500,7 +623,6 @@ struct Profile: Codable, Identifiable {
             enableSecondaryContextMenu: Defaults.DefaultValue.enableSecondaryContextMenu,
             enableSecondaryContextMenuQuit: Defaults.DefaultValue.enableSecondaryContextMenuQuit,
             showOnHoverDelay: Defaults.DefaultValue.showOnHoverDelay,
-            tempShowInterval: Defaults.DefaultValue.tempShowInterval,
             tooltipDelay: Defaults.DefaultValue.tooltipDelay,
             showMenuBarTooltips: Defaults.DefaultValue.showMenuBarTooltips,
             iconRefreshInterval: Defaults.DefaultValue.iconRefreshInterval,
