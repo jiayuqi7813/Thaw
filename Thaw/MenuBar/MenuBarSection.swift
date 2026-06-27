@@ -342,7 +342,7 @@ final class MenuBarSection {
 
     /// Shows the section.
     func show(triggeredByHotkey: Bool = false) {
-        guard let menuBarManager, isHidden else {
+        guard let menuBarManager, isEnabled, isHidden else {
             return
         }
 
