@@ -56,9 +56,6 @@ final class AdvancedSettings: ObservableObject {
     /// The delay before showing on hover.
     @Published var showOnHoverDelay = Defaults.DefaultValue.showOnHoverDelay
 
-    /// Time interval temporarily shown menu bar items remain visible.
-    @Published var tempShowInterval = Defaults.DefaultValue.tempShowInterval
-
     /// The delay before showing a tooltip when hovering over a menu bar item.
     @Published var tooltipDelay = Defaults.DefaultValue.tooltipDelay
 
@@ -136,7 +133,6 @@ final class AdvancedSettings: ObservableObject {
         Defaults.ifPresent(key: .enableSecondaryContextMenu, assign: &enableSecondaryContextMenu)
         Defaults.ifPresent(key: .enableSecondaryContextMenuQuit, assign: &enableSecondaryContextMenuQuit)
         Defaults.ifPresent(key: .showOnHoverDelay, assign: &showOnHoverDelay)
-        Defaults.ifPresent(key: .tempShowInterval, assign: &tempShowInterval)
         Defaults.ifPresent(key: .tooltipDelay, assign: &tooltipDelay)
         Defaults.ifPresent(key: .showMenuBarTooltips, assign: &showMenuBarTooltips)
         Defaults.ifPresent(key: .iconRefreshInterval, assign: &iconRefreshInterval)
@@ -194,7 +190,6 @@ final class AdvancedSettings: ObservableObject {
         $enableSecondaryContextMenu.persistToDefaults(key: .enableSecondaryContextMenu, in: &c)
         $enableSecondaryContextMenuQuit.persistToDefaults(key: .enableSecondaryContextMenuQuit, in: &c)
         $showOnHoverDelay.persistToDefaults(key: .showOnHoverDelay, in: &c)
-        $tempShowInterval.persistToDefaults(key: .tempShowInterval, in: &c)
         $tooltipDelay.persistToDefaults(key: .tooltipDelay, in: &c)
         $showMenuBarTooltips.persistToDefaults(key: .showMenuBarTooltips, in: &c)
         $iconRefreshInterval.persistToDefaults(key: .iconRefreshInterval, in: &c)
@@ -291,8 +286,6 @@ final class AdvancedSettings: ObservableObject {
             switch key {
             case "showOnHoverDelay":
                 showOnHoverDelay = doubleValue
-            case "tempShowInterval":
-                tempShowInterval = doubleValue
             case "tooltipDelay":
                 tooltipDelay = doubleValue
             case "iconRefreshInterval":
