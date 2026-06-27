@@ -866,6 +866,106 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
     }
 
     @MainActor
+    func testAssignmentFromOrderClampsAlwaysHiddenIntoHiddenWhenDisabled() {
+        let order: [MenuBarSection.Name: [String]] = [
+            .hidden: ["com.example.hidden:Hidden"],
+            .alwaysHidden: ["com.example.always:Always"],
+        ]
+
+        let assignment = SimpleItemHider.assignmentFromOrder(
+            order,
+            alwaysHiddenEnabled: false
+        )
+
+        XCTAssertEqual(
+            assignment,
+            [
+                "com.example.hidden:Hidden": .hidden,
+                "com.example.always:Always": .hidden,
+            ]
+        )
+        XCTAssertEqual(order[.alwaysHidden], ["com.example.always:Always"])
+    }
+
+    @MainActor
+    func testAssignmentFromOrderPreservesAlwaysHiddenWhenEnabled() {
+        let order: [MenuBarSection.Name: [String]] = [
+            .hidden: ["com.example.hidden:Hidden"],
+            .alwaysHidden: ["com.example.always:Always"],
+        ]
+
+        let assignment = SimpleItemHider.assignmentFromOrder(
+            order,
+            alwaysHiddenEnabled: true
+        )
+
+        XCTAssertEqual(
+            assignment,
+            [
+                "com.example.hidden:Hidden": .hidden,
+                "com.example.always:Always": .alwaysHidden,
+            ]
+        )
+    }
+
+    @MainActor
+    func testMergeMigratedSectionOrderFromLegacyOrderOnly() {
+        let order = SimpleItemHider.mergeMigratedSectionOrder(
+            sharedOrder: nil,
+            legacyOrder: ["hidden": ["a", "b"]],
+            legacyAssignment: nil
+        )
+
+        XCTAssertEqual(order[.hidden], ["a", "b"])
+    }
+
+    @MainActor
+    func testMergeMigratedSectionOrderAppendsLegacyOrderWithoutDuplicates() {
+        let order = SimpleItemHider.mergeMigratedSectionOrder(
+            sharedOrder: ["hidden": ["a"]],
+            legacyOrder: ["hidden": ["a", "b"]],
+            legacyAssignment: nil
+        )
+
+        XCTAssertEqual(order[.hidden], ["a", "b"])
+    }
+
+    @MainActor
+    func testMergeMigratedSectionOrderAppendsLegacyAssignment() {
+        let order = SimpleItemHider.mergeMigratedSectionOrder(
+            sharedOrder: ["hidden": ["a"]],
+            legacyOrder: nil,
+            legacyAssignment: ["c": "hidden"]
+        )
+
+        XCTAssertEqual(order[.hidden], ["a", "c"])
+    }
+
+    @MainActor
+    func testLoadOrderMigratesLegacyKeysIntoSharedOrder() {
+        let suiteName = "ThawTests.SimpleItemHiderMigration.\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            XCTFail("Unable to create isolated UserDefaults suite")
+            return
+        }
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        defaults.set(["hidden": ["a", "b"]], forKey: "Thaw.simpleSectionOrder")
+
+        let order = SimpleItemHider.loadOrder(defaults: defaults)
+
+        XCTAssertEqual(order[.hidden], ["a", "b"])
+        XCTAssertEqual(
+            defaults.dictionary(forKey: "MenuBarItemManager.savedSectionOrder") as? [String: [String]],
+            ["hidden": ["a", "b"]]
+        )
+        XCTAssertNil(defaults.object(forKey: "Thaw.simpleSectionOrder"))
+        XCTAssertNil(defaults.object(forKey: "Thaw.simpleSectionAssignment"))
+    }
+
+    @MainActor
     func testMacOS27RelocationUsesAXBoundsForSyntheticWindowID() throws {
         guard #available(macOS 27, *) else {
             throw XCTSkip("macOS 27 AX bounds are OS-specific")
@@ -1342,12 +1442,18 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
     }
 
     @MainActor
-    func testAssessmentModeNeverBundleConcealsSystemUIServer() throws {
+    func testAssessmentModeCanBundleConcealsSystemUIServer() throws {
         guard #available(macOS 27, *) else {
             throw XCTSkip("Assessment Mode hiding is macOS 27-specific")
         }
 
-        XCTAssertTrue(AssessmentModeBackend.isSystemHostBundleID("com.apple.systemuiserver"))
+        // systemuiserver is intentionally NOT in the system-host guard set on
+        // macOS 27: it only hosts Siri (no MBSystemItemIdentifier entry), so
+        // bundle-level concealment is the only available path. The
+        // bundlesWithVisibleItem guard prevents collateral if a sibling ever appears.
+        XCTAssertFalse(AssessmentModeBackend.isSystemHostBundleID("com.apple.systemuiserver"))
+        XCTAssertTrue(AssessmentModeBackend.isSystemHostBundleID("com.apple.MenuBarAgent"))
+        XCTAssertTrue(AssessmentModeBackend.isSystemHostBundleID("com.apple.controlcenter"))
     }
 
     @MainActor
@@ -1738,6 +1844,10 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         let clock = item(tag: .clock, x: 48, windowID: 82)
         let gamma = appItem(bundleID: "com.example.gamma", title: "Gamma", x: 72, windowID: 83)
 
+        // With experimental system-item hiding, clock (a layout anchor) is
+        // physically orderable — all four items land in one segment. Alpha needs
+        // to move from position 0 to between clock and gamma; `achievableDestination`
+        // picks the first available right-hand neighbour (.leftOfItem(gamma)).
         let destination = LayoutPlanner.achievableDestination(
             items: [alpha, beta, clock, gamma],
             item: alpha,
@@ -1750,7 +1860,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
             experimentalSystemItemHiding: true
         )
 
-        XCTAssertEqual(destination, .rightOfItem(clock))
+        XCTAssertEqual(destination, .leftOfItem(gamma))
     }
 
     func testMacOS27DividerDoesNotPlanAcrossFixedAnchor() {
