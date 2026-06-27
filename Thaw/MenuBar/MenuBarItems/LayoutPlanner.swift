@@ -166,6 +166,32 @@ enum LayoutPlanner {
         return nil
     }
 
+    static func visibleControlRestoreMove(
+        items: [MenuBarItem],
+        desiredOrder: [String],
+        experimentalSystemItemHiding: Bool = false
+    ) -> (item: MenuBarItem, destination: MoveDestination)? {
+        guard let item = items.first(where: { $0.tag.matchesVisibleControlItem }),
+              desiredOrder.contains(item.uniqueIdentifier),
+              let destination = achievableDestination(
+                items: items,
+                item: item,
+                desiredOrder: desiredOrder,
+                experimentalSystemItemHiding: experimentalSystemItemHiding
+              ),
+              !liveOrderSatisfiesDestination(
+                items: items,
+                item: item,
+                destination: destination,
+                experimentalSystemItemHiding: experimentalSystemItemHiding
+              )
+        else {
+            return nil
+        }
+
+        return (item, destination)
+    }
+
     static func liveOrderSatisfiesSectionBoundary(
         items: [MenuBarItem],
         item: MenuBarItem,
