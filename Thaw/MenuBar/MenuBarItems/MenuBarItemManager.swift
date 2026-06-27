@@ -3987,10 +3987,14 @@ extension MenuBarItemManager {
 
         // Allow right-of-item moves to proceed even when the item is at x=-1.
         // validateItemPositionAfterMove uses exactly this path to rescue stuck
-        // items. Block all other moves: dragging a stuck item deeper into a
-        // hidden section could leave it in an unknown position.
+        // items. The visible Thaw chevron also recovers via left-of-item when
+        // applySavedLayout unparks it from the assertion reflow parking band.
         if await isItemBlocked(item) {
-            guard case .rightOfItem = destination else {
+            let allowsBlockedMove = switch destination {
+            case .rightOfItem: true
+            default: item.tag.matchesVisibleControlItem
+            }
+            guard allowsBlockedMove else {
                 MenuBarItemManager.diagLog.warning("Skipping move for \(item.logString) - item is blocked (x=-1)")
                 throw EventError.cannotComplete
             }
@@ -8502,7 +8506,9 @@ extension MenuBarItemManager {
                 item: plannedMove.item,
                 to: plannedMove.destination,
                 skipInputPause: true,
-                watchdogTimeout: Self.layoutWatchdogTimeout
+                watchdogTimeout: Self.layoutWatchdogTimeout,
+                allowParkedOffMenuBarSource: true,
+                skipPreferredPositionMove: true
             )
             recentMacOS27MoveFailures.removeValue(forKey: failureKey)
             MenuBarItemManager.diagLog.info(
