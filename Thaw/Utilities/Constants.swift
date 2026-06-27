@@ -77,7 +77,6 @@ enum Constants {
     enum MenuBarTuning {
         static let imageCaptureObserverDebounceMilliseconds = 200
         static let minimumLiveImageRefreshInterval: TimeInterval = 1
-        static let trailingPillClusterMaximumGap: CGFloat = 96
         /// Inner (leading) breathing room for the split trailing pill on
         /// macOS 27. The AX item frame starts the rounded cap flush with the
         /// inner glyph's border, so without this the leftmost icons (e.g.
@@ -91,7 +90,6 @@ enum Constants {
         /// rightmost item (the Clock) at the legacy 7 pt outset, so the pill
         /// looks like it stops short of covering it. Clear the cap radius.
         static let trailingPillTrailingOuterMargin: CGFloat = 10
-        static let visibleControlClusterBridgePadding: CGFloat = 32
         static let syntheticDragDropInset: CGFloat = 2
         static let syntheticDragSettleDelay: Duration = .milliseconds(250)
 
