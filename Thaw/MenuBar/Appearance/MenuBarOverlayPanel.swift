@@ -10,6 +10,75 @@ import Cocoa
 import Combine
 import ScreenCaptureKit
 
+enum MenuBarSplitPillGeometry {
+    static func leadingBounds(
+        applicationMenuFrame: CGRect,
+        trailingContentMinX: CGFloat?,
+        in rect: CGRect,
+        screenFrame: CGRect,
+        trailingPadding: CGFloat,
+        leadingMargin: CGFloat,
+        notchFrame: CGRect?,
+        notchMargin: CGFloat
+    ) -> CGRect {
+        guard applicationMenuFrame.width > 0 else { return .zero }
+
+        let screenOriginX = screenFrame.minX
+        let leftX = rect.minX + leadingMargin
+        var rightX = applicationMenuFrame.maxX - screenOriginX + trailingPadding
+
+        if let notchFrame {
+            rightX = min(rightX, notchFrame.minX - screenOriginX - notchMargin)
+        }
+        if let trailingContentMinX {
+            rightX = min(rightX, trailingContentMinX - screenOriginX - 4)
+        }
+
+        rightX = min(max(rightX, rect.minX), rect.maxX)
+        return CGRect(
+            x: leftX,
+            y: rect.minY,
+            width: max(0, rightX - leftX),
+            height: rect.height
+        )
+    }
+
+    static func trailingBounds(
+        itemBounds: [CGRect],
+        in rect: CGRect,
+        screenFrame: CGRect,
+        leadingOutset: CGFloat,
+        trailingOutset: CGFloat,
+        notchFrame: CGRect?,
+        notchMargin: CGFloat
+    ) -> CGRect {
+        let displayItemBounds = itemBounds.filter { bounds in
+            bounds.midX >= screenFrame.minX && bounds.midX <= screenFrame.maxX
+        }
+        guard
+            let contentMinX = displayItemBounds.map(\.minX).min(),
+            let contentMaxX = displayItemBounds.map(\.maxX).max()
+        else { return .zero }
+
+        let screenOriginX = screenFrame.minX
+        var leftX = contentMinX - leadingOutset - screenOriginX
+        var rightX = contentMaxX + trailingOutset - screenOriginX
+
+        if let notchFrame {
+            leftX = max(leftX, notchFrame.maxX - screenOriginX + notchMargin)
+        }
+
+        leftX = min(max(leftX, rect.minX), rect.maxX)
+        rightX = min(max(rightX, rect.minX), rect.maxX)
+        return CGRect(
+            x: leftX,
+            y: rect.minY,
+            width: max(0, rightX - leftX),
+            height: rect.height
+        )
+    }
+}
+
 // MARK: - Overlay Panel
 
 /// A subclass of `NSPanel` that sits atop the menu bar to alter its appearance.
@@ -597,10 +666,6 @@ private final class MenuBarOverlayPanelContentView: NSView {
     /// is the source of truth for what the pill must wrap.
     private var cachedAXItemBounds: [CGRect] = []
 
-    /// Last non-empty trailing bounds, kept during AX refresh so concealing
-    /// Hidden does not briefly fall back to a full-width pill.
-    private var lastNonEmptyAXItemBounds: [CGRect] = []
-
     /// The Thaw chevron's AX frame while concealed, kept separately from
     /// ``cachedAXItemBounds`` rather than folded into it. That shared array
     /// also feeds `computeLeadingPathBounds`'s `trailingContentMinX` clamp;
@@ -821,15 +886,12 @@ private final class MenuBarOverlayPanelContentView: NSView {
                 guard !Task.isCancelled else { break }
 
                 let hider = overlayPanel?.appState?.menuBarManager.simpleItemHider
-                let bounds = Self.trailingPillBounds(
-                    from: items,
-                    hider: hider
-                )
-                cachedAXItemBounds = bounds
-                if !bounds.isEmpty {
-                    lastNonEmptyAXItemBounds = bounds
-                }
-                let isRevealingHidden = hider?.revealedSection == .hidden
+            let bounds = Self.trailingPillBounds(
+                from: items,
+                hider: hider
+            )
+            cachedAXItemBounds = bounds
+            let isRevealingHidden = hider?.revealedSection == .hidden
                     || hider?.revealedSection == .alwaysHidden
                 cachedChevronFrame = isRevealingHidden
                     ? .zero
@@ -1296,9 +1358,6 @@ private final class MenuBarOverlayPanelContentView: NSView {
     /// can retain stale bounds. The pill must wrap what is physically present.
     private func trailingContentItemBounds() -> [CGRect] {
         if #available(macOS 27, *) {
-            if cachedAXItemBounds.isEmpty, !lastNonEmptyAXItemBounds.isEmpty {
-                return lastNonEmptyAXItemBounds
-            }
             return cachedAXItemBounds
         }
         return cachedItemWindows.map(\.bounds)
@@ -1316,12 +1375,9 @@ private final class MenuBarOverlayPanelContentView: NSView {
         in rect: CGRect,
         shouldInset: Bool,
         leadingEndCap: MenuBarEndCap,
-        screenOriginX: CGFloat,
+        screen: NSScreen,
         appearanceManager: MenuBarAppearanceManager
     ) -> CGRect {
-        guard applicationMenuFrame.width > 0 else { return .zero }
-
-        let leftX = rect.minX + fullConfiguration.leftMargin
         let trailingPadding: CGFloat = {
             if shouldInset {
                 var padding: CGFloat = 10
@@ -1336,19 +1392,15 @@ private final class MenuBarOverlayPanelContentView: NSView {
             return 20
         }()
 
-        // `applicationMenuFrame` and `trailingContentMinX` are GLOBAL screen
-        // coordinates; convert to the panel's local view space (origin at the
-        // owning screen) so the leading pill is correct on non-primary displays.
-        var rightX = (applicationMenuFrame.maxX - screenOriginX) + trailingPadding
-        if let trailingContentMinX {
-            rightX = min(rightX, (trailingContentMinX - screenOriginX) - 4)
-        }
-
-        return CGRect(
-            x: leftX,
-            y: rect.minY,
-            width: max(0, rightX - leftX),
-            height: rect.height
+        return MenuBarSplitPillGeometry.leadingBounds(
+            applicationMenuFrame: applicationMenuFrame,
+            trailingContentMinX: trailingContentMinX,
+            in: rect,
+            screenFrame: screen.frame,
+            trailingPadding: trailingPadding,
+            leadingMargin: fullConfiguration.leftMargin,
+            notchFrame: screen.frameOfNotch,
+            notchMargin: fullConfiguration.notchMargin
         )
     }
 
@@ -1370,12 +1422,7 @@ private final class MenuBarOverlayPanelContentView: NSView {
         let displayItemBounds = itemBounds.filter { bounds in
             bounds.midX >= screenFrame.minX && bounds.midX <= screenFrame.maxX
         }
-        guard
-            let contentMinX = displayItemBounds.map(\.minX).min(),
-            let contentMaxX = displayItemBounds.map(\.maxX).max()
-        else {
-            return .zero
-        }
+        guard !displayItemBounds.isEmpty else { return .zero }
 
         let leadingOutset: CGFloat = {
             if shouldInset {
@@ -1408,22 +1455,14 @@ private final class MenuBarOverlayPanelContentView: NSView {
             return 7
         }()
 
-        // AX item bounds are GLOBAL screen coordinates; the pill is drawn in the
-        // panel's view space whose origin is the owning screen. Subtract the
-        // screen origin so the trailing pill lands correctly on non-primary
-        // displays. A side-by-side second display has frame.minX > 0 — without
-        // this its pill is drawn off-screen (no pill), and an offset main
-        // display's pill is shifted and clipped (looks smaller). The leading
-        // pill already works in local space via `rect.minX`.
-        let screenOriginX = screenFrame.minX
-        let leftX = contentMinX - leadingOutset - screenOriginX
-        let rightX = contentMaxX + trailingOutset - screenOriginX
-
-        return CGRect(
-            x: leftX,
-            y: rect.minY,
-            width: max(0, rightX - leftX),
-            height: rect.height
+        return MenuBarSplitPillGeometry.trailingBounds(
+            itemBounds: displayItemBounds,
+            in: rect,
+            screenFrame: screenFrame,
+            leadingOutset: leadingOutset,
+            trailingOutset: trailingOutset,
+            notchFrame: screen.frameOfNotch,
+            notchMargin: fullConfiguration.notchMargin
         )
     }
 
@@ -1464,7 +1503,7 @@ private final class MenuBarOverlayPanelContentView: NSView {
                 in: rect,
                 shouldInset: shouldInset,
                 leadingEndCap: info.leading.leadingEndCap,
-                screenOriginX: screen.frame.minX,
+                screen: screen,
                 appearanceManager: appearanceManager
             )
         }()
@@ -1521,9 +1560,7 @@ private final class MenuBarOverlayPanelContentView: NSView {
 
         if leading != .zero, trailing == .zero {
             lastStableLeadingPathBounds = leading
-            if lastStableTrailingPathBounds != .zero {
-                return (leading, lastStableTrailingPathBounds)
-            }
+            lastStableTrailingPathBounds = .zero
             return (leading, .zero)
         }
 
