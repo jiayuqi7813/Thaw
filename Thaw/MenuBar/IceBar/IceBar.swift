@@ -270,7 +270,9 @@ final class IceBarPanel: NSPanel {
             await appState.itemManager.cacheItemsIfNeeded()
             guard !Task.isCancelled else { return }
             if #available(macOS 27, *) {
-                await self?.prewarmConcealedImagesMacOS27(appState: appState)
+                if let section = await MainActor.run(body: { self?.currentSection }) {
+                    await appState.imageCache.prewarmConcealedImagesMacOS27(sections: [section])
+                }
                 guard !Task.isCancelled else { return }
             }
             await appState.imageCache.updateCache()
