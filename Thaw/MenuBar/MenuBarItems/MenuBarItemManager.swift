@@ -5065,7 +5065,7 @@ extension MenuBarItemManager {
     /// Schedules a timer for the given interval that rehides the
     /// temporarily shown items when fired.
     private func runRehideTimer(for interval: TimeInterval? = nil) {
-        let interval = interval ?? appState?.settings.advanced.tempShowInterval ?? Defaults.DefaultValue.tempShowInterval
+        let interval = interval ?? appState?.settings.general.tempShowInterval ?? Defaults.DefaultValue.tempShowInterval
         MenuBarItemManager.diagLog.debug("Running rehide timer for interval: \(interval)")
         rehideTimer?.invalidate()
         rehideCancellable?.cancel()
