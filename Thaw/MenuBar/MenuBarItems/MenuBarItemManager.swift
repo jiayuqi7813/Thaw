@@ -1741,6 +1741,36 @@ extension MenuBarItemManager {
             .map(\.uniqueIdentifier)
     }
 
+    /// Whether a macOS 27 AX snapshot should be treated as a transient miss
+    /// because Thaw's own visible control item disappeared from enumeration.
+    static func shouldRetainLastGoodCacheForMissingVisibleControlItem(
+        snapshotItems: [MenuBarItem],
+        previousCachedItems: [MenuBarItem],
+        supportsLegacySectionHiding: Bool
+    ) -> Bool {
+        guard !supportsLegacySectionHiding, !snapshotItems.isEmpty else {
+            return false
+        }
+        let hadVisibleControlItem = previousCachedItems.contains {
+            $0.tag.matchesVisibleControlItem
+        }
+        let hasVisibleControlItem = snapshotItems.contains {
+            $0.tag.matchesVisibleControlItem
+        }
+        return hadVisibleControlItem && !hasVisibleControlItem
+    }
+
+    /// macOS 27 may hide zero-width divider controls from AX, but the visible
+    /// Thaw status item must still be present before we synthesize dividers.
+    static func canSynthesizeMacOS27ControlItems(
+        snapshotItems: [MenuBarItem],
+        supportsLegacySectionHiding: Bool
+    ) -> Bool {
+        !supportsLegacySectionHiding && snapshotItems.contains {
+            $0.tag.matchesVisibleControlItem
+        }
+    }
+
     /// Serializes cache operations to prevent races between concurrent
     /// `cacheItemsRegardless` calls. When a relocation move is in flight,
     /// a concurrent call could snapshot item positions before the move
@@ -2473,6 +2503,17 @@ extension MenuBarItemManager {
         // because items is filtered.
         let itemWindowIDs = (currentItemWindowIDs ?? items.reversed().map(\.windowID))
             .filter { !cloneWindowIDs.contains($0) }
+        if Self.shouldRetainLastGoodCacheForMissingVisibleControlItem(
+            snapshotItems: items,
+            previousCachedItems: itemCache.managedItems,
+            supportsLegacySectionHiding: MenuBarBackendFactory.current.supportsLegacySectionHiding
+        ) {
+            MenuBarItemManager.diagLog.warning(
+                "cacheItemsRegardless: Thaw visible control item missing from AX snapshot; retaining last-good cache. Items remaining: \(items.count), windowIDs: \(itemWindowIDs.count)"
+            )
+            await MainActor.run { self.areControlItemsMissing = true }
+            return
+        }
         cacheActor.updateCachedItemWindowIDs(itemWindowIDs)
         cacheActor.updateCachedCloneWindowIDs(cloneWindowIDs)
         if #available(macOS 27, *) {
@@ -2508,7 +2549,10 @@ extension MenuBarItemManager {
             await MainActor.run {
                 self.areControlItemsMissing = false
             }
-        } else if !MenuBarBackendFactory.current.supportsLegacySectionHiding {
+        } else if Self.canSynthesizeMacOS27ControlItems(
+            snapshotItems: items,
+            supportsLegacySectionHiding: MenuBarBackendFactory.current.supportsLegacySectionHiding
+        ) {
             // macOS 27: the hidden / always-hidden control items are kept
             // "present but invisible" by setting their NSStatusItem length to 0.
             // macOS 27 no longer vends an Accessibility element (or WindowServer
