@@ -43,6 +43,7 @@ extension AppSettings {
         general.autoRehide = Defaults.DefaultValue.autoRehide
         general.rehideStrategy = Defaults.DefaultValue.rehideStrategy
         general.rehideInterval = Defaults.DefaultValue.rehideInterval
+        general.tempShowInterval = Defaults.DefaultValue.tempShowInterval
     }
 
     /// Resets Advanced settings to their default values.
@@ -54,7 +55,6 @@ extension AppSettings {
         advanced.hideApplicationMenus = Defaults.DefaultValue.hideApplicationMenus
         advanced.enableSecondaryContextMenu = Defaults.DefaultValue.enableSecondaryContextMenu
         advanced.showOnHoverDelay = Defaults.DefaultValue.showOnHoverDelay
-        advanced.tempShowInterval = Defaults.DefaultValue.tempShowInterval
         advanced.tooltipDelay = Defaults.DefaultValue.tooltipDelay
         advanced.showMenuBarTooltips = Defaults.DefaultValue.showMenuBarTooltips
         advanced.iconRefreshInterval = Defaults.DefaultValue.iconRefreshInterval
