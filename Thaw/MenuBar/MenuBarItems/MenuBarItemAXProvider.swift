@@ -249,26 +249,18 @@ enum MenuBarItemAXProvider {
         accessibilityDescription: String?,
         displayTitle: String
     ) -> String {
-        if let identifier = identifier?.nonEmpty {
-            return identifier
-        }
-
+        // For non-iStat apps AXIdentifier is stable by convention; return raw.
         guard namespace == .string("com.bjango.istatmenus.status") else {
-            return displayTitle
-        }
-        if let accessibilityDescription = accessibilityDescription?.nonEmpty {
-            return accessibilityDescription
+            return identifier?.nonEmpty ?? displayTitle
         }
 
-        // Last-resort compatibility for iStat versions that expose only a
-        // changing title. Replace numeric samples, then canonicalize data units
-        // whose scale changes with the sample (KB/s -> MB/s). Metric labels stay
-        // intact, so separate CPU, memory, upload, and download items remain
-        // distinguishable without treating a unit transition as a new item.
-        return displayTitle
-            .replacing(/[-+]?\d+(?:[.,]\d+)?/, with: "#")
-            .replacing(/#\s*[KMGTPE]?[Bb]\/s/, with: "# B/s")
-            .replacing(/#\s*[KMGTPE]?[Bb]/, with: "# B")
+        // iStat Menus may put live metric values in AXIdentifier, AXDescription,
+        // or AXTitle depending on the version. Normalize whichever attribute is
+        // present so the identity stays stable across per-second updates.
+        let candidate = identifier?.nonEmpty
+            ?? accessibilityDescription?.nonEmpty
+            ?? displayTitle
+        return MenuBarItemTag.canonicalIStatMetricTitle(candidate)
     }
 
     private static func namespace(for app: NSRunningApplication) -> MenuBarItemTag.Namespace {

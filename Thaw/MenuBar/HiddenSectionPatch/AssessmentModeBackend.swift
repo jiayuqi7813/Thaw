@@ -295,8 +295,8 @@ final class AssessmentModeBackend {
         concealedBundleIDs.subtract(dynamicSystemHostBundleIDs)
         concealedBundleIDs.subtract(Self.systemHostBundleIDs)
 
-        // Never bundle-conceal a hiding-unsupported app (iStat Menus). These
-        // items' per-second title rotation defeats the assertion's identity-based
+        // Never bundle-conceal a denylisted hiding-unsupported app. These items'
+        // volatile title rotation defeats the assertion's identity-based
         // concealment, so hiding them leaves on-band ghosts. They are kept out
         // of the concealed set unconditionally.
         concealedBundleIDs.subtract(MenuBarItemTag.hidingUnsupportedBundleIDs)
@@ -330,12 +330,12 @@ final class AssessmentModeBackend {
             allowedSet.insert(bundleID)
         }
 
-        // Hiding-unsupported bundles (e.g. iStat Menus) must never be excluded
-        // from the allowlist. These items can be reordered but cannot be
-        // reliably hidden — their per-second title rotation defeats both the
-        // assertion's bundle attribution and the identity-based concealment,
-        // leaving them as on-band ghosts. Force-include their bundle IDs
-        // unconditionally so they are never excluded from the allowlist.
+        // Denylisted hiding-unsupported bundles must never be excluded from the
+        // allowlist. These items can be reordered but cannot be reliably hidden
+        // — volatile title rotation defeats both the assertion's bundle
+        // attribution and the identity-based concealment, leaving them as
+        // on-band ghosts. Force-include their bundle IDs unconditionally so
+        // they are never excluded from the allowlist.
         for bundleID in MenuBarItemTag.hidingUnsupportedBundleIDs {
             allowedSet.insert(bundleID)
             concealedBundleIDs.remove(bundleID)

@@ -412,7 +412,7 @@ final class MenuBarItemManager: ObservableObject {
         let key = "MenuBarItemManager.knownItemIdentifiers"
         let defaults = UserDefaults.standard
         if let stored = defaults.array(forKey: key) as? [String] {
-            knownItemIdentifiers = Set(stored)
+            knownItemIdentifiers = Set(stored.map(MenuBarItemTag.canonicalPersistentIdentifier))
         }
     }
 
@@ -420,7 +420,10 @@ final class MenuBarItemManager: ObservableObject {
     private func persistKnownItemIdentifiers() {
         let key = "MenuBarItemManager.knownItemIdentifiers"
         let defaults = UserDefaults.standard
-        defaults.set(Array(knownItemIdentifiers), forKey: key)
+        defaults.set(
+            Array(Set(knownItemIdentifiers.map(MenuBarItemTag.canonicalPersistentIdentifier))),
+            forKey: key
+        )
     }
 
     /// Loads persisted pinned bundle identifiers.
@@ -466,7 +469,7 @@ final class MenuBarItemManager: ObservableObject {
     private func loadSavedSectionOrder() {
         let key = "MenuBarItemManager.savedSectionOrder"
         if let stored = UserDefaults.standard.dictionary(forKey: key) as? [String: [String]] {
-            savedSectionOrder = stored
+            savedSectionOrder = Self.canonicalizedSectionOrder(stored)
         }
     }
 
@@ -493,7 +496,11 @@ final class MenuBarItemManager: ObservableObject {
         if let data = Defaults.data(forKey: .newItemsPlacementData),
            let stored = try? JSONDecoder().decode(NewItemsPlacement.self, from: data)
         {
-            newItemsPlacement = stored
+            newItemsPlacement = NewItemsPlacement(
+                sectionKey: stored.sectionKey,
+                anchorIdentifier: stored.anchorIdentifier.map(MenuBarItemTag.canonicalPersistentIdentifier),
+                relation: stored.relation
+            )
             return
         }
 
@@ -509,7 +516,12 @@ final class MenuBarItemManager: ObservableObject {
     /// Persists the placement preference for newly detected menu bar items.
     private func persistNewItemsPlacementPreference() {
         Defaults.set(newItemsPlacement.sectionKey, forKey: .newItemsSection)
-        if let data = try? JSONEncoder().encode(newItemsPlacement) {
+        let placement = NewItemsPlacement(
+            sectionKey: newItemsPlacement.sectionKey,
+            anchorIdentifier: newItemsPlacement.anchorIdentifier.map(MenuBarItemTag.canonicalPersistentIdentifier),
+            relation: newItemsPlacement.relation
+        )
+        if let data = try? JSONEncoder().encode(placement) {
             Defaults.set(data, forKey: .newItemsPlacementData)
         } else {
             Defaults.removeObject(forKey: .newItemsPlacementData)
@@ -519,7 +531,14 @@ final class MenuBarItemManager: ObservableObject {
     /// Persists the current saved section order.
     private func persistSavedSectionOrder() {
         let key = "MenuBarItemManager.savedSectionOrder"
+        savedSectionOrder = Self.canonicalizedSectionOrder(savedSectionOrder)
         UserDefaults.standard.set(savedSectionOrder, forKey: key)
+    }
+
+    private static func canonicalizedSectionOrder(
+        _ order: [String: [String]]
+    ) -> [String: [String]] {
+        order.mapValues(MenuBarItemTag.canonicalPersistentIdentifiers)
     }
 
     /// Records that the assessment-mode assertion was torn down and rebuilt.
@@ -569,20 +588,47 @@ final class MenuBarItemManager: ObservableObject {
 
         var liveItems = await MenuBarItem.getMenuBarItems(option: .activeSpace)
 
-        if hider.pulseRestrictionAfterReflow(liveItems: liveItems) {
+        // Pre-pulse check: determine whether a recomposite is actually necessary.
+        // Hiding-unsupported apps can self-recover after assertion reflows.
+        // Pulsing the assertion again can trigger another reflow and re-blank
+        // them, so only pulse when supported visible items are parked off-band
+        // or still rendering blank.
+        let displayID = Bridging.getActiveMenuBarDisplayID() ?? CGMainDisplayID()
+        let pulseCandidates = liveItems.filter {
+            !$0.isControlItem &&
+                !$0.tag.isHidingUnsupported &&
+                hider.section(for: $0) == .visible
+        }
+        let prePulseParked = pulseCandidates.filter { $0.isParkedOffMenuBarBand(among: liveItems) }
+        let prePulseOnBand = pulseCandidates.filter { !$0.isParkedOffMenuBarBand(among: liveItems) }
+        let prePulseBlank = await appState.imageCache.itemsRenderingBlank(
+            among: prePulseOnBand,
+            displayID: displayID
+        )
+        let needsPulse = !prePulseParked.isEmpty || !prePulseBlank.isEmpty
+
+        if needsPulse, hider.pulseRestrictionAfterReflow(liveItems: liveItems) {
             MenuBarItemManager.diagLog.info(
-                "post-restriction repair: pulsed assertion for MenuBarAgent re-composite"
+                "post-restriction repair: pulsed assertion for MenuBarAgent re-composite " +
+                    "(prePulseParked=\(prePulseParked.count), prePulseBlank=\(prePulseBlank.count))"
             )
             try? await Task.sleep(for: .milliseconds(800))
             liveItems = await MenuBarItem.getMenuBarItems(option: .activeSpace)
+        } else if !needsPulse {
+            MenuBarItemManager.diagLog.debug(
+                "post-restriction repair: pulse skipped — no non-hiding-unsupported items parked or blank"
+            )
         }
 
+        // Denylisted hiding-unsupported items are excluded from synthetic drag
+        // and retry signals. Their glyphs may transiently blank on assertion
+        // reflows, but repeatedly pulsing can make that worse.
         let parkedVisible = liveItems.filter {
             !$0.isControlItem &&
+                !$0.tag.isHidingUnsupported &&
                 hider.section(for: $0) == .visible &&
                 $0.isParkedOffMenuBarBand(among: liveItems)
         }
-
         if !parkedVisible.isEmpty, let anchor = unparkAnchorAmong(liveItems: liveItems, hider: hider) {
             MenuBarItemManager.diagLog.info(
                 "post-restriction repair: unparking \(parkedVisible.count) off-band item(s) " +
@@ -603,7 +649,7 @@ final class MenuBarItemManager: ObservableObject {
             }
         } else if parkedVisible.isEmpty {
             MenuBarItemManager.diagLog.debug(
-                "post-restriction repair: no off-band parked items after pulse"
+                "post-restriction repair: no off-band parked items to pulse"
             )
         }
 
@@ -612,25 +658,26 @@ final class MenuBarItemManager: ObservableObject {
         appState.hidEventManager.refreshMenuBarItemBoundsLookup()
 
         let afterItems = await MenuBarItem.getMenuBarItems(option: .activeSpace)
+        // Exclude denylisted hiding-unsupported items from stillParked and
+        // blank-glyph checks: counting transient assertion-reflow side effects
+        // as broken drives repeated pulses that can compound the problem.
         let onBandVisibleItems = afterItems.filter {
             !$0.isControlItem &&
+                !$0.tag.isHidingUnsupported &&
                 hider.section(for: $0) == .visible &&
                 !$0.isParkedOffMenuBarBand(among: afterItems)
         }
-        let stillParked = afterItems.contains {
-            !$0.isControlItem &&
-                hider.section(for: $0) == .visible &&
-                $0.isParkedOffMenuBarBand(among: afterItems)
+
+        // If the pre-pulse check found nothing requiring a recomposite, the
+        // post-pulse check would also find nothing — items haven't changed.
+        // Skip the second screenshot to avoid the extra capture cost.
+        guard needsPulse else {
+            return false
         }
 
-        // Off-band parking has its own unpark pass above; an on-band ghost
-        // (tooltip resolves it, nothing drawn) needs a different signal —
-        // the pulse already fired this call, so a fresh screenshot tells us
-        // whether it actually took. If not, returning true here feeds the
-        // SAME retry loop `noteRestrictionChange` already runs for parked
-        // items, so the next iteration pulses again instead of giving up
-        // after one attempt.
-        let displayID = Bridging.getActiveMenuBarDisplayID() ?? CGMainDisplayID()
+        // Pulse fired: a fresh screenshot confirms whether the recomposite
+        // actually resolved the blanks. If not, returning true re-enters the
+        // retry loop so the next iteration can pulse again.
         let blankTags = await appState.imageCache.itemsRenderingBlank(
             among: onBandVisibleItems,
             displayID: displayID
@@ -782,7 +829,7 @@ final class MenuBarItemManager: ObservableObject {
                 // Always track base identifier so stale saved entries for
                 // transient items (Live Activities) get pruned by the
                 // isStaleInstanceIndex guard below and not re-injected.
-                let baseID = "\(item.tag.namespace):\(item.tag.title)"
+                let baseID = "\(item.tag.namespace):\(item.tag.canonicalTitle)"
                 allCurrentBaseIdentifiers.insert(baseID)
                 // Exclude transient Control Center items (Live Activities,
                 // iPhone Mirroring icons) from the identifier set so their
@@ -2212,9 +2259,14 @@ extension MenuBarItemManager {
                 )
             } else {
                 MenuBarItemManager.diagLog.warning(
-                    "Couldn't find section for caching \(item.logString) bounds=\(NSStringFromRect(item.bounds)), assigning to hidden"
+                    "Couldn't find section for caching \(item.logString) bounds=\(NSStringFromRect(item.bounds)), assigning fallback section"
                 )
-                context.cache[.hidden].append(item)
+                let experimentalSystemItemHiding = appState?.settings.advanced.enableExperimentalSystemItemHiding ?? false
+                if item.canBeHidden(experimentalSystemItemHiding: experimentalSystemItemHiding) {
+                    context.cache[.hidden].append(item)
+                } else {
+                    context.cache[.visible].append(item)
+                }
             }
         }
 
@@ -2479,7 +2531,7 @@ extension MenuBarItemManager {
         // "com.apple.controlcenter" namespace never enters the persisted set.
         if !previousWindowIDs.isEmpty {
             for item in items where previousWindowIDs.contains(item.windowID) && item.sourcePID != nil {
-                let identifier = "\(item.tag.namespace):\(item.tag.title)"
+                let identifier = item.uniqueIdentifier
                 if !knownItemIdentifiers.contains(identifier) {
                     knownItemIdentifiers.insert(identifier)
                 }
@@ -4398,6 +4450,30 @@ extension MenuBarItemManager {
                     break
                 }
 
+                // Denylisted hiding-unsupported items rewrite their AX title
+                // frequently, so getCurrentBounds consistently fails to resolve
+                // them during the drag — warping the cursor on every attempt.
+                // The preferred-position plist path (applyOrder above) is the
+                // only reliable move vector for these items; if it didn't achieve
+                // the desired order, treat the remaining divergence as
+                // unachievable via drag and record the failure key so the 30s
+                // backoff suppresses future attempts.
+                if plannedMove.item.tag.isHidingUnsupported ||
+                    plannedMove.destination.targetItem.tag.isHidingUnsupported
+                {
+                    let failureKey = Self.macOS27MoveFailureKey(
+                        item: plannedMove.item,
+                        destination: plannedMove.destination,
+                        desiredOrder: desiredOrder
+                    )
+                    recentMacOS27MoveFailures[failureKey] = .now
+                    MenuBarItemManager.diagLog.debug(
+                        "Skipping synthetic drag for denylisted hiding-unsupported item in macOS 27 section order: " +
+                            "\(plannedMove.item.logString) → \(plannedMove.destination.logString)"
+                    )
+                    break
+                }
+
                 // Some Apple system extras (e.g. Sound) are classified as
                 // movable but empirically reject the synthetic Command-drag
                 // every time. Without this backoff, the same doomed move gets
@@ -5800,7 +5876,7 @@ extension MenuBarItemManager {
             // "com.apple.controlcenter" namespace never enters the persisted set.
             let identifiers = items
                 .filter { !$0.isControlItem && $0.sourcePID != nil }
-                .map { "\($0.tag.namespace):\($0.tag.title)" }
+                .map(\.uniqueIdentifier)
             knownItemIdentifiers.formUnion(identifiers)
             persistKnownItemIdentifiers()
             suppressNextNewLeftmostItemRelocation = false
@@ -5820,7 +5896,7 @@ extension MenuBarItemManager {
             // "com.apple.controlcenter" namespace never enters the persisted set.
             let identifiers = items
                 .filter { !$0.isControlItem && $0.sourcePID != nil }
-                .map { "\($0.tag.namespace):\($0.tag.title)" }
+                .map(\.uniqueIdentifier)
             knownItemIdentifiers.formUnion(identifiers)
             persistKnownItemIdentifiers()
             return false
@@ -8433,8 +8509,8 @@ extension MenuBarItemManager {
         // currently present. Matches the legacy restore's guard;
         // protects against running the bulk apply on a menu bar that
         // shares no widgets with the persisted layout.
-        let currentTags = Set(items.map { "\($0.tag.namespace):\($0.tag.title)" })
-        let savedTags = Set(savedSectionOrder.values.flatMap(\.self))
+        let currentTags = Set(items.map(\.uniqueIdentifier))
+        let savedTags = Set(savedSectionOrder.values.flatMap { MenuBarItemTag.canonicalPersistentIdentifiers($0) })
         guard !savedTags.isDisjoint(with: currentTags) else {
             MenuBarItemManager.diagLog.debug("applySavedLayout: skipping, no saved items currently present")
             return false

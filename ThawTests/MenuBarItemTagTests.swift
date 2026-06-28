@@ -422,15 +422,7 @@ final class MenuBarItemTagTests: XCTestCase {
         XCTAssertFalse(tag.canBeHidden)
     }
 
-    // MARK: - Hiding-Unsupported Tests
-
-    func testIStatItemIsHidingUnsupported() {
-        let cpu = MenuBarItemTag(
-            namespace: .string("com.bjango.istatmenus.status"),
-            title: "CPU #%"
-        )
-        XCTAssertTrue(cpu.isHidingUnsupported)
-    }
+    // MARK: - Hiding Denylist Tests
 
     func testRegularAppIsNotHidingUnsupported() {
         let tag = MenuBarItemTag(
@@ -440,34 +432,71 @@ final class MenuBarItemTagTests: XCTestCase {
         XCTAssertFalse(tag.isHidingUnsupported)
     }
 
-    func testIStatItemIsMovableButNotHideableOnMacOS27() throws {
+    func testIStatItemIsNotHidingUnsupported() {
+        let cpu = MenuBarItemTag(
+            namespace: .string("com.bjango.istatmenus.status"),
+            title: "CPU #%"
+        )
+        XCTAssertFalse(cpu.isHidingUnsupported)
+    }
+
+    // MARK: - iStat Canonical Identity Tests
+
+    func testIStatItemIsMovableAndHideableOnMacOS27() throws {
         guard #available(macOS 27, *) else {
-            throw XCTSkip("hiding-unsupported classification is macOS 27-specific")
+            throw XCTSkip("macOS 27 section policy is OS-specific")
         }
         let cpu = MenuBarItemTag(
             namespace: .string("com.bjango.istatmenus.status"),
             title: "CPU #%"
         )
-        // Reorderable in the layout editor, but never assignable to a hidden
-        // section — the whole point of the hiding-unsupported classification.
         XCTAssertTrue(cpu.isMovable)
-        XCTAssertFalse(cpu.canBeHidden)
-        XCTAssertEqual(cpu.sectionManagementPolicy, .forcedVisible)
+        XCTAssertTrue(cpu.canBeHidden)
+        XCTAssertEqual(cpu.sectionManagementPolicy, .hideable)
     }
 
-    func testIStatStaysNonHideableEvenWithExperimentalHidingOn() throws {
+    func testIStatRemainsHideableWithExperimentalHidingOn() throws {
         guard #available(macOS 27, *) else {
-            throw XCTSkip("hiding-unsupported classification is macOS 27-specific")
+            throw XCTSkip("macOS 27 section policy is OS-specific")
         }
         let item = MenuBarItem.fixture(
             tag: .appItem(bundleID: "com.bjango.istatmenus.status", title: "CPU #%"),
             windowID: 1
         )
-        // The experimental toggle lifts ordinary forced-visible system items to
-        // hideable, but must NOT lift a hiding-unsupported app like iStat.
-        XCTAssertFalse(item.canBeHidden(experimentalSystemItemHiding: false))
-        XCTAssertFalse(item.canBeHidden(experimentalSystemItemHiding: true))
+        XCTAssertTrue(item.canBeHidden(experimentalSystemItemHiding: false))
+        XCTAssertTrue(item.canBeHidden(experimentalSystemItemHiding: true))
         XCTAssertTrue(item.isMovable(experimentalSystemItemHiding: true))
+    }
+
+    func testIStatUniqueIdentifierCanonicalizesRawMetricValues() {
+        let raw = MenuBarItem.fixture(
+            tag: .appItem(bundleID: "com.bjango.istatmenus.status", title: "CPU 45%"),
+            windowID: 1
+        )
+
+        XCTAssertEqual(raw.uniqueIdentifier, "com.bjango.istatmenus.status:CPU #%")
+    }
+
+    func testIStatTagsMatchIgnoringRawMetricValues() {
+        let raw = MenuBarItemTag.appItem(
+            bundleID: "com.bjango.istatmenus.status",
+            title: "Upload 15.3 KB/s, Download 1.2 MB/s"
+        )
+        let canonical = MenuBarItemTag.appItem(
+            bundleID: "com.bjango.istatmenus.status",
+            title: "Upload # B/s, Download # B/s"
+        )
+
+        XCTAssertTrue(raw.matchesIgnoringWindowID(canonical))
+    }
+
+    func testIStatPersistentIdentifierCanonicalizesRawMetricValues() {
+        XCTAssertEqual(
+            MenuBarItemTag.canonicalPersistentIdentifier(
+                "com.bjango.istatmenus.status:Upload 15.3 KB/s, Download 1.2 MB/s"
+            ),
+            "com.bjango.istatmenus.status:Upload # B/s, Download # B/s"
+        )
     }
 
     func testMacOS27SectionManagementPolicyCentralizesSystemExceptions() throws {
@@ -888,6 +917,48 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
     }
 
     @MainActor
+    func testAssignmentFromOrderPreservesIStatIdentifiersWhenHideable() {
+        let order: [MenuBarSection.Name: [String]] = [
+            .hidden: [
+                "com.bjango.istatmenus.status:CPU #%",
+                "com.example.hidden:Hidden",
+            ],
+            .alwaysHidden: [
+                "com.bjango.istatmenus.status:Upload # B/s",
+            ],
+        ]
+
+        let assignment = SimpleItemHider.assignmentFromOrder(order)
+
+        XCTAssertEqual(
+            assignment,
+            [
+                "com.bjango.istatmenus.status:CPU #%": .hidden,
+                "com.example.hidden:Hidden": .hidden,
+                "com.bjango.istatmenus.status:Upload # B/s": .alwaysHidden,
+            ]
+        )
+    }
+
+    func testCacheRebucketterDropsStaleCachedCopyWhenLiveItemReappears() {
+        let iStatItem = MenuBarItem.fixture(
+            tag: .appItem(bundleID: "com.bjango.istatmenus.status", title: "CPU #%"),
+            windowID: 10
+        )
+        let hidden = MenuBarItem.fixture(
+            tag: .appItem(bundleID: "com.example.hidden", title: "Hidden"),
+            windowID: 11
+        )
+
+        let retained = CacheRebucketter.retainedCachedItems(
+            [iStatItem, hidden],
+            replacingLiveIdentifiers: [iStatItem.uniqueIdentifier]
+        )
+
+        XCTAssertEqual(retained.map(\.uniqueIdentifier), [hidden.uniqueIdentifier])
+    }
+
+    @MainActor
     func testAssignmentFromOrderPreservesAlwaysHiddenWhenEnabled() {
         let order: [MenuBarSection.Name: [String]] = [
             .hidden: ["com.example.hidden:Hidden"],
@@ -910,34 +981,34 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
 
     @MainActor
     func testInvalidAssignmentIdentifiersPreservesMissingHiddenItems() {
-    let assignment: [String: MenuBarSection.Name] = [
-        "com.example.hidden:Hidden": .hidden,
-    ]
+        let assignment: [String: MenuBarSection.Name] = [
+            "com.example.hidden:Hidden": .hidden,
+        ]
 
-    let invalid = SimpleItemHider.invalidAssignmentIdentifiers(
-        sectionAssignment: assignment,
-        liveItems: [],
-        experimentalSystemItemHiding: false
-    )
+        let invalid = SimpleItemHider.invalidAssignmentIdentifiers(
+            sectionAssignment: assignment,
+            liveItems: [],
+            experimentalSystemItemHiding: false
+        )
 
         XCTAssertTrue(invalid.isEmpty)
     }
 
     @MainActor
     func testInvalidAssignmentIdentifiersRejectsProtectedLiveItems() {
-    let clock = MenuBarItem.fixture(
-        tag: .appItem(bundleID: "com.apple.systemuiserver", title: "Clock"),
-        windowID: 1900
-    )
-    let assignment: [String: MenuBarSection.Name] = [
-        clock.uniqueIdentifier: .hidden,
-    ]
+        let clock = MenuBarItem.fixture(
+            tag: .appItem(bundleID: "com.apple.systemuiserver", title: "Clock"),
+            windowID: 1900
+        )
+        let assignment: [String: MenuBarSection.Name] = [
+            clock.uniqueIdentifier: .hidden,
+        ]
 
-    let invalid = SimpleItemHider.invalidAssignmentIdentifiers(
-        sectionAssignment: assignment,
-        liveItems: [clock],
-        experimentalSystemItemHiding: false
-    )
+        let invalid = SimpleItemHider.invalidAssignmentIdentifiers(
+            sectionAssignment: assignment,
+            liveItems: [clock],
+            experimentalSystemItemHiding: false
+        )
 
         XCTAssertEqual(invalid, [clock.uniqueIdentifier])
     }
@@ -962,6 +1033,32 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         )
 
         XCTAssertEqual(order[.hidden], ["a", "b"])
+    }
+
+    @MainActor
+    func testMergeMigratedSectionOrderCanonicalizesIStatIdentifiers() {
+        let order = SimpleItemHider.mergeMigratedSectionOrder(
+            sharedOrder: [
+                "visible": [
+                    "com.bjango.istatmenus.status:CPU 45%",
+                    "com.bjango.istatmenus.status:CPU #%",
+                ],
+            ],
+            legacyOrder: [
+                "visible": [
+                    "com.bjango.istatmenus.status:Upload 15.3 KB/s, Download 1.2 MB/s",
+                ],
+            ],
+            legacyAssignment: nil
+        )
+
+        XCTAssertEqual(
+            order[.visible],
+            [
+                "com.bjango.istatmenus.status:CPU #%",
+                "com.bjango.istatmenus.status:Upload # B/s, Download # B/s",
+            ]
+        )
     }
 
     @MainActor

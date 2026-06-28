@@ -91,8 +91,8 @@ final class TrailingItemPositionStore {
         // keys from prior title values), preventing the dictionary from
         // growing with dead keys that MenuBarAgent may still interpret.
         //
-        // Exception: keys belonging to hiding-unsupported apps (iStat Menus)
-        // are NEVER removed. These items' title churn makes exact key matching
+        // Exception: keys belonging to denylisted hiding-unsupported apps are
+        // NEVER removed. Volatile title churn makes exact key matching
         // unreliable, and removing their entries from the plist can cause
         // MenuBarAgent to drop them from the bar entirely.
         var changed = false
@@ -101,7 +101,7 @@ final class TrailingItemPositionStore {
                 key.hasPrefix("status:\(bundleID)::")
             }
             if isHidingUnsupported {
-                diagLog.debug("lock: skipping removal of hiding-unsupported key \(key)")
+                diagLog.debug("lock: skipping removal of denylisted hiding-unsupported key \(key)")
                 continue
             }
             positions.removeValue(forKey: key)
@@ -136,7 +136,7 @@ final class TrailingItemPositionStore {
     /// per-item and has no per-bundle collateral damage — experimental on
     /// macOS 27 where the assertion is the primary visibility mechanism.
     ///
-    /// Items whose owning bundle is in `hidingUnsupportedBundleIDs` (iStat)
+    /// Items whose owning bundle is in ``MenuBarItemTag/hidingUnsupportedBundleIDs``
     /// are silently skipped — they can be reordered but never hidden.
     ///
     /// - Returns: The set of plist keys that were removed.

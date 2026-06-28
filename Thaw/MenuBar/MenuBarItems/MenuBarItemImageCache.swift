@@ -206,7 +206,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                       let pngData = bitmap.representation(using: .png, properties: [:])
                 else { return nil }
 
-                let tagString = "\(tag.namespace):\(tag.title)"
+            let tagString = tag.tagIdentifier
                 return (tagString, pngData)
             }.compactMap(\.self)
 
@@ -1011,6 +1011,22 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
             }
 
             guard !croppedImage.isTransparent(alphaThreshold: 0.05) else {
+                // Denylisted hiding-unsupported apps transiently render blank during
+                // Assessment Mode reflows — the assertion recomposites the whole
+                // bar, temporarily clearing their glyph until their own update
+                // cycle re-renders it. Counting those transient blanks as failures
+                // blacklists the item for 30 s, causing the layout bar to show grey
+                // boxes long after the bar has settled. Skip without recording a
+                // failure so the item retains its last good image and recovers on
+                // the next refresh cycle.
+                if item.tag.isHidingUnsupported {
+                    MenuBarItemImageCache.diagLog.debug(
+                        "axBoundsCapture: blank image for denylisted hiding-unsupported \(item.logString); " +
+                        "skipping without failure (will recover on next refresh)"
+                    )
+                    result.excluded.append(item)
+                    continue
+                }
                 MenuBarItemImageCache.diagLog.debug(
                     "axBoundsCapture: blank image for \(item.logString)"
                 )

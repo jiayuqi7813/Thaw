@@ -39,14 +39,22 @@ enum CacheRebucketter {
                 }
             }
         }
-        cache[.visible] = visible
-        cache[.hidden] = hidden + cache[.hidden]
-        cache[.alwaysHidden] = alwaysHidden + cache[.alwaysHidden]
+        let liveIdentifiers = Set(cache[.visible].map(\.uniqueIdentifier))
 
-        let liveIdentifiers = Set(
+        cache[.visible] = visible
+        cache[.hidden] = hidden + retainedCachedItems(
+            cache[.hidden],
+            replacingLiveIdentifiers: liveIdentifiers
+        )
+        cache[.alwaysHidden] = alwaysHidden + retainedCachedItems(
+            cache[.alwaysHidden],
+            replacingLiveIdentifiers: liveIdentifiers
+        )
+
+        let cachedIdentifiers = Set(
             MenuBarSection.Name.allCases.flatMap { cache[$0].map(\.uniqueIdentifier) }
         )
-        for (identifier, section) in hider.sectionAssignment where !liveIdentifiers.contains(identifier) {
+        for (identifier, section) in hider.sectionAssignment where !cachedIdentifiers.contains(identifier) {
             guard let snapshot = hider.snapshot(for: identifier) else { continue }
             let target: MenuBarSection.Name = section == .alwaysHidden && allowsAlwaysHidden
                 ? .alwaysHidden
@@ -58,5 +66,12 @@ enum CacheRebucketter {
             cache[section] = hider.ordered(cache[section], in: section)
         }
         return cache
+    }
+
+    static func retainedCachedItems(
+        _ items: [MenuBarItem],
+        replacingLiveIdentifiers liveIdentifiers: Set<String>
+    ) -> [MenuBarItem] {
+        items.filter { !liveIdentifiers.contains($0.uniqueIdentifier) }
     }
 }
