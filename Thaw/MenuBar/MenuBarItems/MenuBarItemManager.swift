@@ -688,6 +688,13 @@ final class MenuBarItemManager: ObservableObject {
             )
         }
 
+        let stillParked = afterItems.contains {
+            !$0.isControlItem &&
+                !$0.tag.isHidingUnsupported &&
+                hider.section(for: $0) == .visible &&
+                $0.isParkedOffMenuBarBand(among: afterItems)
+        }
+
         return stillParked || !blankTags.isEmpty
     }
 
