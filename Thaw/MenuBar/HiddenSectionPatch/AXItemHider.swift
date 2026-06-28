@@ -184,6 +184,6 @@ final class AXItemHider {
 
 private extension MenuBarItem {
     var identityDescription: String {
-        "\(tag.namespace):\(tag.title)"
+        tag.tagIdentifier
     }
 }

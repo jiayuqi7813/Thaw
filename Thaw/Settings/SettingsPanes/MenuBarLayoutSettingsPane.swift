@@ -141,7 +141,7 @@ struct MenuBarLayoutSettingsPane: View {
     @available(macOS 27, *)
     private var nonHideableItemsNotice: some View {
         SettingsWarningPill(
-            message: "On macOS 27, some items can be reordered but not yet hidden. Native macOS items such as Clock, Control Center, and Siri stay visible unless experimental system item hiding is enabled, and a few — like AirDrop and Sound — along with some apps such as iStat Menus, cannot be moved to a hidden section yet. You can still rearrange them in the Visible section."
+            message: "On macOS 27, some items can be reordered but not yet hidden. Native macOS items such as Clock, Control Center, and Siri stay visible unless experimental system item hiding is enabled, and a few MenuBarAgent modules — like AirDrop and Sound — may also be restricted. Apps on Thaw's hiding denylist share the same restriction. You can still rearrange them in the Visible section."
         )
     }
 

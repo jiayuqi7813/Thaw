@@ -221,9 +221,9 @@ final class LayoutBarPaddingView: NSView {
             }
 
             if sourceSection != container.section {
-                // A physically-orderable item can still be un-hideable (e.g. iStat,
-                // which we reorder but cannot reliably conceal). Reject a drop into
-                // a non-visible section and snap it back, rather than committing a
+                // A physically-orderable item can still be un-hideable when its
+                // owner is on the hiding denylist. Reject a drop into a
+                // non-visible section and snap it back, rather than committing a
                 // hidden assignment the assertion can't honor.
                 guard SimpleItemHider.canAssign(
                     item,

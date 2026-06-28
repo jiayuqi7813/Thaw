@@ -300,17 +300,16 @@ enum LayoutSolver {
         for (sectionKeyString, identifiers) in savedSectionOrder {
             guard let section = sectionName(forPersistedKey: sectionKeyString) else { continue }
             for identifier in identifiers {
-                savedSectionForIdentifier[identifier] = section
+                savedSectionForIdentifier[MenuBarItemTag.canonicalPersistentIdentifier(identifier)] = section
             }
         }
 
         let candidate = hideableLeftmost.first { item in
-            let identifier = "\(item.tag.namespace):\(item.tag.title)"
+            let identifier = item.uniqueIdentifier
 
             // Items with a saved section belong to restoreItemsToSaved-
             // Sections, not to the new-item relocation path.
-            let hasSavedSection = savedSectionForIdentifier[identifier] != nil ||
-                savedSectionForIdentifier[item.uniqueIdentifier] != nil
+            let hasSavedSection = savedSectionForIdentifier[identifier] != nil
             guard !hasSavedSection else { return false }
 
             let isNewIdentity = !knownItemIdentifiers.contains(identifier)
@@ -334,7 +333,7 @@ enum LayoutSolver {
             return .noop(reason: .alreadyInTarget)
         }
 
-        let identifierToMark = "\(candidate.tag.namespace):\(candidate.tag.title)"
+        let identifierToMark = candidate.uniqueIdentifier
         return .newHideableItem(candidate, identifierToMark: identifierToMark)
     }
 
