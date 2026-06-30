@@ -130,6 +130,12 @@ enum MenuBarItemAXProvider {
                     accessibilityDescription: accessibilityDescription,
                     displayTitle: displayTitle
                 )
+                if MenuBarItemTag(namespace: namespace, title: identityTitle).isNativeOverflowPlaceholder ||
+                    MenuBarItemTag(namespace: namespace, title: displayTitle).isNativeOverflowPlaceholder
+                {
+                    diagLog.debug("menuBarItems: skipping native overflow placeholder title='\(identityTitle)' frame=\(frame)")
+                    continue
+                }
 
                 // Direct attribution: the owning process is the app that
                 // published this child (fall back to the element's own PID).

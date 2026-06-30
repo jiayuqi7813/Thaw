@@ -104,6 +104,10 @@ struct MenuBarItemTag: Hashable, CustomStringConvertible {
         // iStatMenusStatusBundleID,
     ]
 
+    private static let nativeOverflowChevronGlyphs: Set<Character> = [
+        "<", ">", "‹", "›", "«", "»",
+    ]
+
     /// Whether this item's owner is in ``hidingUnsupportedBundleIDs``.
     var isHidingUnsupported: Bool {
         if case let .string(bundleID) = namespace {
@@ -112,8 +116,23 @@ struct MenuBarItemTag: Hashable, CustomStringConvertible {
         return false
     }
 
+    /// macOS 27's native menu-bar overflow control can appear in AX as a
+    /// MenuBarAgent extra. It is a system placeholder, not a status item.
+    var isNativeOverflowPlaceholder: Bool {
+        guard namespace == .menuBarAgent else { return false }
+
+        let glyphs = title.filter { !$0.isWhitespace }
+        guard !glyphs.isEmpty, glyphs.count <= 4 else { return false }
+
+        return glyphs.allSatisfy { MenuBarItemTag.nativeOverflowChevronGlyphs.contains($0) }
+    }
+
     /// The item's authoritative section-management classification.
     var sectionManagementPolicy: SectionManagementPolicy {
+        if #available(macOS 27, *), isNativeOverflowPlaceholder {
+            return .excluded
+        }
+
         if #available(macOS 27, *),
            isHidingUnsupported ||
            isLayoutAnchoredSystemItem ||
