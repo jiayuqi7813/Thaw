@@ -16,7 +16,6 @@ struct MenuBarLayoutSettingsPane: View {
     @State private var isResettingLayout = false
     @State private var resetStatus: ResetStatus?
     @State private var isConfirmingReset = false
-    @State private var isConfirmingResetToVisible = false
 
     private let diagLog = DiagLog(category: "MenuBarLayoutPane")
 
@@ -159,10 +158,6 @@ struct MenuBarLayoutSettingsPane: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-
-                SettingsWarningPill(
-                    message: "This is experimental. We don't know what could happen when hiding macOS system items."
-                )
             }
         }
     }
@@ -242,99 +237,56 @@ struct MenuBarLayoutSettingsPane: View {
     }
 
     private var resetControls: some View {
-        IceSection {
-            VStack(alignment: .leading, spacing: 16) {
-                resetToHiddenRow
-                Divider()
-                resetToVisibleRow
+        IceSection(options: [.isBordered]) {
+            VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Reset menu bar layout")
+                        .font(.headline)
+                    Text("Moves every movable item except the \(Constants.displayName) icon to the selected section — just like a fresh install.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                HStack {
+                    Spacer()
+                    Button {
+                        isConfirmingReset = true
+                    } label: {
+                        if isResettingLayout {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Text("Reset Layout…")
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(isResettingLayout || areControlItemsDisabledBySystem)
+                }
+
                 SettingsWarningPill(
                     message: "If menu bar items are missing or a section looks empty, try Reset to Visible — it often restores the layout."
                 )
-            }
 
-            if let resetStatus {
-                Text(resetStatus.message)
-                    .font(.footnote)
-                    .foregroundStyle(resetStatus.isError ? .red : .secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, 8)
+                if let resetStatus {
+                    Text(resetStatus.message)
+                        .font(.footnote)
+                        .foregroundStyle(resetStatus.isError ? .red : .secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
         }
-        .alert("Reset menu bar layout?", isPresented: $isConfirmingReset) {
-            Button("Reset", role: .destructive) {
-                resetMenuBarLayout(to: .hidden)
+        .confirmationDialog("Reset to…", isPresented: $isConfirmingReset) {
+            Button("Reset to Visible") { resetMenuBarLayout(to: .visible) }
+            Button("Reset to Hidden") { resetMenuBarLayout(to: .hidden) }
+            if appState.settings.advanced.enableAlwaysHiddenSection {
+                Button("Reset to Always Hidden") { resetMenuBarLayout(to: .alwaysHidden) }
             }
             Button("Cancel", role: .cancel) {
                 isConfirmingReset = false
             }
         } message: {
-            Text("Restores divider defaults and moves every movable item except the \(Constants.displayName) icon to Hidden. Use this if the layout looks broken or items won’t load.")
-        }
-        .alert("Reset to visible?", isPresented: $isConfirmingResetToVisible) {
-            Button("Reset to Visible") {
-                resetMenuBarLayout(to: .visible)
-            }
-            Button("Cancel", role: .cancel) {
-                isConfirmingResetToVisible = false
-            }
-        } message: {
-            Text("Moves every movable item to the Visible section. Items in Hidden and Always Hidden will be shown in the menu bar.")
-        }
-    }
-
-    private var resetToHiddenRow: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Reset menu bar layout")
-                    .font(.headline)
-                Text("Resets dividers and moves every movable item except the \(Constants.displayName) icon to hidden — just like a fresh install.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 12)
-
-            Button {
-                isConfirmingReset = true
-            } label: {
-                if isResettingLayout {
-                    ProgressView()
-                        .controlSize(.small)
-                } else {
-                    Text("Reset Layout")
-                }
-            }
-            .buttonStyle(.bordered)
-            .disabled(isResettingLayout || areControlItemsDisabledBySystem)
-        }
-    }
-
-    private var resetToVisibleRow: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Reset to visible")
-                    .font(.headline)
-                Text("Moves every movable item to the visible section.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 12)
-
-            Button {
-                isConfirmingResetToVisible = true
-            } label: {
-                if isResettingLayout {
-                    ProgressView()
-                        .controlSize(.small)
-                } else {
-                    Text("Reset to Visible")
-                }
-            }
-            .buttonStyle(.bordered)
-            .disabled(isResettingLayout || areControlItemsDisabledBySystem)
+            Text("Moves every movable item except the \(Constants.displayName) icon to the chosen section.")
         }
     }
 
@@ -383,8 +335,9 @@ struct MenuBarLayoutSettingsPane: View {
     }
 
     private enum ResetTarget {
-        case hidden
         case visible
+        case hidden
+        case alwaysHidden
     }
 
     private func resetMenuBarLayout(to target: ResetTarget) {
@@ -400,6 +353,8 @@ struct MenuBarLayoutSettingsPane: View {
                     try await manager.resetLayoutToFreshState()
                 case .visible:
                     try await manager.resetLayoutToVisible()
+                case .alwaysHidden:
+                    try await manager.resetLayoutToAlwaysHidden()
                 }
                 if failedMoves == 0 {
                     resetStatus = target == .hidden ? .successToHidden : .successToVisible
@@ -407,9 +362,6 @@ struct MenuBarLayoutSettingsPane: View {
                     resetStatus = .partialFailure(failedMoves)
                 }
                 isResettingLayout = false
-
-                // cacheItemsRegardless + updateCacheWithoutChecks already run
-                // inside the reset helpers — no need to repeat here.
             } catch {
                 resetStatus = .failure(error.localizedDescription)
                 isResettingLayout = false
