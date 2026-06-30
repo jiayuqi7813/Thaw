@@ -295,6 +295,33 @@ final class MenuBarItemTagTests: XCTestCase {
         XCTAssertTrue(sound.isNonConcealableSystemItem)
     }
 
+    func testMenuBarAgentChevronOnlyItemIsNativeOverflowPlaceholder() {
+        XCTAssertTrue(
+            MenuBarItemTag(namespace: .menuBarAgent, title: "<<").isNativeOverflowPlaceholder
+        )
+        XCTAssertTrue(
+            MenuBarItemTag(namespace: .menuBarAgent, title: "‹ ‹").isNativeOverflowPlaceholder
+        )
+        if #available(macOS 27, *) {
+            XCTAssertEqual(
+                MenuBarItemTag(namespace: .menuBarAgent, title: "<<").sectionManagementPolicy,
+                .excluded
+            )
+        }
+    }
+
+    func testNativeOverflowPlaceholderDoesNotMatchRealItems() {
+        XCTAssertFalse(
+            MenuBarItemTag(namespace: .string("com.example.app"), title: "<<").isNativeOverflowPlaceholder
+        )
+        XCTAssertFalse(
+            MenuBarItemTag(namespace: .menuBarAgent, title: "com.apple.menuextra.wifi").isNativeOverflowPlaceholder
+        )
+        XCTAssertFalse(
+            MenuBarItemTag(namespace: .menuBarAgent, title: "Wi-Fi").isNativeOverflowPlaceholder
+        )
+    }
+
     func testThirdPartyItemIsConcealable() {
         let tag = MenuBarItemTag(
             namespace: .string("com.thirdparty.app"),
