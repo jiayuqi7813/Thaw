@@ -140,6 +140,7 @@ struct SyntheticMoveEngine {
                 mouseButton: .left
             ) else { return }
             event.flags = .maskCommand
+            MoveInputSuppression.markSyntheticMoveEvent(event)
             event.post(tap: .cghidEventTap)
         }
 
