@@ -2639,8 +2639,9 @@ extension MenuBarItemManager {
             // every live item as .visible), so rather than clearing the cache and
             // falsely reporting the dividers as "hidden by macOS", synthesize a
             // single-section pair: a hidden divider parked at the display's
-            // leading edge (every real item sits to its right => visible) and no
-            // always-hidden divider.
+            // leading edge (every real item sits to its right => visible) and an
+            // always-hidden divider at the leading edge when the section is
+            // enabled.
             let ourPID = ProcessInfo.processInfo.processIdentifier
             let leadingX = displayID.map { CGDisplayBounds($0).minX } ?? (NSScreen.main?.frame.minX ?? 0)
             let syntheticHidden = MenuBarItem(
@@ -2652,7 +2653,24 @@ extension MenuBarItemManager {
                 title: ControlItem.Identifier.hidden.rawValue,
                 isOnScreen: false
             )
-            controlItems = ControlItemPair(hidden: syntheticHidden, alwaysHidden: nil)
+            let syntheticAlwaysHidden: MenuBarItem? = {
+                guard appState?.settings.advanced.isAlwaysHiddenSectionEnabled == true else {
+                    return nil
+                }
+                return MenuBarItem(
+                    tag: .alwaysHiddenControlItem,
+                    windowID: alwaysHiddenControlItemWID ?? 0,
+                    ownerPID: ourPID,
+                    sourcePID: ourPID,
+                    bounds: CGRect(x: leadingX, y: 0, width: 0, height: 0),
+                    title: ControlItem.Identifier.alwaysHidden.rawValue,
+                    isOnScreen: false
+                )
+            }()
+            controlItems = ControlItemPair(
+                hidden: syntheticHidden,
+                alwaysHidden: syntheticAlwaysHidden
+            )
             await MainActor.run {
                 self.areControlItemsMissing = false
             }
@@ -6303,6 +6321,29 @@ extension MenuBarItemManager {
                     "Error enforcing macOS 27 hidden divider boundary: \(error)"
                 )
             }
+
+            // Enforce always-hidden divider left of hidden divider.
+            // Skip synthetic items (off-screen); only enforce when both
+            // dividers have real geometry so the relative check is meaningful.
+            if let alwaysHidden = controlItems.alwaysHidden,
+               hidden.isOnScreen, alwaysHidden.isOnScreen,
+               hidden.bounds.maxX <= alwaysHidden.bounds.minX
+            {
+                do {
+                    MenuBarItemManager.diagLog.info(
+                        "macOS 27: moving always-hidden divider left of hidden divider"
+                    )
+                    try await move(
+                        item: alwaysHidden,
+                        to: .leftOfItem(hidden),
+                        skipInputPause: true
+                    )
+                } catch {
+                    MenuBarItemManager.diagLog.error(
+                        "Error enforcing macOS 27 always-hidden divider order: \(error)"
+                    )
+                }
+            }
             return
         }
 
@@ -6624,7 +6665,7 @@ extension MenuBarItemManager {
     /// reset. Items that can't be hidden (Clock, Control Center, …) stay visible.
     ///
     /// - Returns: Always 0 — there are no physical moves that can "fail" on 27.
-    private func resetLayoutMacOS27() async -> Int {
+    private func resetLayoutMacOS27(to target: MenuBarSection.Name = .hidden) async -> Int {
         isResettingLayout = true
         defer { isResettingLayout = false }
 
@@ -6645,7 +6686,7 @@ extension MenuBarItemManager {
         for item in itemCache.managedItems
             where SimpleItemHider.canAssign(
                 item,
-                to: .hidden,
+                to: target,
                 experimentalSystemItemHiding: experimentalSystemItemHiding
             )
         {
@@ -6656,14 +6697,14 @@ extension MenuBarItemManager {
                 skippedProtectedItems.append(item.uniqueIdentifier)
                 continue
             }
-            assignment[item.uniqueIdentifier] = .hidden
+            assignment[item.uniqueIdentifier] = target
         }
 
         hider.resetAssignment(to: assignment)
         if !skippedProtectedItems.isEmpty {
             MenuBarItemManager.diagLog.info("macOS 27 reset: skipped \(skippedProtectedItems.count) protected item(s): \(skippedProtectedItems)")
         }
-        MenuBarItemManager.diagLog.info("macOS 27 reset: swept \(assignment.count) item(s) to Hidden")
+        MenuBarItemManager.diagLog.info("macOS 27 reset: swept \(assignment.count) item(s) to \(target.rawValue)")
 
         // Rebuild the cache so the layout bars reflect the new assignment now.
         await cacheItemsRegardless(skipRecentMoveCheck: true)
@@ -6950,6 +6991,36 @@ extension MenuBarItemManager {
         }
 
         return 0
+    }
+
+    /// Moves every movable, hideable item to the always-hidden section.
+    ///
+    /// - Returns: The number of items that failed to move.
+    func resetLayoutToAlwaysHidden() async throws -> Int {
+        MenuBarItemManager.diagLog.info("Resetting menu bar layout to always-hidden")
+
+        if !MenuBarBackendFactory.current.supportsLegacySectionHiding {
+            return await resetLayoutMacOS27(to: .alwaysHidden)
+        }
+
+        // Legacy path: treat the same as reset-to-visible but then
+        // assign to alwaysHidden via SimpleItemHider.
+        let failed = try await resetLayoutToVisible()
+        guard let appState, let hider = appState.menuBarManager.simpleItemHider else {
+            return failed
+        }
+        var assignment = [String: MenuBarSection.Name]()
+        for item in itemCache.managedItems
+            where SimpleItemHider.canAssign(item, to: .alwaysHidden,
+                experimentalSystemItemHiding: appState.settings.advanced.enableExperimentalSystemItemHiding)
+                && !SimpleItemHider.isProtectedAssignmentItem(item,
+                    experimentalSystemItemHiding: appState.settings.advanced.enableExperimentalSystemItemHiding)
+        {
+            assignment[item.uniqueIdentifier] = .alwaysHidden
+        }
+        hider.resetAssignment(to: assignment)
+        await cacheItemsRegardless(skipRecentMoveCheck: true)
+        return failed
     }
 
     /// Moves every movable, hideable item to the visible section.
