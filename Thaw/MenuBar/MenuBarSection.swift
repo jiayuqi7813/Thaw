@@ -343,6 +343,9 @@ final class MenuBarSection {
     /// Shows the section.
     func show(triggeredByHotkey: Bool = false) {
         guard let menuBarManager, isEnabled, isHidden else {
+            if name == .alwaysHidden {
+                diagLog.debug("show(alwaysHidden) aborted: menuBarManager=\(self.menuBarManager != nil), isEnabled=\(isEnabled), isHidden=\(isHidden)")
+            }
             return
         }
 

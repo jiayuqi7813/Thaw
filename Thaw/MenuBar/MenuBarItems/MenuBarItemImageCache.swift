@@ -1855,6 +1855,62 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
             result.append(section)
         }
 
+        // Batch prewarm when .alwaysHidden is requested: revealing .alwaysHidden
+        // also reveals .hidden items, so capture all sections in a single
+        // restriction toggle instead of two (which otherwise causes visible
+        // flickering as items appear and disappear twice).
+        if sections.contains(.alwaysHidden) {
+            await Task { @MainActor [weak self, weak appState] in
+                guard let self, let appState, let hider = appState.menuBarManager.simpleItemHider else {
+                    return
+                }
+
+                let sectionsToCapture: [MenuBarSection.Name]
+                if onlyMissingImages {
+                    sectionsToCapture = sections.filter { section in
+                        let sectionItems = appState.itemManager.itemCache[section]
+                        guard !sectionItems.isEmpty else { return false }
+                        return sectionItems.contains { item in
+                            Self.prewarmNeedsCapture(
+                                cachedImage: self.images[item.tag],
+                                wouldAttemptCapture: self.wouldAttemptCapture(of: item)
+                            )
+                        }
+                    }
+                } else {
+                    sectionsToCapture = sections.filter { section in
+                        !appState.itemManager.itemCache[section].isEmpty
+                    }
+                }
+                guard !sectionsToCapture.isEmpty else { return }
+                guard !Task.isCancelled else { return }
+
+                let previousRevealedSection = hider.revealedSection
+                hider.show(.alwaysHidden, reconcileBoundary: false)
+                defer {
+                    switch Self.PrewarmRevealRestorationAction.resolve(
+                        previous: previousRevealedSection,
+                        currentAfterShow: hider.revealedSection
+                    ) {
+                    case .hide:
+                        hider.hideRevealedSections()
+                    case .noOp:
+                        break
+                    case .show(let section):
+                        hider.show(section, reconcileBoundary: false)
+                    }
+                }
+                guard hider.revealedSection == .alwaysHidden else {
+                    return
+                }
+                try? await Task.detached {
+                    try await Task.sleep(for: Constants.MenuBarTuning.iceBarCaptureSettle)
+                }.value
+                await self.updateCacheWithoutChecks(sections: sectionsToCapture)
+            }.value
+            return
+        }
+
         for section in sections {
             await Task { @MainActor [weak self, weak appState] in
                 guard let self, let appState, let hider = appState.menuBarManager.simpleItemHider else {
