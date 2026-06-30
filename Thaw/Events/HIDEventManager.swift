@@ -420,7 +420,59 @@ final class HIDEventManager: ObservableObject {
     /// Maximum width a normal menu bar item can have. Windows wider than
     /// this are expanded section-divider control items used to push hidden
     /// items off-screen and must be excluded from the bounds lookup.
-    private static let maxReasonableItemWidth: CGFloat = 500
+    static nonisolated let maxReasonableItemWidth: CGFloat = 500
+
+    /// Maximum menu-bar mid-Y for bounds included in show-on / tooltip
+    /// hit-testing. macOS 27 concealed items can retain phantom AX frames
+    /// far below the menu bar; exclude those from empty-space detection.
+    static nonisolated let maxMenuBarItemMidY: CGFloat = 80
+
+    /// Returns whether `location` lies inside any cached menu bar item bounds
+    /// entry. On macOS 27, synthetic status-item window IDs have no live CG
+    /// window, so cached AX bounds are trusted directly.
+    static nonisolated func menuBarBoundsLookupContains(
+        _ location: CGPoint,
+        entries: [(windowID: CGWindowID, bounds: CGRect)],
+        trustCachedBoundsWithoutLiveWindowVerification: Bool,
+        liveWindowBounds: (CGWindowID) -> CGRect? = { Bridging.getWindowBounds(for: $0) }
+    ) -> Bool {
+        for entry in entries {
+            guard entry.bounds.contains(location) else { continue }
+            if trustCachedBoundsWithoutLiveWindowVerification {
+                return true
+            }
+            if let currentBounds = liveWindowBounds(entry.windowID),
+               currentBounds.contains(location)
+            {
+                return true
+            }
+        }
+        return false
+    }
+
+    /// Returns whether an item's bounds should participate in show-on-click,
+    /// show-on-hover, show-on-scroll, and tooltip hit-testing.
+    static nonisolated func shouldIncludeItemInMenuBarBoundsLookup(
+        _ item: MenuBarItem,
+        section: MenuBarSection.Name?
+    ) -> Bool {
+        guard item.bounds.width > 0, item.bounds.width <= maxReasonableItemWidth else {
+            return false
+        }
+        guard item.bounds.midY <= maxMenuBarItemMidY else {
+            return false
+        }
+        if #available(macOS 27, *), item.tag.isNativeOverflowPlaceholder {
+            return false
+        }
+        guard let section else {
+            return true
+        }
+        if section != .visible, !item.isNonConcealableSystemItem {
+            return false
+        }
+        return true
+    }
 
     /// Rebuilds the window bounds lookup table from the current item cache.
     ///
@@ -436,19 +488,8 @@ final class HIDEventManager: ObservableObject {
     /// hit-testing. On macOS 27, concealed and reflow-collateral items keep
     /// phantom AX frames (sometimes at y≈1400+) with no rendered glyph.
     private func shouldIncludeInMenuBarBoundsLookup(_ item: MenuBarItem) -> Bool {
-        guard item.bounds.width > 0, item.bounds.width <= Self.maxReasonableItemWidth else {
-            return false
-        }
-        guard item.bounds.midY <= 80 else {
-            return false
-        }
-        guard let appState, let hider = appState.menuBarManager.simpleItemHider else {
-            return true
-        }
-        if hider.section(for: item) != .visible, !item.isNonConcealableSystemItem {
-            return false
-        }
-        return true
+        let section = appState?.menuBarManager.simpleItemHider?.section(for: item)
+        return Self.shouldIncludeItemInMenuBarBoundsLookup(item, section: section)
     }
 
     /// Rebuilds the window bounds lookup table from the current item cache.
@@ -497,14 +538,20 @@ final class HIDEventManager: ObservableObject {
     /// moments can leave hit testing with stale geometry, so use a direct
     /// Window Server snapshot instead.
     ///
-    /// Unlike ``rebuildWindowBoundsLookup(from:)``, this method intentionally
-    /// omits the managed-items fallback. During a section transition the cached
-    /// bounds are stale (items have moved on/off screen while keeping the same
-    /// window ID), so appending them here would corrupt rather than improve the
-    /// lookup. The trade-off is that an item not yet reported by the Window
-    /// Server immediately after a transition may be briefly unhittable; that
-    /// window is typically sub-frame and acceptable given the correctness gain.
+    /// On macOS 27, status items no longer have individual CG windows, so the
+    /// Window Server snapshot is empty and would wipe AX-derived bounds. Rebuild
+    /// from the item cache instead so show-on-click stays constrained to truly
+    /// empty menu bar space.
     private func rebuildWindowBoundsLookupFromCurrentLayout() {
+        if #available(macOS 27, *) {
+            guard let appState else {
+                windowBoundsLock.withLock { $0 = [] }
+                return
+            }
+            rebuildWindowBoundsLookup(from: appState.itemManager.itemCache)
+            return
+        }
+
         let allWindowIDs = Bridging.getMenuBarWindowList(option: [
             .onScreen, .activeSpace, .itemsOnly,
         ])
@@ -1777,23 +1824,36 @@ extension HIDEventManager {
         }
 
         let entries = windowBoundsLock.withLock { $0 }
-        for entry in entries {
-            guard entry.bounds.contains(mouseLocation) else { continue }
-            // Verify window still exists — temporary items (screen recording,
-            // mic, camera indicators) can disappear without triggering a cache
-            // rebuild, leaving stale bounds in the lookup.
-            if let currentBounds = Bridging.getWindowBounds(for: entry.windowID),
-               currentBounds.contains(mouseLocation)
-            {
-                return true
-            }
+        let trustCachedBounds = if #available(macOS 27, *) { true } else { false }
+        return Self.menuBarBoundsLookupContains(
+            mouseLocation,
+            entries: entries,
+            trustCachedBoundsWithoutLiveWindowVerification: trustCachedBounds
+        )
+    }
+
+    /// macOS 27 fallback when the bounds lookup table is empty or stale.
+    private func isMouseInsideManagedItemBounds(
+        appState: AppState,
+        at mouseLocation: CGPoint
+    ) -> Bool {
+        guard #available(macOS 27, *) else {
+            return false
         }
-        return false
+
+        let hider = appState.menuBarManager.simpleItemHider
+        return appState.itemManager.itemCache.managedItems.contains { item in
+            guard item.bounds.contains(mouseLocation) else {
+                return false
+            }
+            let section = hider?.section(for: item)
+            return Self.shouldIncludeItemInMenuBarBoundsLookup(item, section: section)
+        }
     }
 
     /// A Boolean value that indicates whether the mouse pointer is within
     /// the bounds of a menu bar item.
-    func isMouseInsideMenuBarItem(appState _: AppState, screen _: NSScreen) -> Bool {
+    func isMouseInsideMenuBarItem(appState: AppState, screen _: NSScreen) -> Bool {
         guard let mouseLocation = MouseHelpers.locationCoreGraphics else {
             return false
         }
@@ -1801,10 +1861,11 @@ extension HIDEventManager {
         // Use the pre-built bounds lookup table, which is rebuilt
         // whenever the item cache changes. This avoids per-event
         // IPC calls to the Window Server.
-        let cacheHit = isMouseInsideCachedMenuBarItem()
+        if isMouseInsideCachedMenuBarItem() {
+            return true
+        }
 
-        // If we found a hit in the cache, return early.
-        if cacheHit {
+        if isMouseInsideManagedItemBounds(appState: appState, at: mouseLocation) {
             return true
         }
 
@@ -1862,6 +1923,10 @@ extension HIDEventManager {
         // to the application menu. When AX hit-testing is indeterminate (returns nil),
         // fall back to cheap geometric detection to avoid misclassifying the app menu
         // area as empty space.
+        //
+        // Status items (Clock, Control Center, third-party icons, …) are excluded via
+        // `isMouseInsideMenuBarItem`, which on macOS 27 uses AX-derived bounds because
+        // individual CG windows no longer exist.
         let appMenuResult = isMouseInsideApplicationMenuClickRegion(
             appState: appState,
             screen: screen
