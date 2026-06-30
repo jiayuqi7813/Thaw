@@ -14,6 +14,8 @@ import Combine
 /// A status item that controls a section in the menu bar.
 @MainActor
 final class ControlItem: NSObject {
+    private let diagLog = DiagLog(category: "ControlItem")
+
     /// An identifier for a control item.
     enum Identifier: String, CaseIterable {
         /// The identifier for the control item for the visible section.
@@ -847,15 +849,19 @@ final class ControlItem: NSObject {
         modifierFlags: NSEvent.ModifierFlags,
         clickCount: Int,
         usesDoubleClick: Bool,
-        usesOptionClick: Bool
+        usesOptionClick: Bool,
+        diagLog: DiagLog? = nil
     ) -> PrimaryActionIntent {
+        let intent: PrimaryActionIntent
         if usesDoubleClick, clickCount > 1, identifier == .visible {
-            return .showAlwaysHidden
+            intent = .showAlwaysHidden
+        } else if modifierFlags.contains(.option) {
+            intent = usesOptionClick ? .toggleAlwaysHidden : .none
+        } else {
+            intent = .toggleSection
         }
-        if modifierFlags.contains(.option) {
-            return usesOptionClick ? .toggleAlwaysHidden : .none
-        }
-        return .toggleSection
+        diagLog?.debug("menuBarAgentPrimaryActionIntent: identifier=\(identifier.rawValue), modifierFlags=\(modifierFlags), clickCount=\(clickCount), usesDoubleClick=\(usesDoubleClick), usesOptionClick=\(usesOptionClick) → \(intent)")
+        return intent
     }
 
     /// Handles macOS 27's semantic primary action for the visible control item.
@@ -874,12 +880,17 @@ final class ControlItem: NSObject {
         }
 
         let event = NSApp.currentEvent
+        let modifierFlags = event?.modifierFlags ?? []
+        let effectiveModifierFlags = modifierFlags.isEmpty
+            ? NSEvent.modifierFlags
+            : modifierFlags
         let intent = Self.menuBarAgentPrimaryActionIntent(
             identifier: identifier,
-            modifierFlags: event?.modifierFlags ?? [],
+            modifierFlags: effectiveModifierFlags,
             clickCount: event?.clickCount ?? 0,
             usesDoubleClick: appState.settings.advanced.useDoubleClickToShowAlwaysHiddenSection,
-            usesOptionClick: appState.settings.advanced.useOptionClickToShowAlwaysHiddenSection
+            usesOptionClick: appState.settings.advanced.useOptionClickToShowAlwaysHiddenSection,
+            diagLog: diagLog
         )
         let menuBarManager = appState.menuBarManager
 
@@ -894,11 +905,31 @@ final class ControlItem: NSObject {
             }
         case .showAlwaysHidden:
             if let section = menuBarManager.section(withName: .alwaysHidden), section.isEnabled {
-                section.show()
+                diagLog.debug("performPrimaryAction: showAlwaysHidden → permanent show")
+                for s in menuBarManager.sections {
+                    s.desiredState = .showSection
+                    s.updateControlItemState(for: nil)
+                }
+                menuBarManager.simpleItemHider?.show(.alwaysHidden)
+            } else {
+                diagLog.debug("performPrimaryAction: showAlwaysHidden — section found=\(menuBarManager.section(withName: .alwaysHidden) != nil), isEnabled=\(menuBarManager.section(withName: .alwaysHidden)?.isEnabled ?? false)")
             }
         case .toggleAlwaysHidden:
             if let section = menuBarManager.section(withName: .alwaysHidden), section.isEnabled {
-                section.toggle()
+                let makeVisible = section.isHidden
+                diagLog.debug("performPrimaryAction: toggleAlwaysHidden → permanent toggle, isHidden=\(section.isHidden)")
+                for s in menuBarManager.sections {
+                    s.desiredState = makeVisible ? .showSection : .hideSection
+                    s.updateControlItemState(for: nil)
+                }
+                if makeVisible {
+                    menuBarManager.simpleItemHider?.show(.alwaysHidden)
+                } else {
+                    menuBarManager.simpleItemHider?.hideRevealedSections()
+                    menuBarManager.iceBarPanel.close()
+                }
+            } else {
+                diagLog.debug("performPrimaryAction: toggleAlwaysHidden — section found=\(menuBarManager.section(withName: .alwaysHidden) != nil), isEnabled=\(menuBarManager.section(withName: .alwaysHidden)?.isEnabled ?? false)")
             }
         case .contextMenu, .none:
             break
