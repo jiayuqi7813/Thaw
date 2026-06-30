@@ -4161,12 +4161,14 @@ extension MenuBarItemManager {
         // items (verified by reverse-engineering), so delegate to that gesture.
         // The cursor hide/warp-back defer registered above wraps this call.
         if #available(macOS 27, *) {
-            try await moveItemViaCommandDrag(
-                item: item,
-                to: destination,
-                on: resolvedDisplayID,
-                experimentalSystemItemHiding: experimentalSystemItemHiding
-            )
+            try await MoveInputSuppression.withUserMouseInputSuppressed {
+                try await moveItemViaCommandDrag(
+                    item: item,
+                    to: destination,
+                    on: resolvedDisplayID,
+                    experimentalSystemItemHiding: experimentalSystemItemHiding
+                )
+            }
             return
         }
 
@@ -4197,15 +4199,17 @@ extension MenuBarItemManager {
                         "Position match without observable displacement on attempt \(n); treating as false positive on a zero-width control item and retrying"
                     )
                 }
+            try await MoveInputSuppression.withUserMouseInputSuppressed {
                 try await postMoveEvents(
                     item: item,
                     destination: destination,
                     on: resolvedDisplayID,
                     warpCursorAfter: false // move() owns the single warp in its defer
                 )
-                // postMoveEvents only returns without throwing when both
-                // waitForMoveEventResponse calls observed origin changes,
-                // i.e. our drag actually displaced the item.
+            }
+            // postMoveEvents only returns without throwing when both
+            // waitForMoveEventResponse calls observed origin changes,
+            // i.e. our drag actually displaced the item.
                 anyMoveEventsSucceeded = true
                 // Verify the item actually reached the correct position.
                 if try await itemHasCorrectPosition(item: item, for: destination, on: resolvedDisplayID) {
@@ -8776,6 +8780,66 @@ private extension CGEventField {
         .mouseEventWindowUnderMousePointerThatCanHandleThisEvent,
         .windowID,
     ]
+}
+
+// MARK: - MoveInputSuppression
+
+enum MoveInputSuppression {
+    private static let syntheticMoveUserData: Int64 = 0x5468_6177_4d6f_7665
+
+    static let suppressedMouseEventTypes: [CGEventType] = [
+        .leftMouseDown,
+        .leftMouseUp,
+        .rightMouseDown,
+        .rightMouseUp,
+        .mouseMoved,
+        .leftMouseDragged,
+        .rightMouseDragged,
+        .scrollWheel,
+        .otherMouseDown,
+        .otherMouseUp,
+        .otherMouseDragged,
+    ]
+
+    static func markSyntheticMoveEvent(_ event: CGEvent) {
+        event.setIntegerValueField(.eventSourceUserData, value: syntheticMoveUserData)
+    }
+
+    static func shouldSuppress(_ event: CGEvent) -> Bool {
+        guard suppressedMouseEventTypes.contains(event.type) else {
+            return false
+        }
+
+        let userData = event.getIntegerValueField(.eventSourceUserData)
+        return userData == 0
+    }
+
+    @MainActor
+    static func withUserMouseInputSuppressed<T>(
+        _ operation: () async throws -> T
+    ) async throws -> T {
+        let tap = EventTap(
+            label: "Move input suppression",
+            types: suppressedMouseEventTypes,
+            location: .hidEventTap,
+            placement: .headInsertEventTap,
+            option: .defaultTap
+        ) { _, event in
+            shouldSuppress(event) ? nil : event
+        }
+
+        if tap.isValid {
+            tap.enable()
+        } else {
+            MenuBarItemManager.diagLog.warning("Move input suppression tap could not be created")
+        }
+
+        defer {
+            tap.invalidate()
+        }
+
+        return try await operation()
+    }
 }
 
 // MARK: - CGEventFilterMask Helpers
