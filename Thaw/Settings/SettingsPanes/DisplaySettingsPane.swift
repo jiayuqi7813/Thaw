@@ -56,7 +56,7 @@ struct DisplaySettingsPane: View {
             IceSection("Global") {
                 globalSection()
             }
-            IceSection {
+            IceSection(options: [.isBordered]) {
                 confirmSpacingRelaunchControls
             }
             ForEach(displaySettings.allDisplays()) { display in
