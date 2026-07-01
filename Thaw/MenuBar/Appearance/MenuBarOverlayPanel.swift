@@ -21,11 +21,13 @@ enum MenuBarSplitPillGeometry {
         notchFrame: CGRect?,
         notchMargin: CGFloat
     ) -> CGRect {
-        guard applicationMenuFrame.width > 0 else { return .zero }
-
         let screenOriginX = screenFrame.minX
         let leftX = rect.minX + leadingMargin
-        var rightX = applicationMenuFrame.maxX - screenOriginX + trailingPadding
+        var rightX = if applicationMenuFrame.width > 0 {
+            applicationMenuFrame.maxX - screenOriginX + trailingPadding
+        } else {
+            rect.maxX
+        }
 
         if let notchFrame {
             rightX = min(rightX, notchFrame.minX - screenOriginX - notchMargin)
