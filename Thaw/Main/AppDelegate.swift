@@ -245,12 +245,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Supported Settings URLs (requires whitelist authorization):
     /// - `thaw://set?key=X&value=Y` — set a boolean setting
     /// - `thaw://toggle?key=X` — toggle a boolean setting
+    /// - `thaw://reveal-item?bundle=X` or `?item-id=Y` — temporarily reveal a hidden menu bar item
     private func handleURL(_ url: URL, senderBundleId: String? = nil) {
         let host = url.host?.lowercased() ?? ""
 
         // Handle settings manipulation URLs
         switch host {
-        case "set", "toggle", "get", "authorize":
+        case "set", "toggle", "get", "authorize", "reveal-item":
             handleSettingsURL(url, host: host, senderBundleId: senderBundleId)
             return
         default:
@@ -325,6 +326,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             handleToggleURL(url, sender: effectiveBundleId)
         case "get":
             handleGetURL(url, sender: effectiveBundleId)
+        case "reveal-item":
+            handleRevealItemURL(url, sender: effectiveBundleId)
         default:
             break
         }
@@ -420,6 +423,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !success {
             appState.diagLog.warning("Settings URI toggle: failed to toggle \(key)")
         }
+    }
+
+    /// Handles thaw://reveal-item?bundle=X or ?item-id=Y URL.
+    /// Temporarily reveals a single hidden/always-hidden menu bar item without
+    /// revealing the rest of its section; it auto-reconceals via the same
+    /// menu-open-aware delay used by the Thaw Bar click path.
+    private func handleRevealItemURL(_ url: URL, sender: String?) {
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            appState.diagLog.warning("Settings URI reveal-item: invalid URL \(url.absoluteString)")
+            return
+        }
+
+        let bundle = components.queryItems?.first(where: { $0.name == "bundle" })?.value
+        let itemID = components.queryItems?.first(where: { $0.name == "item-id" })?.value
+
+        guard let simpleItemHider = appState.menuBarManager.simpleItemHider else {
+            appState.diagLog.warning("Settings URI reveal-item: per-item reveal is unavailable on this OS")
+            return
+        }
+
+        guard let identifier = SettingsURIHandler.resolveRevealItemIdentifier(
+            bundle: bundle,
+            itemID: itemID,
+            sectionAssignment: simpleItemHider.sectionAssignment
+        ) else {
+            appState.diagLog.warning("Settings URI reveal-item: missing or ambiguous bundle/item-id in \(url.absoluteString)")
+            return
+        }
+
+        simpleItemHider.revealItemTemporarily(identifier)
+        simpleItemHider.scheduleTemporaryItemConceal(identifier)
+        appState.diagLog.info("Settings URI reveal-item: revealed \(identifier) for sender \(sender ?? "unknown")")
     }
 
     /// Handles thaw://get?key=X&callback=Y URLs.
