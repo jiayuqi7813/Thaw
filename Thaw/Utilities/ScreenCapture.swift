@@ -213,7 +213,7 @@ enum ScreenCapture {
             )
             diagLog.debug(
                 "captureMenuBarHostingWindowAsync: captured fallback display strip " +
-                "\(image.width)×\(image.height)px displayID=\(display.displayID)"
+                    "\(image.width)×\(image.height)px displayID=\(display.displayID)"
             )
             return MenuBarHostingCapture(image: image, windowFrame: stripFrame, scale: scale)
         } catch {
@@ -254,7 +254,7 @@ enum ScreenCapture {
             }
         diagLog.info(
             "hostingCandidates[\(reason)]: displayID=\(displayID) " +
-            "count=\(candidates.count) \(descriptions.joined(separator: " | "))"
+                "count=\(candidates.count) \(descriptions.joined(separator: " | "))"
         )
     }
 
@@ -321,7 +321,7 @@ enum ScreenCapture {
             )
             diagLog.debug(
                 "captureMenuBarHostingWindowAsync: captured \(image.width)×\(image.height)px " +
-                "(wid=\(window.windowID)) for displayID=\(displayID)"
+                    "(wid=\(window.windowID)) for displayID=\(displayID)"
             )
             return MenuBarHostingCapture(image: image, windowFrame: window.frame, scale: scale)
         } catch {

@@ -111,7 +111,6 @@ struct DisplaySettingsPane: View {
         }
     }
 
-    @ViewBuilder
     private func displaySection(for display: DisplaySettingsManager.DisplayInfo) -> some View {
         IceSection {
             displayHeader(for: display)
@@ -120,7 +119,6 @@ struct DisplaySettingsPane: View {
         }
     }
 
-    @ViewBuilder
     private func displayHeader(for display: DisplaySettingsManager.DisplayInfo) -> some View {
         HStack(spacing: 6) {
             Text(display.name)

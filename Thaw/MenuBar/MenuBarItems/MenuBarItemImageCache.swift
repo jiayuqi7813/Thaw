@@ -206,7 +206,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                       let pngData = bitmap.representation(using: .png, properties: [:])
                 else { return nil }
 
-            let tagString = tag.tagIdentifier
+                let tagString = tag.tagIdentifier
                 return (tagString, pngData)
             }.compactMap(\.self)
 
@@ -956,7 +956,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
 
         MenuBarItemImageCache.diagLog.debug(
             "axBoundsCapture: hosting window \(composite.width)×\(composite.height)px, " +
-            "cropping \(itemsWithBounds.count) items"
+                "cropping \(itemsWithBounds.count) items"
         )
 
         var result = CaptureResult()
@@ -977,7 +977,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
             if !windowFrame.intersects(bounds) {
                 MenuBarItemImageCache.diagLog.debug(
                     "axBoundsCapture: \(item.logString) bounds \(bounds) outside hosting " +
-                    "window \(windowFrame); keeping prior image"
+                        "window \(windowFrame); keeping prior image"
                 )
                 result.excluded.append(item)
                 continue
@@ -1003,7 +1003,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
             guard !cropRect.isNull, !cropRect.isEmpty, let croppedImage = composite.cropping(to: cropRect) else {
                 MenuBarItemImageCache.diagLog.debug(
                     "axBoundsCapture: cropping failed for \(item.logString) " +
-                    "rawCropRect=\(rawCropRect) clamped=\(cropRect)"
+                        "rawCropRect=\(rawCropRect) clamped=\(cropRect)"
                 )
                 recordCaptureFailure(for: item)
                 result.excluded.append(item)
@@ -1022,7 +1022,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                 if item.tag.isHidingUnsupported {
                     MenuBarItemImageCache.diagLog.debug(
                         "axBoundsCapture: blank image for denylisted hiding-unsupported \(item.logString); " +
-                        "skipping without failure (will recover on next refresh)"
+                            "skipping without failure (will recover on next refresh)"
                     )
                     result.excluded.append(item)
                     continue
@@ -1100,7 +1100,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                     guard let liveBounds = liveBoundsByID[item.uniqueIdentifier] else {
                         MenuBarItemImageCache.diagLog.debug(
                             "captureImages: no live bounds for \(item.logString); " +
-                            "keeping prior image (skipping stale-bounds crop)"
+                                "keeping prior image (skipping stale-bounds crop)"
                         )
                         continue
                     }
@@ -1865,9 +1865,8 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                     return
                 }
 
-                let sectionsToCapture: [MenuBarSection.Name]
-                if onlyMissingImages {
-                    sectionsToCapture = sections.filter { section in
+                let sectionsToCapture: [MenuBarSection.Name] = if onlyMissingImages {
+                    sections.filter { section in
                         let sectionItems = appState.itemManager.itemCache[section]
                         guard !sectionItems.isEmpty else { return false }
                         return sectionItems.contains { item in
@@ -1878,7 +1877,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                         }
                     }
                 } else {
-                    sectionsToCapture = sections.filter { section in
+                    sections.filter { section in
                         !appState.itemManager.itemCache[section].isEmpty
                     }
                 }
@@ -1896,7 +1895,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                         hider.hideRevealedSections()
                     case .noOp:
                         break
-                    case .show(let section):
+                    case let .show(section):
                         hider.show(section, reconcileBoundary: false)
                     }
                 }
@@ -1948,7 +1947,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                         hider.hideRevealedSections()
                     case .noOp:
                         break
-                    case .show(let section):
+                    case let .show(section):
                         hider.show(section, reconcileBoundary: false)
                     }
                 }
