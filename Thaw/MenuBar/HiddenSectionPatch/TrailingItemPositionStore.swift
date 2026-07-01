@@ -6,7 +6,7 @@
 //  Copyright (Thaw) © 2026 Toni Förster
 //  Licensed under the GNU GPLv3
 
-import Foundation
+import Cocoa
 
 /// Reads and writes `TrailingItemPreferredPositions` in
 /// `com.apple.MenuBarAgent`'s preferences domain.
@@ -35,6 +35,25 @@ final class TrailingItemPositionStore {
     private var hiddenPlistKeys: [String: Int] = [:]
 
     private let diagLog = DiagLog(category: "TrailingItemPos")
+    private var terminationObserver: NSObjectProtocol?
+
+    init(notificationCenter: NotificationCenter = .default) {
+        terminationObserver = notificationCenter.addObserver(
+            forName: NSApplication.willTerminateNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.restoreAll()
+            }
+        }
+    }
+
+    isolated deinit {
+        if let terminationObserver {
+            NotificationCenter.default.removeObserver(terminationObserver)
+        }
+    }
 
     /// Writes the current on-screen position of each visible item so
     /// MenuBarAgent anchors them in place during the assertion reflow. Call
@@ -468,16 +487,19 @@ final class TrailingItemPositionStore {
             kCFPreferencesCurrentUser,
             kCFPreferencesAnyHost
         )
-        CFPreferencesSynchronize(
+        let synced = CFPreferencesSynchronize(
             Self.agentDomain,
             kCFPreferencesCurrentUser,
             kCFPreferencesAnyHost
         )
         // Direct plist write fallback so MenuBarAgent sees the change even
         // if CFPreferences sync doesn't propagate cross-process.
+        guard !synced else { return }
+
         let plistPath = ("~/Library/Preferences/\(Self.agentDomain as String).plist" as NSString).expandingTildeInPath
         let plist = (NSMutableDictionary(contentsOfFile: plistPath) as NSMutableDictionary?) ?? NSMutableDictionary()
         plist[Self.positionKey] = dict
         plist.write(toFile: plistPath, atomically: true)
+        diagLog.warning("writePositions: CFPreferencesSynchronize failed; used direct plist fallback")
     }
 }
