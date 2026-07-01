@@ -1124,6 +1124,28 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
     }
 
     @MainActor
+    func testLoadOrderMigratesLegacyHiddenKeyAndRemovesIt() {
+        let suiteName = "ThawTests.SimpleItemHiderLegacyHidden.\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            XCTFail("Unable create isolated UserDefaults suite")
+            return
+        }
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        defaults.set(
+            ["com.example.app::item1", "com.example.app::item2"],
+            forKey: "Thaw.simpleHiddenItemIdentifiers"
+        )
+
+        let order = SimpleItemHider.loadOrder(defaults: defaults)
+
+        XCTAssertEqual(order[.hidden]?.count, 2)
+        XCTAssertNil(defaults.object(forKey: "Thaw.simpleHiddenItemIdentifiers"))
+    }
+
+    @MainActor
     func testMacOS27RelocationUsesAXBoundsForSyntheticWindowID() throws {
         guard #available(macOS 27, *) else {
             throw XCTSkip("macOS 27 AX bounds are OS-specific")
@@ -1236,29 +1258,29 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
 
     @MainActor
     func testMacOS27VisibleThawControlRestoreMoveUsesSavedOrder() throws {
-    guard #available(macOS 27, *) else {
-        throw XCTSkip("macOS 27 layout dragging is OS-specific")
-    }
+        guard #available(macOS 27, *) else {
+            throw XCTSkip("macOS 27 layout dragging is OS-specific")
+        }
 
-    let alpha = appItem(bundleID: "com.example.alpha", title: "Alpha", x: 100, windowID: 1530)
-    let thaw = item(tag: .visibleControlItem, x: 140, windowID: 1531)
-    let beta = appItem(bundleID: "com.example.beta", title: "Beta", x: 180, windowID: 1532)
+        let alpha = appItem(bundleID: "com.example.alpha", title: "Alpha", x: 100, windowID: 1530)
+        let thaw = item(tag: .visibleControlItem, x: 140, windowID: 1531)
+        let beta = appItem(bundleID: "com.example.beta", title: "Beta", x: 180, windowID: 1532)
 
-    let plannedMove = LayoutPlanner.visibleControlRestoreMove(
-        items: [alpha, thaw, beta],
-        desiredOrder: [thaw.uniqueIdentifier, alpha.uniqueIdentifier, beta.uniqueIdentifier]
-    )
+        let plannedMove = LayoutPlanner.visibleControlRestoreMove(
+            items: [alpha, thaw, beta],
+            desiredOrder: [thaw.uniqueIdentifier, alpha.uniqueIdentifier, beta.uniqueIdentifier]
+        )
 
-    XCTAssertEqual(plannedMove?.item.uniqueIdentifier, thaw.uniqueIdentifier)
-    guard case let .leftOfItem(target) = plannedMove?.destination else {
-        return XCTFail("expected Thaw control to move left of Alpha")
-    }
+        XCTAssertEqual(plannedMove?.item.uniqueIdentifier, thaw.uniqueIdentifier)
+        guard case let .leftOfItem(target) = plannedMove?.destination else {
+            return XCTFail("expected Thaw control to move left of Alpha")
+        }
         XCTAssertEqual(target.uniqueIdentifier, alpha.uniqueIdentifier)
     }
 
     @available(macOS 27, *)
     @MainActor
-    func testMacOS27VisibleThawControlRestoreMoveWhenStrandedAtBlockedPosition() throws {
+    func testMacOS27VisibleThawControlRestoreMoveWhenStrandedAtBlockedPosition() {
         let alpha = appItem(bundleID: "com.example.alpha", title: "Alpha", x: 100, windowID: 1540)
         let thaw = MenuBarItem.fixture(
             tag: .visibleControlItem,
