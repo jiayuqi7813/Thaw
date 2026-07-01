@@ -462,11 +462,13 @@ final class MenuBarSection {
         switch name {
         case .visible, .hidden:
             for section in menuBarManager.sections where section.name != .alwaysHidden {
+                section.controlItem.animateNextVisibilityUpdate()
                 section.desiredState = .showSection
                 section.updateControlItemState(for: nil)
             }
         case .alwaysHidden:
             for section in menuBarManager.sections {
+                section.controlItem.animateNextVisibilityUpdate()
                 section.desiredState = .showSection
                 section.updateControlItemState(for: nil)
             }
@@ -535,6 +537,7 @@ final class MenuBarSection {
         menuBarManager.showOnHoverAllowed = true
 
         for section in menuBarManager.sections {
+            section.controlItem.animateNextVisibilityUpdate()
             section.desiredState = .hideSection
             section.updateControlItemState(for: nil)
         }
