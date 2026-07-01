@@ -44,7 +44,7 @@ direction/features.
 | 008  | Dedupe overlay panel AX walk vs item manager's recent walk | B | P2 | S-M | — | DONE |
 | 009  | Gate the 10Hz Mission Control probe to "panel visible" | B | P3 | S-M | — | DONE |
 | 010  | Memoize `isParkedOffMenuBarBand` within a repair pass | B | P3 | S | — | DONE |
-| 011  | Investigate batching the macOS 27 boundary-repair loop (spike) | B | P3 | M | — | TODO |
+| 011  | Investigate batching the macOS 27 boundary-repair loop (spike) | B | P3 | M | — | DONE (findings recorded; follow-up implementation plan needed, no maintainer decision yet) |
 | 012  | Gate `AXItemHider` out on macOS 27 + fix doc | C | P2 | S | — | DONE |
 | 013  | Backoff/circuit-breaker for post-assertion verify tear-down | C | P3 | M | — | DONE |
 | 014  | Persist `overflowBase` across calls | C | P3 | S | — | DONE |
