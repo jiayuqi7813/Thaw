@@ -145,6 +145,11 @@ Thaw supports programmatic settings manipulation via the `thaw://` URL scheme wi
 | `showIceIcon`                             | Bool | Show the Thaw icon in menu bar               |
 | `iceBarLocationOnHotkey`                  | Bool | IceBar appears at mouse location on hotkey     |
 | `useLCSSortingOnNotchedDisplays`          | Bool | Use LCS sorting on notched displays          |
+| `enableMenuBarItemOverflow`               | Bool | Enable menu bar item overflow                |
+| `searchIncludeVisible`                    | Bool | Include visible items in search              |
+| `searchIncludeHidden`                     | Bool | Include hidden items in search               |
+| `searchIncludeAlwaysHidden`               | Bool | Include always-hidden items in search        |
+| `enableExperimentalOverflowPrevention`    | Bool | Experimental overflow prevention (default: off) |
 
 #### Double/Time Interval Settings
 
@@ -152,6 +157,7 @@ Thaw supports programmatic settings manipulation via the `thaw://` URL scheme wi
 | ------------------------ | ---- | ----- | ----------- |
 | `rehideInterval`         | Double | 1-300 seconds | Time before auto-rehide (default: 15) |
 | `showOnHoverDelay`       | Double | 0-5 seconds | Delay before hover reveals items (default: 0.2) |
+| `tempShowInterval`       | Double | 0-30 seconds | Temporary reveal duration (default: 15) |
 | `tooltipDelay`           | Double | 0-5 seconds | Delay before showing tooltips (default: 0.5) |
 | `iconRefreshInterval`    | Double | 0.1-5 seconds | Interval between icon refreshes (default: 0.1) |
 

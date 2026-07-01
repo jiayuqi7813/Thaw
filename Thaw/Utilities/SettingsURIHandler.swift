@@ -37,6 +37,7 @@ enum SettingsURIHandler {
         "iceBarLocationOnHotkey",
         "useLCSSortingOnNotchedDisplays",
         "enableMenuBarItemOverflow",
+        "enableExperimentalOverflowPrevention",
         "searchIncludeVisible",
         "searchIncludeHidden",
         "searchIncludeAlwaysHidden",
