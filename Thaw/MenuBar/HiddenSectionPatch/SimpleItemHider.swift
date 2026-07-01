@@ -9,6 +9,66 @@
 @preconcurrency import AXSwift
 import Cocoa
 
+/// The subset of ``AssessmentModeBackend`` that ``SimpleItemHider`` calls into.
+/// Exists so tests can substitute a fake and characterize the orchestration in
+/// ``SimpleItemHider`` without touching the real private visibility-restriction
+/// assertion.
+@MainActor
+protocol AssessmentModeBackending: AnyObject {
+    @discardableResult
+    func apply(sectionAssignment: [String: MenuBarSection.Name], allItems: [MenuBarItem]) -> Bool
+    func pulse(sectionAssignment: [String: MenuBarSection.Name], allItems: [MenuBarItem]) -> Bool
+    func markExternallyTornDown()
+}
+
+extension AssessmentModeBackend: AssessmentModeBackending {}
+
+/// The subset of ``ControlCenterModuleManager`` that ``SimpleItemHider`` calls
+/// into.
+@MainActor
+protocol ControlCenterModuleManaging: AnyObject {
+    @discardableResult
+    func apply(hiddenMenuExtraTitles titles: Set<String>) -> Bool
+}
+
+extension ControlCenterModuleManager: ControlCenterModuleManaging {}
+
+/// The subset of ``CGSWindowHider`` that ``SimpleItemHider`` calls into.
+@MainActor
+protocol CGSWindowHiding: AnyObject {
+    @discardableResult
+    func apply(hiddenPIDs: Set<pid_t>) -> Set<pid_t>
+}
+
+extension CGSWindowHider: CGSWindowHiding {}
+
+/// The subset of ``AXItemHider`` that ``SimpleItemHider`` calls into.
+@MainActor
+protocol AXItemHiding: AnyObject {
+    @discardableResult
+    func apply(hiddenPIDs: Set<pid_t>, allItems: [MenuBarItem]) -> Set<pid_t>
+}
+
+extension AXItemHider: AXItemHiding {}
+
+/// The subset of ``TrailingItemPositionStore`` that ``SimpleItemHider`` calls
+/// into.
+@MainActor
+protocol TrailingItemPositioning: AnyObject {
+    var hasHiddenItems: Bool { get }
+    func readPositions() -> [String: Int]
+    func writePositions(_ dict: [String: Int])
+    func restoreAll()
+    @discardableResult
+    func hideItems(_ items: [MenuBarItem]) -> Set<String>
+    @discardableResult
+    func showItems(_ items: [MenuBarItem], allItems: [MenuBarItem]) -> Set<String>
+    @discardableResult
+    func lockVisiblePositions(visibleItemKeys: Set<String>, allItems: [MenuBarItem]) -> Set<String>
+}
+
+extension TrailingItemPositionStore: TrailingItemPositioning {}
+
 /// macOS 27 section-based hiding, the authority behind the restored
 /// drag-between-sections layout UI.
 ///
@@ -79,19 +139,19 @@ final class SimpleItemHider: ObservableObject {
 
     /// The backend that performs the hiding (the private visibility-restriction
     /// assertion).
-    private let backend: AssessmentModeBackend
+    private let backend: AssessmentModeBackending
 
     /// Governs Apple Control Center modules (AirDrop / Focus / User / Now Playing
     /// / WiFi / Bluetooth) that the assessment-mode allowlist cannot hide. Items
     /// it owns are hidden via their Control Center preference and kept out of the
     /// backend input.
-    private let ccModuleManager: ControlCenterModuleManager
+    private let ccModuleManager: ControlCenterModuleManaging
 
     /// Off-screen CGS window hider. When the experimental window
     /// hiding flag is on, third-party items are hidden by moving their windows
     /// off-screen via CGS instead of the assessment-mode assertion, so hiding one
     /// item no longer reflows the bar and ghosts dynamic neighbors like iStat.
-    private let cgsWindowHider: CGSWindowHider
+    private let cgsWindowHider: CGSWindowHiding
 
     /// AX-based item hider. On macOS 27 per-item CG windows don't exist, so the
     /// CGS hider cannot operate. This hider sets `AXHidden` on each item's AX
@@ -100,32 +160,56 @@ final class SimpleItemHider: ObservableObject {
     ///
     /// Note: AXHidden is not settable on macOS 27 menu-bar items; this hider is
     /// kept for diagnostics but is effectively a no-op there.
-    private let axItemHider: AXItemHider
+    private let axItemHider: AXItemHiding
 
     /// Position lock for visible items. On macOS 27 the assessment-mode
     /// assertion re-composites the whole bar, ghosting dynamic neighbors (iStat).
     /// Writing visible items' current positions to `TrailingItemPreferredPositions`
     /// before the assertion fires tells MenuBarAgent to anchor them in place
     /// during reflow, preventing the ghosting.
-    private let positionStore: TrailingItemPositionStore
+    private let positionStore: TrailingItemPositioning
 
     private var timer: Timer?
     private var boundaryReconciliationTask: Task<Void, Never>?
     private var lastRefreshSignature: String?
 
-    init(appState: AppState) {
+    convenience init(appState: AppState) {
+        self.init(
+            appState: appState,
+            backend: AssessmentModeBackend(),
+            ccModuleManager: ControlCenterModuleManager(),
+            cgsWindowHider: CGSWindowHider(),
+            axItemHider: AXItemHider(),
+            positionStore: TrailingItemPositionStore()
+        )
+    }
+
+    /// Designated initializer. Production code always goes through
+    /// ``init(appState:)`` above, which supplies the real collaborators; this
+    /// entry point exists so tests can substitute fakes for the five
+    /// collaborators and characterize ``SimpleItemHider``'s instance lifecycle
+    /// without touching the private visibility-restriction assertion, Control
+    /// Center, CGS, AX, or `TrailingItemPreferredPositions`.
+    init(
+        appState: AppState?,
+        backend: AssessmentModeBackending,
+        ccModuleManager: ControlCenterModuleManaging,
+        cgsWindowHider: CGSWindowHiding,
+        axItemHider: AXItemHiding,
+        positionStore: TrailingItemPositioning
+    ) {
         self.appState = appState
         let order = Self.loadOrder()
         self.sectionItemOrder = order
         self.sectionAssignment = Self.assignmentFromOrder(
             order,
-            alwaysHiddenEnabled: appState.settings.advanced.isAlwaysHiddenSectionEnabled
+            alwaysHiddenEnabled: appState?.settings.advanced.isAlwaysHiddenSectionEnabled ?? true
         )
-        self.backend = AssessmentModeBackend()
-        self.ccModuleManager = ControlCenterModuleManager()
-        self.cgsWindowHider = CGSWindowHider()
-        self.axItemHider = AXItemHider()
-        self.positionStore = TrailingItemPositionStore()
+        self.backend = backend
+        self.ccModuleManager = ccModuleManager
+        self.cgsWindowHider = cgsWindowHider
+        self.axItemHider = axItemHider
+        self.positionStore = positionStore
         Bridging.logSystemMenuBarWindows()
         let assessmentModeAvailable = AssessmentModeBackend.isAvailable
         diagLog.info("hiding backend: AssessmentMode (\(assessmentModeAvailable ? "available" : "unavailable")); \(sectionAssignment.count) assigned item(s)")

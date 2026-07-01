@@ -49,7 +49,7 @@ direction/features.
 | 013  | Backoff/circuit-breaker for post-assertion verify tear-down | C | P3 | M | — | DONE |
 | 014  | Persist `overflowBase` across calls | C | P3 | S | — | DONE |
 | 015  | Extract pure helpers from `AssessmentModeBackend` + tests | D | P2 | M | — | DONE |
-| 016  | Inject `SimpleItemHider` collaborators + lifecycle tests | D | P2 | L | 015 | TODO |
+| 016  | Inject `SimpleItemHider` collaborators + lifecycle tests | D | P2 | L | 015 | DONE |
 | 017  | `TrailingItemPositionStore` key-resolution + weight tests | D | P2 | M | — | TODO |
 | 018  | `SyntheticMoveEngine` retry/dropX/anchoring tests | D | P2 | M | — | TODO |
 | 019  | `MenuBarItemAXProvider` enumeration + assembly tests | D | P2 | M | — | DONE |
