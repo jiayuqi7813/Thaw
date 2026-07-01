@@ -51,7 +51,7 @@ direction/features.
 | 015  | Extract pure helpers from `AssessmentModeBackend` + tests | D | P2 | M | — | DONE |
 | 016  | Inject `SimpleItemHider` collaborators + lifecycle tests | D | P2 | L | 015 | DONE |
 | 017  | `TrailingItemPositionStore` key-resolution + weight tests | D | P2 | M | — | DONE |
-| 018  | `SyntheticMoveEngine` retry/dropX/anchoring tests | D | P2 | M | — | TODO |
+| 018  | `SyntheticMoveEngine` retry/dropX/anchoring tests | D | P2 | M | — | DONE |
 | 019  | `MenuBarItemAXProvider` enumeration + assembly tests | D | P2 | M | — | DONE |
 | 020  | `CacheRebucketter.rebucket` tests | D | P2 | S | 016 | DONE |
 | 021  | `HIDEventManager` click-guard state-machine tests | D | P3 | M | — | TODO |
