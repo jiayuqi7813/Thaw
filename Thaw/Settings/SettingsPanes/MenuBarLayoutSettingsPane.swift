@@ -239,17 +239,18 @@ struct MenuBarLayoutSettingsPane: View {
     private var resetControls: some View {
         IceSection(options: [.isBordered]) {
             VStack(alignment: .leading, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Reset menu bar layout")
-                        .font(.headline)
-                    Text("Moves every movable item except the \(Constants.displayName) icon to the selected section — just like a fresh install.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Reset menu bar layout")
+                            .font(.headline)
+                        Text("Moves every movable item except the \(Constants.displayName) icon to the selected section — just like a fresh install.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
 
-                HStack {
-                    Spacer()
+                    Spacer(minLength: 16)
+
                     Button {
                         isConfirmingReset = true
                     } label: {
@@ -265,7 +266,7 @@ struct MenuBarLayoutSettingsPane: View {
                 }
 
                 SettingsWarningPill(
-                    message: "If menu bar items are missing or a section looks empty, try Reset to Visible — it often restores the layout."
+                    message: "If menu bar items are missing or a section looks empty, try Reset to Visible — it restores the icons."
                 )
 
                 if let resetStatus {

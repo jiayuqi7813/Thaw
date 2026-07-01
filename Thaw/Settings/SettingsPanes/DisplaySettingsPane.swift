@@ -92,12 +92,14 @@ struct DisplaySettingsPane: View {
 
     @ViewBuilder
     private var confirmSpacingRelaunchControls: some View {
-        Toggle("Confirm before relaunching apps", isOn: $displaySettings.confirmSpacingRelaunch)
-            .annotation("Before a display change or spacing edit relaunches your menu bar apps, Thaw asks you to confirm. Turn this off to apply spacing changes and relaunch apps without confirmation.")
+        VStack(alignment: .leading, spacing: 8) {
+            Toggle("Confirm before relaunching apps", isOn: $displaySettings.confirmSpacingRelaunch)
+                .annotation("Before a display change or spacing edit relaunches your menu bar apps, Thaw asks you to confirm. Turn this off to apply spacing changes and relaunch apps without confirmation.")
 
-        SettingsWarningPill(
-            message: "When a display transition requires Thaw to apply a different menu bar spacing, Thaw relaunches apps with menu bar items. Relaunching apps may cause unsaved input, progress, or transient app state to be lost."
-        )
+            SettingsWarningPill(
+                message: "When a display transition requires Thaw to apply a different menu bar spacing, Thaw relaunches apps with menu bar items. Relaunching apps may cause unsaved input, progress, or transient app state to be lost."
+            )
+        }
 
         if !displaySettings.confirmSpacingRelaunch {
             IcePicker(
