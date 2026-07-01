@@ -633,7 +633,9 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
             let isHotkeyListVisible = nav.isSettingsPresented
                 && nav.settingsNavigationIdentifier == .hotkeys
                 && isItemHotkeyListExpanded
-            if nav.isSearchPresented || isLayoutPane || isHotkeyListVisible {
+            if nav.isSearchPresented {
+                sections = [.visible]
+            } else if isLayoutPane || isHotkeyListVisible {
                 sections = MenuBarSection.Name.allCases
             } else if nav.isIceBarPresented,
                       let current = appState.menuBarManager.iceBarPanel.currentSection
@@ -2048,7 +2050,9 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
 
         var sectionsNeedingDisplay = [MenuBarSection.Name]()
 
-        if navSnapshot.isSettingsPresented || navSnapshot.isSearchPresented {
+        if navSnapshot.isSearchPresented {
+            sectionsNeedingDisplay = [.visible]
+        } else if navSnapshot.isSettingsPresented {
             sectionsNeedingDisplay = MenuBarSection.Name.allCases
         } else if navSnapshot.isIceBarPresented, let section = appState.menuBarManager.iceBarPanel
             .currentSection
@@ -2081,7 +2085,9 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         let navSnapshot = makeNavigationStateSnapshot()
 
         var sectionsNeedingDisplay = [MenuBarSection.Name]()
-        if navSnapshot.isSettingsPresented || navSnapshot.isSearchPresented {
+        if navSnapshot.isSearchPresented {
+            sectionsNeedingDisplay = [.visible]
+        } else if navSnapshot.isSettingsPresented {
             sectionsNeedingDisplay = MenuBarSection.Name.allCases
         } else if navSnapshot.isIceBarPresented, let section = appState.menuBarManager.iceBarPanel
             .currentSection
