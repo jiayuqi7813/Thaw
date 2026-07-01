@@ -556,7 +556,7 @@ final class MenuBarSection {
     private func isMouseInsideActiveArea() -> Bool {
         guard let appState else { return false }
         if let screen = appState.hidEventManager.bestScreen(appState: appState),
-           appState.hidEventManager.isMouseInsideMenuBar(appState: appState, screen: screen)
+           appState.hidEventManager.isMouseInsideMenuBarHoverBand(appState: appState, screen: screen)
         {
             return true
         }

@@ -1522,7 +1522,7 @@ extension HIDEventManager {
             }
         } else {
             guard
-                !isMouseInsideMenuBar(appState: appState, screen: screen),
+                !isMouseInsideMenuBarHoverBand(appState: appState, screen: screen),
                 !isMouseInsideIceBar(appState: appState)
             else {
                 if pendingHoverAction == .hide {
@@ -1567,11 +1567,15 @@ extension HIDEventManager {
                     }
                 }
                 try await Task.sleep(for: .seconds(hideDelay))
-                // Make sure the manager is still enabled and the mouse is still outside.
+                // Make sure the manager is still enabled and the mouse is still
+                // outside. Use the hover-retention band rather than the precise
+                // menu bar edge so cursor tremor at the boundary does not let
+                // the in-flight hide survive `rehideInterval` and re-trigger the
+                // show→hide→show loop.
                 guard
                     isEnabled,
                     appState.settings.general.autoRehide,
-                    !isMouseInsideMenuBar(appState: appState, screen: screen),
+                    !isMouseInsideMenuBarHoverBand(appState: appState, screen: screen),
                     !isMouseInsideIceBar(appState: appState)
                 else {
                     return
@@ -1790,6 +1794,30 @@ extension HIDEventManager {
             && mouseLocation.x <= screen.frame.maxX
             && mouseLocation.y <= screen.frame.maxY
             && mouseLocation.y >= screen.frame.maxY - menuBarHeight
+    }
+
+    /// Returns `true` when the cursor is inside the menu bar or within the
+    /// small ``MenuBarTuning/hoverRetentionPadding`` band kept just below it.
+    ///
+    /// Used only by the hide arm of show-on-hover and by the section rehide
+    /// active-area check, so cursor micro-tremor at the menu bar edge of an
+    /// inline (non-Thaw Bar) reveal does not schedule a hide that survives
+    /// `rehideInterval` and restarts the show→hide→show loop. The show arm
+    /// and click/scroll paths keep using the precise ``isMouseInsideMenuBar``
+    /// so user intent is still honoured for show-on-click and scroll.
+    func isMouseInsideMenuBarHoverBand(appState _: AppState, screen: NSScreen) -> Bool {
+        guard
+            let mouseLocation = MouseHelpers.locationAppKit,
+            let menuBarHeight = screen.getMenuBarHeight()
+        else {
+            return false
+        }
+
+        let padding = Constants.MenuBarTuning.hoverRetentionPadding
+        return mouseLocation.x >= screen.frame.minX
+            && mouseLocation.x <= screen.frame.maxX
+            && mouseLocation.y <= screen.frame.maxY
+            && mouseLocation.y >= screen.frame.maxY - menuBarHeight - padding
     }
 
     /// A Boolean value that indicates whether the mouse pointer is within
