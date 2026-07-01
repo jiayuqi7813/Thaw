@@ -24,6 +24,7 @@ final class SimpleItemHiderTests: XCTestCase {
         private(set) var pulseCallCount = 0
         private(set) var markExternallyTornDownCallCount = 0
         var applyResult = false
+        var isHidingAvailable = true
 
         func apply(sectionAssignment _: [String: MenuBarSection.Name], allItems _: [MenuBarItem]) -> Bool {
             applyCallCount += 1
@@ -37,6 +38,11 @@ final class SimpleItemHiderTests: XCTestCase {
 
         func markExternallyTornDown() {
             markExternallyTornDownCallCount += 1
+        }
+
+        @discardableResult
+        func refreshAvailability() -> Bool {
+            isHidingAvailable
         }
     }
 

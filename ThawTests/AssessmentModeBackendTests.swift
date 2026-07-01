@@ -169,4 +169,19 @@ final class AssessmentModeBackendTests: XCTestCase {
             )
         )
     }
+
+    func testIsHidingAvailableMirrorsIsAvailableAtInit() {
+        let backend = AssessmentModeBackend()
+
+        XCTAssertEqual(backend.isHidingAvailable, AssessmentModeBackend.isAvailable)
+    }
+
+    func testRefreshAvailabilityReturnsCurrentIsAvailable() {
+        let backend = AssessmentModeBackend()
+
+        let refreshed = backend.refreshAvailability()
+
+        XCTAssertEqual(refreshed, AssessmentModeBackend.isAvailable)
+        XCTAssertEqual(backend.isHidingAvailable, AssessmentModeBackend.isAvailable)
+    }
 }

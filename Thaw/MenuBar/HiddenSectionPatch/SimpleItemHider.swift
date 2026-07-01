@@ -15,10 +15,13 @@ import Cocoa
 /// assertion.
 @MainActor
 protocol AssessmentModeBackending: AnyObject {
+    var isHidingAvailable: Bool { get }
     @discardableResult
     func apply(sectionAssignment: [String: MenuBarSection.Name], allItems: [MenuBarItem]) -> Bool
     func pulse(sectionAssignment: [String: MenuBarSection.Name], allItems: [MenuBarItem]) -> Bool
     func markExternallyTornDown()
+    @discardableResult
+    func refreshAvailability() -> Bool
 }
 
 extension AssessmentModeBackend: AssessmentModeBackending {}
@@ -130,6 +133,20 @@ final class SimpleItemHider: ObservableObject {
     /// Hidden items; `.alwaysHidden` reveals both Hidden and Always-Hidden items.
     @Published private(set) var revealedSection: MenuBarSection.Name?
 
+    /// Mirrors ``AssessmentModeBackend/isHidingAvailable``: whether the private
+    /// Assessment Mode assertion API is present on this system. `false` means
+    /// reordering still works but hiding is inert — surfaced as a settings
+    /// warning. Re-checked on ``NSApplication/didBecomeActiveNotification``
+    /// because an OS update could land while the app is running.
+    @Published private(set) var isHidingAvailable: Bool
+
+    /// Set once the launch-time unavailability warning has been logged, so a
+    /// later activation recheck doesn't re-log it every time the app becomes
+    /// active.
+    private var hasLoggedUnavailableAtLaunch = false
+
+    private var didBecomeActiveObserver: NSObjectProtocol?
+
     /// Item identifiers temporarily forced visible for a single-item reveal.
     /// Unlike ``revealedSection``, this exposes just the touched item (used by
     /// the Thaw Bar click path on macOS 27) instead of its whole section, so a
@@ -210,9 +227,20 @@ final class SimpleItemHider: ObservableObject {
         self.cgsWindowHider = cgsWindowHider
         self.axItemHider = axItemHider
         self.positionStore = positionStore
+        self.isHidingAvailable = backend.isHidingAvailable
         Bridging.logSystemMenuBarWindows()
-        let assessmentModeAvailable = AssessmentModeBackend.isAvailable
-        diagLog.info("hiding backend: AssessmentMode (\(assessmentModeAvailable ? "available" : "unavailable")); \(sectionAssignment.count) assigned item(s)")
+        diagLog.info("hiding backend: AssessmentMode (\(isHidingAvailable ? "available" : "unavailable")); \(sectionAssignment.count) assigned item(s)")
+        logUnavailabilityAtLaunchIfNeeded()
+
+        didBecomeActiveObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.refreshHidingAvailability()
+            }
+        }
     }
 
     isolated deinit {
@@ -221,6 +249,29 @@ final class SimpleItemHider: ObservableObject {
         for task in temporaryRevealConcealTasks.values {
             task.cancel()
         }
+        if let didBecomeActiveObserver {
+            NotificationCenter.default.removeObserver(didBecomeActiveObserver)
+        }
+    }
+
+    /// Re-checks whether the private assertion API is available and updates
+    /// ``isHidingAvailable``. Called on init and again on
+    /// `NSApplication.didBecomeActiveNotification`, since an OS update could
+    /// land (or, in principle, be reverted) while the app keeps running.
+    func refreshHidingAvailability() {
+        let available = backend.refreshAvailability()
+        guard available != isHidingAvailable else { return }
+        isHidingAvailable = available
+        diagLog.info("hiding availability changed: \(available ? "available" : "unavailable")")
+    }
+
+    /// Logs a one-time diagnostic error at launch when hiding is unavailable on
+    /// macOS 27+. Subsequent activation rechecks update ``isHidingAvailable``
+    /// silently (see ``refreshHidingAvailability()``) without repeating this.
+    private func logUnavailabilityAtLaunchIfNeeded() {
+        guard #available(macOS 27, *), !isHidingAvailable, !hasLoggedUnavailableAtLaunch else { return }
+        hasLoggedUnavailableAtLaunch = true
+        diagLog.error("Assessment Mode hiding is unavailable on this macOS build; reordering still works, hiding does not")
     }
 
     /// Derives the section assignment map from a section-order dict.
