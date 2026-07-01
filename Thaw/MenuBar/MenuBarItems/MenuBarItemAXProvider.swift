@@ -110,14 +110,14 @@ enum MenuBarItemAXProvider {
                 // attributes on the status-bar button rather than its container.
                 let identifier = AXHelpers.identifier(for: child)?.nonEmpty
                     ?? AXHelpers.children(for: child)
-                        .lazy
-                        .compactMap { AXHelpers.identifier(for: $0)?.nonEmpty }
-                        .first
+                    .lazy
+                    .compactMap { AXHelpers.identifier(for: $0)?.nonEmpty }
+                    .first
                 let accessibilityDescription = AXHelpers.description(for: child)?.nonEmpty
                     ?? AXHelpers.children(for: child)
-                        .lazy
-                        .compactMap { AXHelpers.description(for: $0)?.nonEmpty }
-                        .first
+                    .lazy
+                    .compactMap { AXHelpers.description(for: $0)?.nonEmpty }
+                    .first
                 let axTitle = AXHelpers.title(for: child)?.nonEmpty
                 let fallbackTitle = "Item-\(fallbackIndex)"
                 let displayTitle = axTitle ?? accessibilityDescription ?? identifier ?? fallbackTitle
@@ -130,13 +130,6 @@ enum MenuBarItemAXProvider {
                     accessibilityDescription: accessibilityDescription,
                     displayTitle: displayTitle
                 )
-                if MenuBarItemTag(namespace: namespace, title: identityTitle).isNativeOverflowPlaceholder ||
-                    MenuBarItemTag(namespace: namespace, title: displayTitle).isNativeOverflowPlaceholder
-                {
-                    diagLog.debug("menuBarItems: skipping native overflow placeholder title='\(identityTitle)' frame=\(frame)")
-                    continue
-                }
-
                 // Direct attribution: the owning process is the app that
                 // published this child (fall back to the element's own PID).
                 let ownerPID = AXHelpers.pid(for: child) ?? runningApp.processIdentifier
@@ -169,7 +162,7 @@ enum MenuBarItemAXProvider {
             {
                 diagLog.info(
                     "menuBarItems: MenuBarAgent children: " +
-                    diagnosticChildDescriptions.joined(separator: " | ")
+                        diagnosticChildDescriptions.joined(separator: " | ")
                 )
             }
         }
@@ -182,7 +175,10 @@ enum MenuBarItemAXProvider {
     // MARK: Assembly
 
     /// A pre-tag item collected from the AX walk.
-    private struct RawItem {
+    ///
+    /// Internal (not `private`) and plain-data so `assemble` can be
+    /// exercised in tests with fixture instances instead of a live AX walk.
+    struct RawItem {
         let namespace: MenuBarItemTag.Namespace
         let identityTitle: String
         let displayTitle: String
@@ -193,7 +189,7 @@ enum MenuBarItemAXProvider {
     /// Builds the final `MenuBarItem` list: assigns stable instance indices to
     /// items that share a (namespace, title) key, synthesizes window IDs, and
     /// sorts left-to-right by position.
-    private static func assemble(_ raw: [RawItem]) -> [MenuBarItem] {
+    static func assemble(_ raw: [RawItem]) -> [MenuBarItem] {
         // Sort by x so instance indices are positional and stable.
         let sorted = raw.sorted { $0.bounds.minX < $1.bounds.minX }
 
@@ -202,6 +198,13 @@ enum MenuBarItemAXProvider {
         items.reserveCapacity(sorted.count)
 
         for entry in sorted {
+            if MenuBarItemTag(namespace: entry.namespace, title: entry.identityTitle).isNativeOverflowPlaceholder ||
+                MenuBarItemTag(namespace: entry.namespace, title: entry.displayTitle).isNativeOverflowPlaceholder
+            {
+                diagLog.debug("assemble: skipping native overflow placeholder title='\(entry.identityTitle)' frame=\(entry.bounds)")
+                continue
+            }
+
             let key = "\(entry.namespace):\(entry.identityTitle)"
             let instanceIndex = indexByKey[key, default: 0]
             indexByKey[key] = instanceIndex + 1
