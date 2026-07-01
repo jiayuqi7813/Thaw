@@ -79,7 +79,7 @@ final class HIDEventManager: ObservableObject {
     private var showOnClickGuardDisplayID: CGDirectDisplayID?
 
     /// Tracks the state of the swallow/disarm lifecycle for the click guard tap.
-    private enum GuardMouseUpState {
+    enum GuardMouseUpState {
         /// No mouse-down has been swallowed; guard tap is idle between clicks.
         case idle
         /// A mouse-down was swallowed; swallow the matching mouse-up but keep
@@ -88,6 +88,48 @@ final class HIDEventManager: ObservableObject {
         /// A mouse-down was swallowed and teardown is pending; swallow the
         /// matching mouse-up then fully disarm the guard.
         case swallowingThenDisarm
+    }
+
+    /// The input driving a `GuardMouseUpState` transition. Each case
+    /// corresponds to one of the state-changing call sites around the guard
+    /// tap and its arm/expire/disarm helpers.
+    enum GuardMouseUpSignal {
+        /// A `leftMouseUp` arrived while the guard tap was armed.
+        case mouseUp
+        /// A `leftMouseDown` landed in the guard region and should be
+        /// swallowed while keeping the guard armed for the following
+        /// mouse-up.
+        case swallow
+        /// A `leftMouseDown` landed in the guard region and completed an
+        /// action (double-click reveal, option-click toggle) that also
+        /// requires disarming the guard once the matching mouse-up is
+        /// swallowed.
+        case swallowThenDisarm
+        /// The guard's deadline expired, or the guard is being torn down,
+        /// while a mouse button may still be held; disarming must be
+        /// deferred until the pending mouse-up is swallowed.
+        case disarmRequested
+    }
+
+    /// Computes the next `GuardMouseUpState` for the show-on-click guard
+    /// tap's swallow-then-disarm lifecycle. Pure function of the current
+    /// state and the triggering signal — holds no reference to the tap,
+    /// timers, or AppState, so the swallow/disarm contract can be
+    /// characterized without a live CGEventTap or real mouse-up event.
+    static nonisolated func nextGuardState(
+        from current: GuardMouseUpState,
+        given signal: GuardMouseUpSignal
+    ) -> GuardMouseUpState {
+        switch signal {
+        case .mouseUp:
+            return .idle
+        case .swallow:
+            return .swallowing
+        case .swallowThenDisarm:
+            return .swallowingThenDisarm
+        case .disarmRequested:
+            return current == .idle ? .idle : .swallowingThenDisarm
+        }
     }
 
     private var guardMouseUpState: GuardMouseUpState = .idle
@@ -336,9 +378,9 @@ final class HIDEventManager: ObservableObject {
         expireShowOnClickGuardIfNeeded()
 
         if event.type == .leftMouseUp, guardMouseUpState != .idle {
-            let state = guardMouseUpState
-            guardMouseUpState = .idle
-            if state == .swallowingThenDisarm {
+            let priorState = guardMouseUpState
+            guardMouseUpState = Self.nextGuardState(from: priorState, given: .mouseUp)
+            if priorState == .swallowingThenDisarm {
                 disarmShowOnClickGuard()
             }
             return nil
@@ -364,16 +406,16 @@ final class HIDEventManager: ObservableObject {
            alwaysHiddenSection.isEnabled
         {
             alwaysHiddenSection.show()
-            guardMouseUpState = .swallowingThenDisarm
+            guardMouseUpState = Self.nextGuardState(from: guardMouseUpState, given: .swallowThenDisarm)
         } else if event.flags.contains(.maskAlternate),
                   appState.settings.advanced.useOptionClickToShowAlwaysHiddenSection,
                   let alwaysHiddenSection = appState.menuBarManager.section(withName: .alwaysHidden),
                   alwaysHiddenSection.isEnabled
         {
             alwaysHiddenSection.toggle()
-            guardMouseUpState = .swallowingThenDisarm
+            guardMouseUpState = Self.nextGuardState(from: guardMouseUpState, given: .swallowThenDisarm)
         } else {
-            guardMouseUpState = .swallowing
+            guardMouseUpState = Self.nextGuardState(from: guardMouseUpState, given: .swallow)
         }
 
         return nil
@@ -982,10 +1024,11 @@ extension HIDEventManager {
     }
 
     private func expireShowOnClickGuard() {
-        if guardMouseUpState != .idle {
+        let deferredState = Self.nextGuardState(from: guardMouseUpState, given: .disarmRequested)
+        if deferredState != .idle {
             // Mouse button is still held; defer full teardown until the
             // swallowed mouse-up arrives so the tap stays active.
-            guardMouseUpState = .swallowingThenDisarm
+            guardMouseUpState = deferredState
             showOnClickGuardDeadline = nil
             showOnClickGuardRegion = nil
             showOnClickGuardDisplayID = nil
@@ -1001,8 +1044,9 @@ extension HIDEventManager {
         // If we're waiting for a swallowed mouse-up, defer disarming until it arrives.
         // This keeps the CGEventTap active until the swallowed mouse-up is processed
         // and prevents a stray mouse-up being delivered to the system.
-        if guardMouseUpState != .idle {
-            guardMouseUpState = .swallowingThenDisarm
+        let deferredState = Self.nextGuardState(from: guardMouseUpState, given: .disarmRequested)
+        if deferredState != .idle {
+            guardMouseUpState = deferredState
             return
         }
 
@@ -1036,10 +1080,34 @@ extension HIDEventManager {
         return deadline > .now && showOnClickGuardRegion != nil
     }
 
+    /// Pure decision for the show-on-click guard tap: whether a click at
+    /// `clickLocation` should be swallowed rather than passed through to the
+    /// system. Holds no reference to `NSScreen`, the event tap, or AppState
+    /// so the region/double-click-window contract can be characterized
+    /// without a live CGEventTap.
+    ///
+    /// `isDoubleClick` does not currently gate this decision — the first
+    /// swallowed mouse-down in the region is not yet known to be part of a
+    /// double click, and the guard tap only inspects `clickState` after this
+    /// predicate has already returned `true`. It is threaded through so a
+    /// future contract that does need to distinguish the double-click case
+    /// from the initial swallow has somewhere to hook in without changing
+    /// this function's signature.
+    static nonisolated func shouldSwallowClick(
+        clickLocation: CGPoint,
+        guardRegion: CGRect,
+        isDoubleClick: Bool,
+        withinDoubleClickWindow: Bool
+    ) -> Bool {
+        guard withinDoubleClickWindow else {
+            return false
+        }
+        return guardRegion.contains(clickLocation)
+    }
+
     private func isPointInsideShowOnClickGuardRegion(_ point: CGPoint) -> Bool {
         expireShowOnClickGuardIfNeeded()
-        guard isShowOnClickGuardActive,
-              let region = showOnClickGuardRegion,
+        guard let region = showOnClickGuardRegion,
               let displayID = showOnClickGuardDisplayID
         else {
             return false
@@ -1049,7 +1117,12 @@ extension HIDEventManager {
             return false
         }
 
-        return region.contains(point)
+        return Self.shouldSwallowClick(
+            clickLocation: point,
+            guardRegion: region,
+            isDoubleClick: false,
+            withinDoubleClickWindow: isShowOnClickGuardActive
+        )
     }
 
     // MARK: Handle Smart Rehide

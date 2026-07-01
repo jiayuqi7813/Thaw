@@ -54,7 +54,7 @@ direction/features.
 | 018  | `SyntheticMoveEngine` retry/dropX/anchoring tests | D | P2 | M | — | DONE |
 | 019  | `MenuBarItemAXProvider` enumeration + assembly tests | D | P2 | M | — | DONE |
 | 020  | `CacheRebucketter.rebucket` tests | D | P2 | S | 016 | DONE |
-| 021  | `HIDEventManager` click-guard state-machine tests | D | P3 | M | — | TODO |
+| 021  | `HIDEventManager` click-guard state-machine tests | D | P3 | M | — | DONE |
 | 022  | Unify hider backends behind `ItemHider` protocol | E | P3 | M | 015, 016 | TODO |
 | 023  | Break `SimpleItemHider`↔`MenuBarItemManager` god-object cycle | E | P3 | L | 015, 016, 022 | TODO |
 | 024  | Split `MenuBarOverlayPanel` (lifecycle/validation/renderer) + snapshot tests | E | P3 | L | — | TODO |
