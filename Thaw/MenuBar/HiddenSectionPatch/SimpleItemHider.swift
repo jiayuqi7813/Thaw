@@ -111,15 +111,16 @@ final class SimpleItemHider: ObservableObject {
 
     private var timer: Timer?
     private var boundaryReconciliationTask: Task<Void, Never>?
+    private var lastRefreshSignature: String?
 
     init(appState: AppState) {
         self.appState = appState
         let order = Self.loadOrder()
         self.sectionItemOrder = order
-self.sectionAssignment = Self.assignmentFromOrder(
-    order,
-    alwaysHiddenEnabled: appState.settings.advanced.isAlwaysHiddenSectionEnabled
-)
+        self.sectionAssignment = Self.assignmentFromOrder(
+            order,
+            alwaysHiddenEnabled: appState.settings.advanced.isAlwaysHiddenSectionEnabled
+        )
         self.backend = AssessmentModeBackend()
         self.ccModuleManager = ControlCenterModuleManager()
         self.cgsWindowHider = CGSWindowHider()
@@ -128,6 +129,14 @@ self.sectionAssignment = Self.assignmentFromOrder(
         Bridging.logSystemMenuBarWindows()
         let assessmentModeAvailable = AssessmentModeBackend.isAvailable
         diagLog.info("hiding backend: AssessmentMode (\(assessmentModeAvailable ? "available" : "unavailable")); \(sectionAssignment.count) assigned item(s)")
+    }
+
+    isolated deinit {
+        timer?.invalidate()
+        boundaryReconciliationTask?.cancel()
+        for task in temporaryRevealConcealTasks.values {
+            task.cancel()
+        }
     }
 
     /// Derives the section assignment map from a section-order dict.
@@ -139,11 +148,10 @@ self.sectionAssignment = Self.assignmentFromOrder(
     ) -> [String: MenuBarSection.Name] {
         var map = [String: MenuBarSection.Name]()
         for (section, identifiers) in order where section != .visible {
-            let effectiveSection: MenuBarSection.Name
-            if section == .alwaysHidden, !alwaysHiddenEnabled {
-                effectiveSection = .hidden
+            let effectiveSection: MenuBarSection.Name = if section == .alwaysHidden, !alwaysHiddenEnabled {
+                .hidden
             } else {
-                effectiveSection = section
+                section
             }
             for identifier in identifiers {
                 map[MenuBarItemTag.canonicalPersistentIdentifier(identifier)] = effectiveSection
@@ -175,13 +183,13 @@ self.sectionAssignment = Self.assignmentFromOrder(
         }
     }
 
-    // Whether the identifier belongs to a denylisted app whose hiding is not yet
-    // supported. These items can be reordered but must never be assigned to a
-    // hidden section — the assertion cannot reliably hide them and volatile
-    // titles create stale-assignment leaks. Such items are simply never placed
-    // in the hidden-assignment list.
-    // Invalid-assignment cleanup preserves missing live items because a hidden
-    // item may be absent from AX while concealed or while its app is not running.
+    /// Whether the identifier belongs to a denylisted app whose hiding is not yet
+    /// supported. These items can be reordered but must never be assigned to a
+    /// hidden section — the assertion cannot reliably hide them and volatile
+    /// titles create stale-assignment leaks. Such items are simply never placed
+    /// in the hidden-assignment list.
+    /// Invalid-assignment cleanup preserves missing live items because a hidden
+    /// item may be absent from AX while concealed or while its app is not running.
     static func invalidAssignmentIdentifiers(
         sectionAssignment: [String: MenuBarSection.Name],
         liveItems: [MenuBarItem],
@@ -291,12 +299,12 @@ self.sectionAssignment = Self.assignmentFromOrder(
         if let legacyOrder {
             for (raw, ids) in legacyOrder {
                 guard let section = MenuBarSection.Name(rawValue: raw) else { continue }
-            var sectionIDs = map[section] ?? []
-            for identifier in ids.map(MenuBarItemTag.canonicalPersistentIdentifier)
-                where !sectionIDs.contains(identifier)
-            {
-                sectionIDs.append(identifier)
-            }
+                var sectionIDs = map[section] ?? []
+                for identifier in ids.map(MenuBarItemTag.canonicalPersistentIdentifier)
+                    where !sectionIDs.contains(identifier)
+                {
+                    sectionIDs.append(identifier)
+                }
                 if !sectionIDs.isEmpty {
                     map[section] = sectionIDs
                 }
@@ -308,10 +316,10 @@ self.sectionAssignment = Self.assignmentFromOrder(
                 guard let section = MenuBarSection.Name(rawValue: sectionRaw),
                       section != .visible
                 else { continue }
-            let canonical = MenuBarItemTag.canonicalPersistentIdentifier(identifier)
-            if map[section]?.contains(canonical) != true {
-                map[section, default: []].append(canonical)
-            }
+                let canonical = MenuBarItemTag.canonicalPersistentIdentifier(identifier)
+                if map[section]?.contains(canonical) != true {
+                    map[section, default: []].append(canonical)
+                }
             }
         }
 
@@ -346,6 +354,7 @@ self.sectionAssignment = Self.assignmentFromOrder(
            !legacy.isEmpty
         {
             map[.hidden] = MenuBarItemTag.canonicalPersistentIdentifiers(legacy)
+            defaults.removeObject(forKey: legacyHiddenKey)
         }
 
         return map
@@ -462,6 +471,7 @@ self.sectionAssignment = Self.assignmentFromOrder(
         boundaryReconciliationTask = nil
         let previous = revealedSection
         revealedSection = nil
+        lastRefreshSignature = nil
         diagLog.info("hideRevealedSections(previous=\(previous?.rawValue ?? "none"))")
         refresh()
     }
@@ -915,11 +925,30 @@ self.sectionAssignment = Self.assignmentFromOrder(
         Set(sectionAssignment.keys.compactMap { snapshots[$0]?.tag })
     }
 
+    private func refreshSignature(
+        allItems: [MenuBarItem],
+        experimentalSystemItemHiding: Bool,
+        experimentalWindowHiding: Bool,
+        experimentalOverflowPrevention: Bool
+    ) -> String {
+        [
+            "assignment=\(sectionAssignment.map { "\($0.key)=\($0.value.rawValue)" }.sorted().joined(separator: ","))",
+            "revealed=\(revealedSection?.rawValue ?? "none")",
+            "temporary=\(temporarilyRevealedIDs.sorted().joined(separator: ","))",
+            "items=\(allItems.map(\.uniqueIdentifier).sorted().joined(separator: ","))",
+            "system=\(experimentalSystemItemHiding)",
+            "window=\(experimentalWindowHiding)",
+            "overflow=\(experimentalOverflowPrevention)",
+        ].joined(separator: "|")
+    }
+
     /// Re-applies the current assignment against the live item cache, and
     /// refreshes the retained snapshots.
     func refresh() {
         guard let appState else { return }
         let experimentalSystemItemHiding = appState.settings.advanced.enableExperimentalSystemItemHiding
+        let experimentalWindowHiding = appState.settings.advanced.enableExperimentalWindowHiding
+        let experimentalOverflowPrevention = appState.settings.advanced.enableExperimentalOverflowPrevention
         let allItems = appState.itemManager.itemCache.managedItems
         let invalidAssignmentIDs = Self.invalidAssignmentIdentifiers(
             sectionAssignment: sectionAssignment,
@@ -934,6 +963,16 @@ self.sectionAssignment = Self.assignmentFromOrder(
             persistOrder()
             diagLog.info("removed \(invalidAssignmentIDs.count) stale/invalid assignment(s)")
         }
+
+        let signature = refreshSignature(
+            allItems: allItems,
+            experimentalSystemItemHiding: experimentalSystemItemHiding,
+            experimentalWindowHiding: experimentalWindowHiding,
+            experimentalOverflowPrevention: experimentalOverflowPrevention
+        )
+        guard signature != lastRefreshSignature else { return }
+        lastRefreshSignature = signature
+
         // Snapshot every assigned item while it's still live, so it can keep
         // appearing in the layout bars after it's concealed. Drop snapshots for
         // items that are no longer assigned.
@@ -1048,6 +1087,7 @@ self.sectionAssignment = Self.assignmentFromOrder(
     }
 
     private func resetBackendRestriction() {
+        backend.markExternallyTornDown()
         backend.apply(sectionAssignment: [:], allItems: [])
     }
 
@@ -1067,7 +1107,8 @@ self.sectionAssignment = Self.assignmentFromOrder(
         var positions = positionStore.readPositions()
         let existingKeys = Array(positions.keys)
         var changed = false
-        var overflowBase = 50000
+        let maxElevated = positions.values.filter { $0 >= 50000 }.max()
+        var overflowBase = maxElevated.map { $0 + 10 } ?? 50000
 
         for (identifier, section) in sectionAssignment where section != .visible {
             guard let item = allItems.first(where: { $0.uniqueIdentifier == identifier }) ??
@@ -1163,7 +1204,9 @@ self.sectionAssignment = Self.assignmentFromOrder(
         guard enabled else {
             positionStore.restoreAll()
             cgsWindowHider.apply(hiddenPIDs: [])
-            axItemHider.apply(hiddenPIDs: [], allItems: allItems)
+            if #unavailable(macOS 27) {
+                axItemHider.apply(hiddenPIDs: [], allItems: allItems)
+            }
             return
         }
 
@@ -1220,7 +1263,7 @@ self.sectionAssignment = Self.assignmentFromOrder(
 
         // ── 3. AX pass (legacy, no-op on macOS 27) ──
         let remainingPIDs = cgsHiddenPIDs.subtracting(cgsHandledPIDs)
-        if !remainingPIDs.isEmpty {
+        if #unavailable(macOS 27), !remainingPIDs.isEmpty {
             let axHandledPIDs = axItemHider.apply(hiddenPIDs: remainingPIDs, allItems: allItems)
             stripSurgicallyHandledPIDs(
                 axHandledPIDs,
