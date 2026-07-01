@@ -5636,6 +5636,7 @@ extension MenuBarItemManager {
         let identifier = item.uniqueIdentifier
         if mouseButton == .left, pressItemViaAccessibility(item) {
             hider.revealItemTemporarily(identifier)
+            await eventSleep(for: Constants.MenuBarTuning.iceBarPostClickSettle)
             hider.scheduleTemporaryItemConceal(identifier)
             MenuBarItemManager.diagLog.info(
                 "clickConcealedItem: opened \(item.logString) via AX press; scheduled temporary reveal"
