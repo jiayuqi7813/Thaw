@@ -19,6 +19,7 @@ Thaw registers the `thaw://` URL scheme in `Info.plist` via `CFBundleURLTypes`. 
 | `thaw://toggle-application-menus` | Toggle App Menus      | Shows/hides application menus            |
 | `thaw://open-settings`            | Open Settings         | Opens the Thaw settings window           |
 | `thaw://authorize`                | Authorize App         | Triggers auth dialog to grant an app whitelist access to settings |
+| `thaw://reveal-item?bundle=<id>` or `?item-id=<id>` | Reveal Menu Bar Item | Temporarily reveals one hidden/always-hidden menu bar item (requires whitelist) |
 
 ### Usage Examples
 
@@ -483,6 +484,27 @@ open "thaw://set?key=showOnHover&value=true&bundleId=com.apple.Terminal"
 ```
 
 ⚠️ **DEBUG builds only:** The `bundleId` parameter is stripped/ignored in release builds for security. Always remove this parameter in production automation scripts.
+
+### Revealing a Menu Bar Item
+
+Thaw supports temporarily revealing a single hidden or always-hidden menu bar item via `thaw://reveal-item`, requiring the same whitelist authorization as other Settings URI actions. The item auto-reconceals after the configured `tempShowInterval` (same delay used by clicking the Thaw icon), and re-arms if the menu happens to be open, so it never strands an item visible.
+
+```text
+thaw://reveal-item?bundle=<bundleID>
+thaw://reveal-item?item-id=<uniqueIdentifier>
+```
+
+Provide exactly one of `bundle` (the target app's bundle identifier) or `item-id` (the item's persisted `uniqueIdentifier`, as used elsewhere in Thaw, e.g. custom names). Providing both, or neither, is rejected. If `bundle` matches zero or more than one currently-assigned (hidden/always-hidden) item, the request is rejected as unresolvable — use `item-id` instead to disambiguate.
+
+**Examples:**
+
+```bash
+# Reveal a hidden app by bundle ID (only valid if exactly one of its items is hidden)
+open "thaw://reveal-item?bundle=com.bjango.istatmenus.cpu"
+
+# Reveal a specific item by its unique identifier
+open "thaw://reveal-item?item-id=com.bjango.istatmenus.cpu:CPU"
+```
 
 ### Raycast Settings Integration
 
