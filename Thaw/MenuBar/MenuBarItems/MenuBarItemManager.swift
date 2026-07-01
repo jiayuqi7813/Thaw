@@ -4063,6 +4063,24 @@ extension MenuBarItemManager {
             throw EventError.itemNotMovable(item)
         }
 
+        // Pause automated moves while the user is mid-⌘-drag. The user's
+        // drag started outside Thaw (their ``leftMouseDown`` already reached
+        // MenuBarAgent before this `move()` was dispatched), and
+        // ``MoveInputSuppression`` would swallow the user's subsequent
+        // ``leftMouseDragged`` events while our synthetic drag runs at the
+        // same coordinates. Two overlapping drag intents on macOS 27 leave
+        // MenuBarAgent holding a duplicated or stranded icon (the reported
+        // "icons multiply on drag" / Finder-crash symptom). Treat a live
+        // user drag as authoritative and bail out: the user's drop will
+        // re-publish `itemCache`, and `recordExternalMoveOperation` already
+        // arms the 5 s applySavedLayout cooldown so our work is not lost —
+        // it is deferred past the user's drag without forcing a re-entrant
+        // reorder.
+        if appState.isDraggingMenuBarItem {
+            MenuBarItemManager.diagLog.info("Skipping move for \(item.logString) - user ⌘-drag in progress")
+            throw EventError.cannotComplete
+        }
+
         // Most legacy callers target a section divider to trigger the old
         // over-wide reflow, which no longer works on macOS 27. The explicit
         // section-transition path opts in because it uses the divider as a
@@ -8552,6 +8570,19 @@ extension MenuBarItemManager {
         // re-applies when many apps relaunch in quick succession.
         guard !lastMoveOperationOccurred(within: .seconds(5)) else {
             MenuBarItemManager.diagLog.debug("applySavedLayout: skipping, within 5s move cooldown")
+            return false
+        }
+        // Bail out if the user is currently ⌘-dragging an item. Running a
+        // bulk synthetic-drag apply while the user is dragging would post our
+        // synthetic events on top of the user's in-flight drag
+        // (`MoveInputSuppression` swallows the user's `leftMouseDragged` but
+        // not their already-delivered `leftMouseDown`), producing the
+        // duplicate-icon / Finder-crash symptom reported on macOS 27. The
+        // user's drop re-publishes `itemCache` (see
+        // `recordExternalMoveOperation` + the 5 s cooldown above) so the
+        // deferred apply runs naturally once the drag settles.
+        if appState?.isDraggingMenuBarItem ?? false {
+            MenuBarItemManager.diagLog.debug("applySavedLayout: skipping, user ⌘-drag in progress")
             return false
         }
         if let lastRestrictionChange = lastRestrictionChangeTimestamp,
