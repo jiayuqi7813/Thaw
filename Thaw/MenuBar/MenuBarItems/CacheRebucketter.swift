@@ -13,8 +13,11 @@ enum CacheRebucketter {
     @MainActor
     static func rebucket(
         _ input: MenuBarItemManager.ItemCache,
-        hider: SimpleItemHider,
-        allowsAlwaysHidden: Bool
+        sectionFor: (MenuBarItem) -> MenuBarSection.Name,
+        sectionAssignment: [String: MenuBarSection.Name],
+        allowsAlwaysHidden: Bool,
+        retainedSnapshotFor: (String) -> MenuBarItem?,
+        orderedItems: ([MenuBarItem], MenuBarSection.Name) -> [MenuBarItem]
     ) -> MenuBarItemManager.ItemCache {
         var cache = input
         var visible = [MenuBarItem]()
@@ -26,7 +29,7 @@ enum CacheRebucketter {
                 visible.append(item)
                 continue
             }
-            switch hider.section(for: item) {
+            switch sectionFor(item) {
             case .visible:
                 visible.append(item)
             case .hidden:
@@ -54,8 +57,8 @@ enum CacheRebucketter {
         let cachedIdentifiers = Set(
             MenuBarSection.Name.allCases.flatMap { cache[$0].map(\.uniqueIdentifier) }
         )
-        for (identifier, section) in hider.sectionAssignment where !cachedIdentifiers.contains(identifier) {
-            guard let snapshot = hider.snapshot(for: identifier) else { continue }
+        for (identifier, section) in sectionAssignment where !cachedIdentifiers.contains(identifier) {
+            guard let snapshot = retainedSnapshotFor(identifier) else { continue }
             let target: MenuBarSection.Name = section == .alwaysHidden && allowsAlwaysHidden
                 ? .alwaysHidden
                 : .hidden
@@ -63,7 +66,7 @@ enum CacheRebucketter {
         }
 
         for section in MenuBarSection.Name.allCases {
-            cache[section] = hider.ordered(cache[section], in: section)
+            cache[section] = orderedItems(cache[section], section)
         }
         return cache
     }
