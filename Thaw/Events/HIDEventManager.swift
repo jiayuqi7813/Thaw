@@ -1903,6 +1903,14 @@ extension HIDEventManager {
 
     /// A Boolean value that indicates whether the mouse pointer is within
     /// the bounds of an empty space in the menu bar.
+    ///
+    /// This is the single shared guard for every show-on entry point —
+    /// `handleShowOnClick`, `handleShowOnHover`, and `handleShowOnScroll` —
+    /// so a status item missed by hit-testing here would let all three fire
+    /// on top of it. Item presence is decided by ``isMouseInsideMenuBarItem``,
+    /// which on macOS 27 trusts AX-derived bounds (see
+    /// ``menuBarBoundsLookupContains``) and falls back to the managed-items
+    /// cache when the lookup is empty.
     func isMouseInsideEmptyMenuBarSpace(appState: AppState, screen: NSScreen)
         -> Bool
     {
