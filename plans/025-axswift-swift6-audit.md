@@ -109,7 +109,24 @@ catalog (Step 1) and the chosen path (Step 2).
 
 ## Findings
 
-*(To be filled in by the executor after Step 1.)*
+**Step 1 — surface catalog** (audited 2026-07-01, all 6 `@preconcurrency import AXSwift` files plus `Shared/Utilities/AXHelpers.swift`, which is where nearly the entire surface is already funneled):
+
+- `UIElement` — the struct wrapping a raw `AXUIElement`. Used as: a property type (`AXItemHider.swift:26` `[CGWindowID: UIElement]`), a return/parameter type throughout, and its `.element` raw handle is *already* reached into directly in two places (`AXHelpers.swift:36` `AXUIElementSetMessagingTimeout(app.element, 0.25)`; `AXHelpers.swift:127` `AXUIElementGetPid(element.element, &pid)`) — i.e. the code already bypasses AXSwift for the raw C API when AXSwift doesn't expose something.
+- `Application` — a `UIElement` subclass; only constructed via `Application(runningApp: NSRunningApplication)` (`AXHelpers.swift:30`).
+- `systemWideElement.elementAtPosition(Float, Float)` (`AXHelpers.swift:25`) — one call site.
+- `.attribute(_:)` generic typed getter — used for `.extrasMenuBar`, `.menuBar`, `.enabled`, `.frame`, `.title`, `.identifier`, `.description`, `.role`, `.hidden` (via `setAttribute`) — all funneled through `AXHelpers.swift`.
+- `.arrayAttribute(.children)` (`AXHelpers.swift:54`) — one call site (`children(for:)`).
+- `.setAttribute(_:value:)` — 3 call sites in `AXItemHider.swift` (all `.hidden`).
+- `.attributeIsSettable(_:)` — 1 call site (`AXItemHider.swift:181`).
+- `.press()` — 1 call site (`AXHelpers.swift:136`), a convenience wrapper presumably around `AXUIElementPerformAction("AXPress")`.
+
+**No AXObserver/KVO-notification wrapper usage exists anywhere in the 6 files** — grepped for `Observer`/`Notification` across all of them; the only `Observer` hit (`SourcePIDCache.swift:167`) is a doc-comment about observing `NSRunningApplication` via `NSWorkspace`, unrelated to AXSwift. This directly rules out the plan's stated risk condition for option (B) ("if it relies on AXSwift's Swift-idiomatic observers/KVO wrappers, vendoring is impractical") — that condition does not apply.
+
+**Step 2 — recommendation**: the entire surface is ~9 primitives, already centralized behind `AXHelpers.swift`'s ~15 static methods, with zero use of AXSwift's higher-level observer/notification machinery, and the code already reaches past AXSwift for two raw-API needs. This is a small, mechanical, well-bounded surface. **Recommend option (B): vendor a thin in-tree `AXShim.swift`** wrapping `AXUIElementCopyAttributeValue`/`AXUIElementSetAttributeValue`/`AXUIElementIsAttributeSettable`/`AXUIElementPerformAction`/`AXUIElementCopyElementAtPosition`/`AXUIElementGetPid` directly, replacing `AXHelpers.swift`'s AXSwift-backed implementations with raw-API ones (same public method signatures, so all 6 call-site files need zero changes beyond the two `@preconcurrency import AXSwift` → plain import lines they'd drop). This removes the SPM dependency on a personal fork of a 4+-year-stale upstream, and removes the `@preconcurrency` suppression by construction (a from-scratch shim can be written Sendable-clean).
+
+Option (A) (Swift 6 pass on the fork) is not recommended: it requires maintaining expertise in a second repo's build/release process for a surface this small, for no capability gain.
+
+**This plan does NOT implement the vendoring** — per its own STOP instructions, that requires maintainer approval as a separate follow-up plan. Flagging to the maintainer for a go/no-go decision.
 
 ## Maintenance notes
 

@@ -141,7 +141,65 @@ N/A — design spike. The output is the design document.
 
 ## Findings
 
-*(To be filled in by the executor after the spike.)*
+**Predicate model (Step 1)**: recommend the **enum** shape, not a
+protocol. `Codable` persistence (per-`Profile`) needs a closed,
+serializable set; a protocol with `evaluate()` would need manual type
+erasure plus a case registry to round-trip through `Codable`, for no
+real extensibility win at this scope (the starter predicate set is
+small and platform-idiomatic, not user-scriptable). The plan's own enum
+sketch is the right shape and gets `Codable` for free via synthesis.
+
+**Engine wiring (Step 2)**: verified by direct inspection (not a
+throwaway prototype file):
+- `SimpleItemHider.start()` (`SimpleItemHider.swift:665-666`) already
+  runs a repeating 1.0s `Timer` whose closure calls only `refresh()`
+  directly. A `TriggerConditionEngine.evaluate()` call added to that
+  same closure rides the existing tick with **no conflict with plan
+  006's refresh-steady-state short-circuit**: that short-circuit is
+  internal to `refresh()` (an early-return guard on a signature hash)
+  and does not gate anything else the timer closure calls. This
+  resolves this plan's own "1s timer ride conflicts with plan 006"
+  STOP condition — no trade-off needed, just add the `evaluate()` call
+  alongside `refresh()`.
+- `frontmostApp` predicate input: `NSWorkspace.shared.publisher(for:
+  \.frontmostApplication)` is the established pattern already used at
+  `MenuBarManager.swift:179`, `AppState.swift:224`,
+  `MenuBarItemManager.swift:5300` — a Combine/KVO subscription, not a
+  poll. The engine should subscribe once and cache the current value
+  for the 1Hz predicate check.
+- `appRunning` predicate input: poll `NSWorkspace.shared.runningApplications`
+  on the existing 1Hz tick — no existing "did app X launch/quit"
+  notification plumbing in-repo, so polling the already-cheap
+  OS-maintained snapshot is the pragmatic choice over adding new
+  subscription plumbing for a single predicate.
+- `powerBatteryBelow` predicate input: **no existing IOKit power-source
+  code in the repo** (grepped `IOPSCopyPowerSourcesInfo` across
+  `Thaw/`/`Shared/` — zero hits). This is new plumbing, not reuse, and
+  answers the plan's other STOP condition ("predicate inputs require
+  entitlements/frameworks Thaw doesn't already use") — `frontmostApp`/
+  `appRunning` need no new framework; `powerBatteryBelow` needs IOKit
+  (no special entitlement, but new code). Recommend shipping
+  `frontmostApp`/`appRunning` first and gating `powerBatteryBelow` to a
+  phase 2 once the engine shape is proven, rather than blocking the
+  whole feature on IOKit integration.
+
+**Open questions (Step 3)** — recommendations:
+- **Conceal-on-flip-false timing**: respect
+  `scheduleTemporaryItemConceal`'s existing menu-open-aware delay —
+  never yank an item while its menu is open. Recommended: yes.
+- **Multiple predicates targeting the same item**: reference-count
+  reveals (stays revealed while ANY matching predicate is true;
+  conceals only when all flip false). Recommended: yes.
+- **Interaction with manual section reveal**: no conflict — trigger
+  reveals operate on individual items via `revealItemTemporarily`, not
+  on sections, so a manual `show(.hidden)` and a trigger-driven item
+  reveal can coexist without either canceling the other. Recommended:
+  yes, no special-casing needed.
+
+This design is ready for a follow-up implementation plan; it should
+build on plan 016's fake-`SimpleItemHider` seam (in progress at the
+time of this spike) so the engine's reveal calls are testable without
+live AX/timers.
 
 ## Maintenance notes
 

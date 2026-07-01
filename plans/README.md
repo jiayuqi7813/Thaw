@@ -58,11 +58,11 @@ direction/features.
 | 022  | Unify hider backends behind `ItemHider` protocol | E | P3 | M | 015, 016 | TODO |
 | 023  | Break `SimpleItemHider`↔`MenuBarItemManager` god-object cycle | E | P3 | L | 015, 016, 022 | TODO |
 | 024  | Split `MenuBarOverlayPanel` (lifecycle/validation/renderer) + snapshot tests | E | P3 | L | — | TODO |
-| 025  | Audit AXSwift for Swift 6 / decide to vendor (decision) | F | P3 | M | — | TODO |
+| 025  | Audit AXSwift for Swift 6 / decide to vendor (decision) | F | P3 | M | — | DONE (audit + recommendation: vendor a thin AXShim; awaiting maintainer go/no-go) |
 | 026  | Surface in-app "hiding unsupported" when private API unavailable | F | P3 | M | — | TODO |
 | 027  | `thaw://reveal-item` deep link | G | P3 | S | — | TODO |
 | 028  | Graduate or retire the 3 `enableExperimental*` flags | G | P3 | S-M | 012, 014, 016 | TODO |
-| 029  | Design spike — "trigger conditions" for per-item reveal | G | P3 | M | 016 | TODO |
+| 029  | Design spike — "trigger conditions" for per-item reveal | G | P3 | M | 016 | DONE (design recorded; awaiting maintainer approval to spawn implementation plan) |
 | 030  | Generalize `SettingsSearchIndex` ranking into `SearchRanker` | G | P3 | S | — | TODO |
 | 031  | Document teardown/undo + env vars for `setup-headroom-claude.sh` | G | P3 | S | — | TODO |
 
