@@ -6,6 +6,7 @@
 //  Copyright (Thaw) © 2026 Toni Förster
 //  Licensed under the GNU GPLv3
 
+import Combine
 import SwiftUI
 
 struct SecondsLabel: View {
@@ -30,14 +31,32 @@ struct AdvancedSettingsPane: View {
     @State private var maxSliderLabelWidth: CGFloat = 0
     @State private var currentLogFileName: String?
     @State private var isConfirmingReset = false
+    @State private var isHidingAvailable = true
 
     private var menuBarManager: MenuBarManager {
         appState.menuBarManager
     }
 
+    /// Whether to show the "hiding unsupported" warning: only relevant on
+    /// macOS 27+ (where `simpleItemHider` exists) and only when its backend
+    /// reports the private Assessment Mode API is unavailable.
+    private var isHidingUnavailable: Bool {
+        guard #available(macOS 27, *) else { return false }
+        return !isHidingAvailable
+    }
+
+    private func syncHidingAvailability() {
+        isHidingAvailable = menuBarManager.simpleItemHider?.isHidingAvailable ?? true
+    }
+
     var body: some View {
         IceForm {
             IceSection("Menu Bar Sections") {
+                if isHidingUnavailable {
+                    SettingsWarningPill(
+                        message: "Hiding is unavailable on this macOS build (the required system capability was not found). Reordering still works; hiding does not."
+                    )
+                }
                 enableAlwaysHiddenSection
                 if settings.isAlwaysHiddenSectionEnabled {
                     useOptionClickToShowAlwaysHiddenSection
@@ -84,6 +103,13 @@ struct AdvancedSettingsPane: View {
             IceSection("Reset") {
                 resetSettings
             }
+        }
+        .onAppear {
+            syncHidingAvailability()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            menuBarManager.simpleItemHider?.refreshHidingAvailability()
+            syncHidingAvailability()
         }
     }
 

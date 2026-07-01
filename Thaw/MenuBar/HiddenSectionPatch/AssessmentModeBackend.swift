@@ -31,10 +31,25 @@ import Cocoa
 /// When the private API is unavailable this backend is simply inert; there is no
 /// fallback.
 @MainActor
-final class AssessmentModeBackend {
+final class AssessmentModeBackend: ObservableObject {
     /// Whether the private assertion API is present on this system.
     static var isAvailable: Bool {
         ThawAssessmentModeHidingAvailable()
+    }
+
+    /// Observable mirror of ``isAvailable``, captured at init and refreshed by
+    /// ``refreshAvailability()``. macOS can update while the app is running, so
+    /// callers should re-check on `NSApplication.didBecomeActiveNotification`
+    /// rather than trusting this forever.
+    @Published private(set) var isHidingAvailable = AssessmentModeBackend.isAvailable
+
+    /// Re-evaluates ``isAvailable`` and updates ``isHidingAvailable``. Returns
+    /// the freshly-observed value.
+    @discardableResult
+    func refreshAvailability() -> Bool {
+        let available = Self.isAvailable
+        isHidingAvailable = available
+        return available
     }
 
     /// The Apple system-item identifiers known to the Assessment Mode
