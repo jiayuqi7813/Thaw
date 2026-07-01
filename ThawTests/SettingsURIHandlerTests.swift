@@ -24,6 +24,7 @@ final class SettingsURIHandlerTests: XCTestCase {
         XCTAssertTrue(keys.contains("showOnHover"))
         XCTAssertTrue(keys.contains("useIceBar"))
         XCTAssertTrue(keys.contains("enableDiagnosticLogging"))
+        XCTAssertTrue(keys.contains("enableExperimentalOverflowPrevention"))
     }
 
     func testDoubleKeysNotEmpty() {
@@ -65,6 +66,20 @@ final class SettingsURIHandlerTests: XCTestCase {
         XCTAssertTrue(SettingsURIHandler.isValidSettingsKey("autoRehide"))
         XCTAssertTrue(SettingsURIHandler.isValidSettingsKey("showOnClick"))
         XCTAssertTrue(SettingsURIHandler.isValidSettingsKey("enableDiagnosticLogging"))
+        XCTAssertTrue(SettingsURIHandler.isValidSettingsKey("enableExperimentalOverflowPrevention"))
+    }
+
+    func testSetAndToggleEnableExperimentalOverflowPreventionViaURI() {
+        let original = Defaults.bool(forKey: .enableExperimentalOverflowPrevention)
+        defer {
+            Defaults.set(original, forKey: .enableExperimentalOverflowPrevention)
+        }
+
+        XCTAssertTrue(SettingsURIHandler.handleSet(key: "enableExperimentalOverflowPrevention", value: "true", sender: nil))
+        XCTAssertTrue(Defaults.bool(forKey: .enableExperimentalOverflowPrevention))
+
+        XCTAssertTrue(SettingsURIHandler.handleToggle(key: "enableExperimentalOverflowPrevention", sender: nil))
+        XCTAssertFalse(Defaults.bool(forKey: .enableExperimentalOverflowPrevention))
     }
 
     func testIsValidSettingsKeyWithDoubleKey() {
