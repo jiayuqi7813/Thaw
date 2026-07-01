@@ -483,8 +483,8 @@ final class TrailingItemPositionStore {
     static func readPositionsFromSystem() -> [String: Int] {
         // Try CFPreferences with AnyHost first (matches `defaults read`).
         if let dict = CFPreferencesCopyValue(
-            Self.positionKey as CFString,
-            Self.agentDomain,
+            positionKey as CFString,
+            agentDomain,
             kCFPreferencesCurrentUser,
             kCFPreferencesAnyHost
         ) as? [String: Int] {
@@ -516,9 +516,9 @@ final class TrailingItemPositionStore {
     static func writePositionsToSystem(_ dict: [String: Int]) {
         // CFPreferences path.
         CFPreferencesSetValue(
-            Self.positionKey as CFString,
+            positionKey as CFString,
             dict as CFPropertyList,
-            Self.agentDomain,
+            agentDomain,
             kCFPreferencesCurrentUser,
             kCFPreferencesAnyHost
         )
