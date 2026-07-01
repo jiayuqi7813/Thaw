@@ -50,7 +50,7 @@ direction/features.
 | 014  | Persist `overflowBase` across calls | C | P3 | S | — | DONE |
 | 015  | Extract pure helpers from `AssessmentModeBackend` + tests | D | P2 | M | — | DONE |
 | 016  | Inject `SimpleItemHider` collaborators + lifecycle tests | D | P2 | L | 015 | DONE |
-| 017  | `TrailingItemPositionStore` key-resolution + weight tests | D | P2 | M | — | TODO |
+| 017  | `TrailingItemPositionStore` key-resolution + weight tests | D | P2 | M | — | DONE |
 | 018  | `SyntheticMoveEngine` retry/dropX/anchoring tests | D | P2 | M | — | TODO |
 | 019  | `MenuBarItemAXProvider` enumeration + assembly tests | D | P2 | M | — | DONE |
 | 020  | `CacheRebucketter.rebucket` tests | D | P2 | S | 016 | DONE |
