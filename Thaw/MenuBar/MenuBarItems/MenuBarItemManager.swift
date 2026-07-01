@@ -144,6 +144,9 @@ final class MenuBarItemManager: ObservableObject {
     /// The current cache of menu bar items.
     @Published private(set) var itemCache = ItemCache(displayID: nil)
 
+    /// On-screen items from the most recent cache refresh AX walk.
+    @MainActor var lastOnScreenMenuBarItems: ([MenuBarItem], ContinuousClock.Instant?) = ([], nil)
+
     /// A Boolean value that indicates whether the control items for the
     /// hidden sections are missing from the menu bar.
     @Published private(set) var areControlItemsMissing = false
@@ -182,6 +185,24 @@ final class MenuBarItemManager: ObservableObject {
             return false
         }
         return lastRestrictionChange.duration(to: .now) < Self.restrictionChangeLayoutSettleWindow
+    }
+
+    private func parkedSetAndBarMidY(in items: [MenuBarItem]) -> (barMidY: CGFloat?, parkedIDs: Set<CGWindowID>) {
+        let barMidY = items.first(where: {
+            $0.tag.matchesVisibleControlItem && $0.bounds.midY <= 80
+        })?.bounds.midY
+            ?? items.first(where: {
+                $0.isControlItem && $0.bounds.width > 8 && $0.bounds.midY <= 80
+            })?.bounds.midY
+
+        let parkedIDs = Set(items.compactMap { item -> CGWindowID? in
+            guard item.bounds.width > 0, item.bounds.height > 0 else { return item.windowID }
+            if item.bounds.midY > 80 { return item.windowID }
+            guard let barMidY else { return nil }
+            return abs(item.bounds.midY - barMidY) > 48 ? item.windowID : nil
+        })
+
+        return (barMidY, parkedIDs)
     }
 
     /// Deferred repair after an assessment-mode reflow. Concealing one bundle
@@ -599,8 +620,9 @@ final class MenuBarItemManager: ObservableObject {
                 !$0.tag.isHidingUnsupported &&
                 hider.section(for: $0) == .visible
         }
-        let prePulseParked = pulseCandidates.filter { $0.isParkedOffMenuBarBand(among: liveItems) }
-        let prePulseOnBand = pulseCandidates.filter { !$0.isParkedOffMenuBarBand(among: liveItems) }
+        let (_, liveParkedIDs) = parkedSetAndBarMidY(in: liveItems)
+        let prePulseParked = pulseCandidates.filter { liveParkedIDs.contains($0.windowID) }
+        let prePulseOnBand = pulseCandidates.filter { !liveParkedIDs.contains($0.windowID) }
         let prePulseBlank = await appState.imageCache.itemsRenderingBlank(
             among: prePulseOnBand,
             displayID: displayID
@@ -627,7 +649,7 @@ final class MenuBarItemManager: ObservableObject {
             !$0.isControlItem &&
                 !$0.tag.isHidingUnsupported &&
                 hider.section(for: $0) == .visible &&
-                $0.isParkedOffMenuBarBand(among: liveItems)
+                liveParkedIDs.contains($0.windowID)
         }
         if !parkedVisible.isEmpty, let anchor = unparkAnchorAmong(liveItems: liveItems, hider: hider) {
             MenuBarItemManager.diagLog.info(
@@ -658,6 +680,7 @@ final class MenuBarItemManager: ObservableObject {
         appState.hidEventManager.refreshMenuBarItemBoundsLookup()
 
         let afterItems = await MenuBarItem.getMenuBarItems(option: .activeSpace)
+        let (_, afterParkedIDs) = parkedSetAndBarMidY(in: afterItems)
         // Exclude denylisted hiding-unsupported items from stillParked and
         // blank-glyph checks: counting transient assertion-reflow side effects
         // as broken drives repeated pulses that can compound the problem.
@@ -665,7 +688,7 @@ final class MenuBarItemManager: ObservableObject {
             !$0.isControlItem &&
                 !$0.tag.isHidingUnsupported &&
                 hider.section(for: $0) == .visible &&
-                !$0.isParkedOffMenuBarBand(among: afterItems)
+                !afterParkedIDs.contains($0.windowID)
         }
 
         // If the pre-pulse check found nothing requiring a recomposite, the
@@ -692,7 +715,7 @@ final class MenuBarItemManager: ObservableObject {
             !$0.isControlItem &&
                 !$0.tag.isHidingUnsupported &&
                 hider.section(for: $0) == .visible &&
-                $0.isParkedOffMenuBarBand(among: afterItems)
+                afterParkedIDs.contains($0.windowID)
         }
 
         return stillParked || !blankTags.isEmpty
@@ -2484,6 +2507,8 @@ extension MenuBarItemManager {
             )
         }
 
+        lastOnScreenMenuBarItems = (items.filter(\.isOnScreen), .now)
+
         MenuBarItemManager.diagLog.debug("cacheItemsRegardless: getMenuBarItems returned \(items.count) items")
 
         // Drop System Status Item Clone windows before any downstream
@@ -4235,17 +4260,17 @@ extension MenuBarItemManager {
                         "Position match without observable displacement on attempt \(n); treating as false positive on a zero-width control item and retrying"
                     )
                 }
-            try await MoveInputSuppression.withUserMouseInputSuppressed {
-                try await postMoveEvents(
-                    item: item,
-                    destination: destination,
-                    on: resolvedDisplayID,
-                    warpCursorAfter: false // move() owns the single warp in its defer
-                )
-            }
-            // postMoveEvents only returns without throwing when both
-            // waitForMoveEventResponse calls observed origin changes,
-            // i.e. our drag actually displaced the item.
+                try await MoveInputSuppression.withUserMouseInputSuppressed {
+                    try await postMoveEvents(
+                        item: item,
+                        destination: destination,
+                        on: resolvedDisplayID,
+                        warpCursorAfter: false // move() owns the single warp in its defer
+                    )
+                }
+                // postMoveEvents only returns without throwing when both
+                // waitForMoveEventResponse calls observed origin changes,
+                // i.e. our drag actually displaced the item.
                 anyMoveEventsSucceeded = true
                 // Verify the item actually reached the correct position.
                 if try await itemHasCorrectPosition(item: item, for: destination, on: resolvedDisplayID) {
@@ -7029,10 +7054,15 @@ extension MenuBarItemManager {
         }
         var assignment = [String: MenuBarSection.Name]()
         for item in itemCache.managedItems
-            where SimpleItemHider.canAssign(item, to: .alwaysHidden,
-                experimentalSystemItemHiding: appState.settings.advanced.enableExperimentalSystemItemHiding)
-                && !SimpleItemHider.isProtectedAssignmentItem(item,
-                    experimentalSystemItemHiding: appState.settings.advanced.enableExperimentalSystemItemHiding)
+            where SimpleItemHider.canAssign(
+                item,
+                to: .alwaysHidden,
+                experimentalSystemItemHiding: appState.settings.advanced.enableExperimentalSystemItemHiding
+            )
+            && !SimpleItemHider.isProtectedAssignmentItem(
+                item,
+                experimentalSystemItemHiding: appState.settings.advanced.enableExperimentalSystemItemHiding
+            )
         {
             assignment[item.uniqueIdentifier] = .alwaysHidden
         }
@@ -8887,7 +8917,7 @@ private extension CGEventField {
 // MARK: - MoveInputSuppression
 
 enum MoveInputSuppression {
-    private static let syntheticMoveUserData: Int64 = 0x5468_6177_4d6f_7665
+    private static let syntheticMoveUserData: Int64 = 0x5468_6177_4D6F_7665
 
     static let suppressedMouseEventTypes: [CGEventType] = [
         .leftMouseDown,
