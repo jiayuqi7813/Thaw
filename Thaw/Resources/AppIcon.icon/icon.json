@@ -62,8 +62,8 @@
                     "y" : 0
                   },
                   "stop" : {
-                    "x" : 0.5,
-                    "y" : 0.7
+                    "x" : 0.5378222861014651,
+                    "y" : 1
                   }
                 }
               }
@@ -103,14 +103,15 @@
           "position" : {
             "scale" : 1.15,
             "translation-in-points" : [
-              -1.2219968184767822,
-              -14.5625
+              -1.1710802843734882,
+              -11.69598460133011
             ]
           }
         }
       ],
       "lighting" : "combined",
       "name" : "Group",
+      "opacity" : 0.9,
       "refractivity" : {
         "depth" : 0.5,
         "enabled" : true,
@@ -132,6 +133,9 @@
       "layers" : [
         {
           "blend-mode-specializations" : [
+            {
+              "value" : "normal"
+            },
             {
               "appearance" : "dark",
               "value" : "normal"
@@ -191,17 +195,19 @@
           ],
           "image-name" : "cube.svg",
           "name" : "cube",
+          "opacity" : 1,
           "position" : {
             "scale" : 1.2,
             "translation-in-points" : [
               0,
-              0
+              -0.101986994219601
             ]
           }
         }
       ],
       "lighting" : "individual",
       "name" : "Group",
+      "opacity" : 0.9,
       "shadow-specializations" : [
         {
           "value" : {
