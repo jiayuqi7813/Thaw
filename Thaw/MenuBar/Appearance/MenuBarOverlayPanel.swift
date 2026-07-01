@@ -155,7 +155,7 @@ enum MenuBarSplitPillGeometry {
             || context.revealedSection == .alwaysHidden
         let isRevealingAlwaysHidden = context.revealedSection == .alwaysHidden
 
-        let candidates = items.compactMap { item -> CGRect? in
+        return items.compactMap { item -> CGRect? in
             guard shouldIncludeItemInTrailingPill(
                 item,
                 among: items,
@@ -167,8 +167,6 @@ enum MenuBarSplitPillGeometry {
             }
             return item.bounds
         }
-
-        return candidates
     }
 
     /// Whether a live status item should contribute to the split trailing pill.
@@ -343,6 +341,10 @@ final class MenuBarOverlayPanel: NSPanel, @unchecked Sendable {
     /// The time when the probe window first became displaced.
     private var missionControlDisplacedSince: Date?
 
+    private var shouldPollMissionControlProbe: Bool {
+        appState != nil && alphaValue > 0
+    }
+
     /// Creates an overlay panel with the given app state and owning screen.
     init(appState: AppState, owningScreen: NSScreen) {
         self.appState = appState
@@ -393,6 +395,7 @@ final class MenuBarOverlayPanel: NSPanel, @unchecked Sendable {
             .autoconnect()
             .sink { [weak self] _ in
                 guard let self else { return }
+                guard shouldPollMissionControlProbe else { return }
                 let windowID = CGWindowID(self.missionControlProbeWindow.windowNumber)
                 if let actualBounds = Bridging.getWindowBounds(for: windowID) {
                     let actualOrigin = actualBounds.origin
@@ -1019,10 +1022,16 @@ private final class MenuBarOverlayPanelContentView: NSView {
                 try? await Task.sleep(for: refreshDelay)
                 guard !Task.isCancelled else { break }
 
-                let items = await MenuBarItem.getMenuBarItems(
-                    on: displayID,
-                    option: [.onScreen, .activeSpace]
-                )
+                let displayBounds = CGDisplayBounds(displayID)
+                let (recentItems, recentAt) = overlayPanel?.appState?.itemManager.lastOnScreenMenuBarItems ?? ([], nil)
+                let items: [MenuBarItem] = if let recentAt, recentAt.duration(to: .now) < .milliseconds(200) {
+                    recentItems.filter { $0.bounds.intersects(displayBounds) }
+                } else {
+                    await MenuBarItem.getMenuBarItems(
+                        on: displayID,
+                        option: [.onScreen, .activeSpace]
+                    )
+                }
                 guard !Task.isCancelled else { break }
 
                 let hider = overlayPanel?.appState?.menuBarManager.simpleItemHider
@@ -1036,8 +1045,8 @@ private final class MenuBarOverlayPanelContentView: NSView {
                     from: items,
                     context: context
                 )
-            cachedAXItemBounds = bounds
-            let isRevealingHidden = hider?.revealedSection == .hidden
+                cachedAXItemBounds = bounds
+                let isRevealingHidden = hider?.revealedSection == .hidden
                     || hider?.revealedSection == .alwaysHidden
                 cachedChevronFrame = isRevealingHidden
                     ? .zero
