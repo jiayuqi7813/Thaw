@@ -852,13 +852,12 @@ final class ControlItem: NSObject {
         usesOptionClick: Bool,
         diagLog: DiagLog? = nil
     ) -> PrimaryActionIntent {
-        let intent: PrimaryActionIntent
-        if usesDoubleClick, clickCount > 1, identifier == .visible {
-            intent = .showAlwaysHidden
+        let intent: PrimaryActionIntent = if usesDoubleClick, clickCount > 1, identifier == .visible {
+            .showAlwaysHidden
         } else if modifierFlags.contains(.option) {
-            intent = usesOptionClick ? .toggleAlwaysHidden : .none
+            usesOptionClick ? .toggleAlwaysHidden : .none
         } else {
-            intent = .toggleSection
+            .toggleSection
         }
         diagLog?.debug("menuBarAgentPrimaryActionIntent: identifier=\(identifier.rawValue), modifierFlags=\(modifierFlags), clickCount=\(clickCount), usesDoubleClick=\(usesDoubleClick), usesOptionClick=\(usesOptionClick) → \(intent)")
         return intent

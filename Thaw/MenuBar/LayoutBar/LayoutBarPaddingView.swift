@@ -269,7 +269,7 @@ final class LayoutBarPaddingView: NSView {
                             items: liveItems,
                             desiredOrder: desiredIDs,
                             experimentalSystemItemHiding: experimentalSystemItemHiding
-                        ).flatMap { $0 }
+                        ).flatMap(\.self)
 
                         let destination = LayoutPlanner.achievableDestination(
                             items: liveItems,

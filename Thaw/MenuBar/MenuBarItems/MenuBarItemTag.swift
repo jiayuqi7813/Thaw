@@ -28,9 +28,17 @@ struct MenuBarItemTag: Hashable, CustomStringConvertible {
         /// The item is not managed by the section layout.
         case excluded
 
-        var canBeHidden: Bool { self == .hideable }
-        var isVisibleInLayout: Bool { self != .excluded }
-        var isForcedVisible: Bool { self == .forcedVisible }
+        var canBeHidden: Bool {
+            self == .hideable
+        }
+
+        var isVisibleInLayout: Bool {
+            self != .excluded
+        }
+
+        var isForcedVisible: Bool {
+            self == .forcedVisible
+        }
     }
 
     /// The namespace of the item identified by this tag.
@@ -423,10 +431,14 @@ extension MenuBarItemTag {
     ///
     /// This list contains the "Clock", "Control Center", "Siri", and
     /// "Screen Sharing" (ssMenuAgent) items.
-    static var immovableItems: [MenuBarItemTag] { [clock, controlCenter, siri, ssMenuAgent] }
+    static var immovableItems: [MenuBarItemTag] {
+        [clock, controlCenter, siri, ssMenuAgent]
+    }
 
     /// An array of tags for items that can be moved, but cannot be hidden.
-    static var nonHideableItems: [MenuBarItemTag] { [visibleControlItem, audioVideoModule, faceTime, screenCaptureUI, gameMode] }
+    static var nonHideableItems: [MenuBarItemTag] {
+        [visibleControlItem, audioVideoModule, faceTime, screenCaptureUI, gameMode]
+    }
 
     /// An array of tags for items representing Ice's control items.
     static let controlItems = ControlItem.Identifier.allCases.map(\.tag)
@@ -471,19 +483,29 @@ extension MenuBarItemTag {
 
     /// The tag for the system item that appears in the menu bar
     /// during screen or audio capture.
-    static var audioVideoModule: MenuBarItemTag { MenuBarItemTag(namespace: systemHostNamespace, title: "AudioVideoModule") }
+    static var audioVideoModule: MenuBarItemTag {
+        MenuBarItemTag(namespace: systemHostNamespace, title: "AudioVideoModule")
+    }
 
     /// The tag for the system "Clock" item.
-    static var clock: MenuBarItemTag { MenuBarItemTag(namespace: systemHostNamespace, title: "Clock") }
+    static var clock: MenuBarItemTag {
+        MenuBarItemTag(namespace: systemHostNamespace, title: "Clock")
+    }
 
     /// The tag for the system "Control Center" item.
-    static var controlCenter: MenuBarItemTag { MenuBarItemTag(namespace: systemHostNamespace, title: "BentoBox-0") }
+    static var controlCenter: MenuBarItemTag {
+        MenuBarItemTag(namespace: systemHostNamespace, title: "BentoBox-0")
+    }
 
     /// The tag for the system "FaceTime" item.
-    static var faceTime: MenuBarItemTag { MenuBarItemTag(namespace: systemHostNamespace, title: "FaceTime") }
+    static var faceTime: MenuBarItemTag {
+        MenuBarItemTag(namespace: systemHostNamespace, title: "FaceTime")
+    }
 
     /// The tag for the system "Music Recognition" item.
-    static var musicRecognition: MenuBarItemTag { MenuBarItemTag(namespace: systemHostNamespace, title: "MusicRecognition") }
+    static var musicRecognition: MenuBarItemTag {
+        MenuBarItemTag(namespace: systemHostNamespace, title: "MusicRecognition")
+    }
 
     /// The tag for the system item that appears in the menu bar
     /// during recordings started by the macOS "Screenshot" tool.

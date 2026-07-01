@@ -34,7 +34,7 @@ import XCTest
 /// log), and testBuggyCycleDoesNotPlanMoveForUnresolvedOrphan is the regression
 /// lock that fails before the fix and passes after it.
 final class ProfileLayoutLogReplayTests: XCTestCase {
-    // Control Center on macOS 26, MenuBarAgent on macOS 27+ — see the fixture.
+    /// Control Center on macOS 26, MenuBarAgent on macOS 27+ — see the fixture.
     private let orphanUID = LittleSnitchOrphanLog.orphanUID
 
     // MARK: Parser characterization
@@ -294,9 +294,9 @@ final class ProfileLayoutLogReplayTests: XCTestCase {
         XCTAssertEqual(cycle.notchMaxX, 956)
 
         XCTAssertFalse(
-            LayoutSolver.isMenuBarGeometryReady(
-                rightBoundary: try XCTUnwrap(cycle.notchRightBoundary),
-                notchMaxX: try XCTUnwrap(cycle.notchMaxX)
+            try LayoutSolver.isMenuBarGeometryReady(
+                rightBoundary: XCTUnwrap(cycle.notchRightBoundary),
+                notchMaxX: XCTUnwrap(cycle.notchMaxX)
             ),
             "Control Center reported left of the notch (672 <= 956) is unsettled geometry; the pass must defer"
         )
@@ -319,9 +319,9 @@ final class ProfileLayoutLogReplayTests: XCTestCase {
         XCTAssertEqual(cycle.notchMaxX, 956)
 
         XCTAssertTrue(
-            LayoutSolver.isMenuBarGeometryReady(
-                rightBoundary: try XCTUnwrap(cycle.notchRightBoundary),
-                notchMaxX: try XCTUnwrap(cycle.notchMaxX)
+            try LayoutSolver.isMenuBarGeometryReady(
+                rightBoundary: XCTUnwrap(cycle.notchRightBoundary),
+                notchMaxX: XCTUnwrap(cycle.notchMaxX)
             )
         )
     }
