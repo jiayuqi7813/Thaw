@@ -63,7 +63,7 @@ direction/features.
 | 027  | `thaw://reveal-item` deep link | G | P3 | S | — | DONE |
 | 028  | Graduate or retire the 3 `enableExperimental*` flags | G | P3 | S-M | 012, 014, 016 | TODO |
 | 029  | Design spike — "trigger conditions" for per-item reveal | G | P3 | M | 016 | DONE (design recorded; awaiting maintainer approval to spawn implementation plan) |
-| 030  | Generalize `SettingsSearchIndex` ranking into `SearchRanker` | G | P3 | S | — | TODO |
+| 030  | Generalize `SettingsSearchIndex` ranking into `SearchRanker` | G | P3 | S | — | DONE |
 | 031  | Document teardown/undo + env vars for `setup-headroom-claude.sh` | G | P3 | S | — | DONE |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale — finding fixed independently or approach abandoned)
