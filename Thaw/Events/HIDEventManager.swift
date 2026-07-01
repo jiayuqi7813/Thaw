@@ -1096,7 +1096,7 @@ extension HIDEventManager {
     static nonisolated func shouldSwallowClick(
         clickLocation: CGPoint,
         guardRegion: CGRect,
-        isDoubleClick: Bool,
+        isDoubleClick _: Bool,
         withinDoubleClickWindow: Bool
     ) -> Bool {
         guard withinDoubleClickWindow else {
