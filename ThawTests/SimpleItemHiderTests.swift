@@ -55,22 +55,63 @@ final class SimpleItemHiderTests: XCTestCase {
         }
     }
 
-    final class FakeCGSWindowHider: CGSWindowHiding {
+    final class FakeCGSWindowHider: SurgicalItemHider {
         private(set) var applyCallCount = 0
-
-        func apply(hiddenPIDs _: Set<pid_t>) -> Set<pid_t> {
-            applyCallCount += 1
-            return []
-        }
-    }
-
-    final class FakeAXItemHider: AXItemHiding {
-        private(set) var applyCallCount = 0
+        private(set) var restoreAllCallCount = 0
 
         func apply(hiddenPIDs _: Set<pid_t>, allItems _: [MenuBarItem]) -> Set<pid_t> {
             applyCallCount += 1
             return []
         }
+
+        func restoreAll() {
+            restoreAllCallCount += 1
+        }
+    }
+
+    final class FakeAXItemHider: SurgicalItemHider {
+        private(set) var applyCallCount = 0
+        private(set) var restoreAllCallCount = 0
+
+        func apply(hiddenPIDs _: Set<pid_t>, allItems _: [MenuBarItem]) -> Set<pid_t> {
+            applyCallCount += 1
+            return []
+        }
+
+        func restoreAll() {
+            restoreAllCallCount += 1
+        }
+    }
+
+    /// Records the order in which surgical hiders are invoked, shared across
+    /// two `OrderRecordingSurgicalHider` instances (CGS + AX) so a test can
+    /// assert `applyExperimentalWindowHiding`'s pass ordering.
+    final class CallOrderLog {
+        private(set) var order: [String] = []
+        func record(_ name: String) {
+            order.append(name)
+        }
+    }
+
+    final class OrderRecordingSurgicalHider: SurgicalItemHider {
+        let name: String
+        let log: CallOrderLog
+        let handledPIDs: Set<pid_t>
+        private(set) var lastReceivedPIDs: Set<pid_t> = []
+
+        init(name: String, log: CallOrderLog, handledPIDs: Set<pid_t> = []) {
+            self.name = name
+            self.log = log
+            self.handledPIDs = handledPIDs
+        }
+
+        func apply(hiddenPIDs: Set<pid_t>, allItems _: [MenuBarItem]) -> Set<pid_t> {
+            log.record(name)
+            lastReceivedPIDs = hiddenPIDs
+            return handledPIDs.intersection(hiddenPIDs)
+        }
+
+        func restoreAll() {}
     }
 
     final class FakeTrailingItemPositionStore: TrailingItemPositioning {
@@ -78,9 +119,17 @@ final class SimpleItemHiderTests: XCTestCase {
         private(set) var restoreAllCallCount = 0
         var storedPositions: [String: Int] = [:]
 
-        func readPositions() -> [String: Int] { storedPositions }
-        func writePositions(_ dict: [String: Int]) { storedPositions = dict }
-        func restoreAll() { restoreAllCallCount += 1 }
+        func readPositions() -> [String: Int] {
+            storedPositions
+        }
+
+        func writePositions(_ dict: [String: Int]) {
+            storedPositions = dict
+        }
+
+        func restoreAll() {
+            restoreAllCallCount += 1
+        }
 
         func hideItems(_: [MenuBarItem]) -> Set<String> {
             hasHiddenItems = true
@@ -121,6 +170,77 @@ final class SimpleItemHiderTests: XCTestCase {
             axItemHider: axItemHider,
             positionStore: positionStore
         )
+    }
+
+    func testSurgicalHidersRunInOrder_CGSThenAX() {
+        // This test characterizes the ordering offlation ordering in
+        // `applyExperimentalWindowHiding`: CGS runs first, AX runs second (on
+        // macOS < 27), and AX only receives PIDs that CGS didn't handle.
+        let log = CallOrderLog()
+        let cgsHandledPID: pid_t = 123
+        let axHandledPID: pid_t = 456
+        let cgsHider = OrderRecordingSurgicalHider(
+            name: "CGS",
+            log: log,
+            handledPIDs: [cgsHandledPID]
+        )
+        let axHider = OrderRecordingSurgicalHider(
+            name: "AX",
+            log: log,
+            handledPIDs: [axHandledPID]
+        )
+        let positionStore = FakeTrailingItemPositionStore()
+        let backend = FakeAssessmentModeBackend()
+        let ccModuleManager = FakeControlCenterModuleManager()
+
+        let hider = SimpleItemHider(
+            appState: nil,
+            backend: backend,
+            ccModuleManager: ccModuleManager,
+            cgsWindowHider: cgsHider,
+            axItemHider: axHider,
+            positionStore: positionStore
+        )
+
+        // Create test items with known PIDs.
+        let item1 = MenuBarItem(
+            tag: MenuBarItemTag(namespace: .optional("com.test.app1"), title: "Item1", windowID: 1, instanceIndex: 0),
+            windowID: 1,
+            ownerPID: 123,
+            sourcePID: 123,
+            bounds: CGRect(x: 0, y: 0, width: 20, height: 22),
+            title: "Item1",
+            isOnScreen: true
+        )
+        let item2 = MenuBarItem(
+            tag: MenuBarItemTag(namespace: .optional("com.test.app2"), title: "Item2", windowID: 2, instanceIndex: 0),
+            windowID: 2,
+            ownerPID: 456,
+            sourcePID: 456,
+            bounds: CGRect(x: 30, y: 0, width: 20, height: 22),
+            title: "Item2",
+            isOnScreen: true
+        )
+        let allItems = [item1, item2]
+
+        var backendAssignment: [String: MenuBarSection.Name] = [
+            item1.uniqueIdentifier: .hidden,
+            item2.uniqueIdentifier: .hidden,
+        ]
+
+        // Drive the surgical pipeline directly (bypassing the plist pass).
+        hider.applyExperimentalWindowHiding(
+            enabled: true,
+            effectiveAssignment: backendAssignment,
+            allItems: allItems,
+            backendAssignment: &backendAssignment
+        )
+
+        // Assert CGS was called before AX.
+        XCTAssertEqual(log.order, ["CGS", "AX"], "Surgical hiders must run in order: CGS then AX")
+
+        // Assert AX only received the PID that CGS didn't handle.
+        XCTAssertEqual(axHider.lastReceivedPIDs, [axHandledPID], "AX should only receive PIDs not handled by CGS")
     }
 
     func testRefresh_NoOpsWithoutAttachedAppState() {

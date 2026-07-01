@@ -36,23 +36,27 @@ protocol ControlCenterModuleManaging: AnyObject {
 
 extension ControlCenterModuleManager: ControlCenterModuleManaging {}
 
-/// The subset of ``CGSWindowHider`` that ``SimpleItemHider`` calls into.
+/// The common shape of ``CGSWindowHider`` and ``AXItemHider``: both hide
+/// items surgically by PID/window and report which PIDs they actually
+/// handled, so ``SimpleItemHider`` can strip them from the next pass. CGS
+/// runs first (handles pre-27 macOS where per-item windows exist); AX runs
+/// second and catches PIDs CGS could not (gated out on macOS 27 by plan 012,
+/// since `AXHidden` isn't settable on hosted menu-bar items there).
 @MainActor
-protocol CGSWindowHiding: AnyObject {
-    @discardableResult
-    func apply(hiddenPIDs: Set<pid_t>) -> Set<pid_t>
-}
-
-extension CGSWindowHider: CGSWindowHiding {}
-
-/// The subset of ``AXItemHider`` that ``SimpleItemHider`` calls into.
-@MainActor
-protocol AXItemHiding: AnyObject {
+protocol SurgicalItemHider: AnyObject {
     @discardableResult
     func apply(hiddenPIDs: Set<pid_t>, allItems: [MenuBarItem]) -> Set<pid_t>
+    func restoreAll()
 }
 
-extension AXItemHider: AXItemHiding {}
+extension AXItemHider: SurgicalItemHider {}
+
+extension CGSWindowHider: SurgicalItemHider {
+    @discardableResult
+    func apply(hiddenPIDs: Set<pid_t>, allItems _: [MenuBarItem]) -> Set<pid_t> {
+        apply(hiddenPIDs: hiddenPIDs)
+    }
+}
 
 /// The subset of ``TrailingItemPositionStore`` that ``SimpleItemHider`` calls
 /// into.
@@ -168,7 +172,7 @@ final class SimpleItemHider: ObservableObject {
     /// hiding flag is on, third-party items are hidden by moving their windows
     /// off-screen via CGS instead of the assessment-mode assertion, so hiding one
     /// item no longer reflows the bar and ghosts dynamic neighbors like iStat.
-    private let cgsWindowHider: CGSWindowHiding
+    private let cgsWindowHider: SurgicalItemHider
 
     /// AX-based item hider. On macOS 27 per-item CG windows don't exist, so the
     /// CGS hider cannot operate. This hider sets `AXHidden` on each item's AX
@@ -177,7 +181,17 @@ final class SimpleItemHider: ObservableObject {
     ///
     /// Note: AXHidden is not settable on macOS 27 menu-bar items; this hider is
     /// kept for diagnostics but is effectively a no-op there.
-    private let axItemHider: AXItemHiding
+    private let axItemHider: SurgicalItemHider
+
+    /// The two surgical passes, in the fixed order `applyExperimentalWindowHiding`
+    /// runs them: CGS first, then AX. Both conform to `SurgicalItemHider`, but
+    /// the orchestration below still calls them by name rather than looping
+    /// over this array, because the AX pass carries an extra macOS-version
+    /// gate (plan 012) that isn't part of the shared protocol. Exposed so
+    /// tests can assert the ordering without duplicating that gating logic.
+    var surgicalHiders: [SurgicalItemHider] {
+        [cgsWindowHider, axItemHider]
+    }
 
     /// Position lock for visible items. On macOS 27 the assessment-mode
     /// assertion re-composites the whole bar, ghosting dynamic neighbors (iStat).
@@ -211,8 +225,8 @@ final class SimpleItemHider: ObservableObject {
         appState: AppState?,
         backend: AssessmentModeBackending,
         ccModuleManager: ControlCenterModuleManaging,
-        cgsWindowHider: CGSWindowHiding,
-        axItemHider: AXItemHiding,
+        cgsWindowHider: SurgicalItemHider,
+        axItemHider: SurgicalItemHider,
         positionStore: TrailingItemPositioning
     ) {
         self.appState = appState
@@ -1330,17 +1344,31 @@ final class SimpleItemHider: ObservableObject {
     /// 3. AX element hide (legacy, no-op on macOS 27).
     /// 4. Position lock — preserve visible items' existing weights, clean up
     ///    ghost keys from dynamic-title apps.
-    private func applyExperimentalWindowHiding(
+    /// Not private: exposed so tests can drive the orchestration directly
+    /// (with fake surgical hiders) without constructing a full `AppState`.
+    func applyExperimentalWindowHiding(
         enabled: Bool,
         effectiveAssignment: [String: MenuBarSection.Name],
         allItems: [MenuBarItem],
         backendAssignment: inout [String: MenuBarSection.Name]
     ) {
+        // Build the ordered list of surgical hiders to run on this OS version.
+        // CGS runs on all versions; AX runs only on macOS < 27 (per plan 012).
+        let surgicalHidersToRun: [SurgicalItemHider] = {
+            var hiders = surgicalHiders
+            if #available(macOS 27, *) {
+                // AXItemHider is gated out on macOS 27+; drop it from the pipeline.
+                hiders = hiders.filter { !($0 is AXItemHider) }
+            }
+            return hiders
+        }()
+
         guard enabled else {
             positionStore.restoreAll()
-            cgsWindowHider.apply(hiddenPIDs: [])
-            if #unavailable(macOS 27) {
-                axItemHider.apply(hiddenPIDs: [], allItems: allItems)
+            // Call apply with empty PIDs on each surgical hider so any
+            // previously-hidden windows/elements get restored.
+            for hider in surgicalHidersToRun {
+                hider.apply(hiddenPIDs: [], allItems: allItems)
             }
             return
         }
@@ -1375,8 +1403,10 @@ final class SimpleItemHider: ObservableObject {
             }
         }
 
-        // ── 2. CGS pass (legacy, no-op on macOS 27) ──
-        var cgsHiddenPIDs = Set<pid_t>()
+        // ── 2–3. Surgical passes (CGS → AX) via ordered pipeline ──
+        // Collect PIDs of items assigned to a hidden section that are eligible
+        // for surgical hiding and not already handled by the plist pass.
+        var remainingPIDs = Set<pid_t>()
         for item in allItems where Self.isCGSWindowHideable(item) {
             let section = effectiveAssignment[item.uniqueIdentifier] ?? .visible
             guard section != .visible else { continue }
@@ -1385,27 +1415,23 @@ final class SimpleItemHider: ObservableObject {
             if #available(macOS 27, *) {
                 guard item.sourcePID != nil else { continue }
             }
-            cgsHiddenPIDs.insert(pid)
+            remainingPIDs.insert(pid)
         }
 
-        let cgsHandledPIDs = cgsWindowHider.apply(hiddenPIDs: cgsHiddenPIDs)
-        stripSurgicallyHandledPIDs(
-            cgsHandledPIDs,
-            effectiveAssignment: effectiveAssignment,
-            allItems: allItems,
-            backendAssignment: &backendAssignment
-        )
-
-        // ── 3. AX pass (legacy, no-op on macOS 27) ──
-        let remainingPIDs = cgsHiddenPIDs.subtracting(cgsHandledPIDs)
-        if #unavailable(macOS 27), !remainingPIDs.isEmpty {
-            let axHandledPIDs = axItemHider.apply(hiddenPIDs: remainingPIDs, allItems: allItems)
+        // Iterate surgical hiders in order (CGS first, then AX on macOS < 27).
+        // Each hider receives the PIDs not yet handled; its handled PIDs are
+        // stripped from the backend assignment so the assessment-mode assertion
+        // leaves those items alone.
+        for hider in surgicalHidersToRun {
+            guard !remainingPIDs.isEmpty else { break }
+            let handledPIDs = hider.apply(hiddenPIDs: remainingPIDs, allItems: allItems)
             stripSurgicallyHandledPIDs(
-                axHandledPIDs,
+                handledPIDs,
                 effectiveAssignment: effectiveAssignment,
                 allItems: allItems,
                 backendAssignment: &backendAssignment
             )
+            remainingPIDs.subtract(handledPIDs)
         }
 
         // ── 4. Position lock — preserve visible items' weights ──
