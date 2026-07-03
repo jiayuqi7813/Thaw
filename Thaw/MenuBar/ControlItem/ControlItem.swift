@@ -468,6 +468,7 @@ final class ControlItem: NSObject {
             button.isEnabled = true
             button.alphaValue = 1
             button.appearsDisabled = false
+            button.isHighlighted = false
 
             let icon = appState.settings.general.iceIcon
 
