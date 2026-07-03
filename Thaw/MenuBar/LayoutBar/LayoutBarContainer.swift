@@ -307,6 +307,12 @@ final class LayoutBarContainer: NSView {
         // drops (reorders) are always allowed.
         if case let .item(item) = sourceView.kind {
             let experimentalSystemItemHiding = appState?.settings.advanced.enableExperimentalSystemItemHiding ?? false
+            if item.tag.isLayoutAnchoredSystemItem,
+               sourceView.oldContainerInfo?.container === self,
+               !LayoutBarPaddingView.allowsAnchoredSystemItemReordering(appState: appState)
+            {
+                return []
+            }
             if !SimpleItemHider.canAssign(
                 item,
                 to: section,
