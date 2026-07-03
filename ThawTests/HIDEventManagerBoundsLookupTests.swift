@@ -229,4 +229,36 @@ final class HIDEventManagerBoundsLookupTests: XCTestCase {
             HIDEventManager.shouldIncludeItemInMenuBarBoundsLookup(phantom, section: .visible)
         )
     }
+
+    func testBoundsLookupEntriesIncludeRecentUnmanagedOnScreenItems() {
+        let knownManaged = MenuBarItem.fixture(
+            tag: .appItem(bundleID: "com.stonerl.Thaw", title: "Thaw"),
+            windowID: 9_000_020,
+            bounds: CGRect(x: 1120, y: 0, width: 24, height: 22)
+        )
+        let unmanagedStatusItem = MenuBarItem.fixture(
+            tag: .appItem(bundleID: "com.example.other", title: "Other"),
+            windowID: 9_000_021,
+            bounds: CGRect(x: 1160, y: 0, width: 24, height: 22)
+        )
+
+        let entries = HIDEventManager.menuBarItemBoundsLookupEntries(
+            from: [knownManaged, unmanagedStatusItem],
+            excluding: [knownManaged.windowID],
+            shouldInclude: { item in
+                HIDEventManager.shouldIncludeItemInMenuBarBoundsLookup(item, section: nil)
+            }
+        )
+
+        XCTAssertFalse(entries.contains { $0.windowID == knownManaged.windowID })
+        XCTAssertTrue(entries.contains { $0.windowID == unmanagedStatusItem.windowID })
+        XCTAssertTrue(
+            HIDEventManager.menuBarBoundsLookupContains(
+                CGPoint(x: unmanagedStatusItem.bounds.midX, y: unmanagedStatusItem.bounds.midY),
+                entries: entries,
+                trustCachedBoundsWithoutLiveWindowVerification: true,
+                liveWindowBounds: { _ in nil }
+            )
+        )
+    }
 }
