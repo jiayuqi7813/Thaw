@@ -37,7 +37,7 @@ struct MenuBarLayoutSettingsPane: View {
                 header
                 layoutBars
                 if #available(macOS 27, *) {
-                    experimentalSystemItemHidingControls
+                    systemItemHidingControls
                     experimentalOverflowPreventionControl
                     // Experimental window hiding disabled — plist-based per-item
                     // hiding does not work on macOS 27 (removing keys from
@@ -140,15 +140,15 @@ struct MenuBarLayoutSettingsPane: View {
     @available(macOS 27, *)
     private var nonHideableItemsNotice: some View {
         SettingsWarningPill(
-            message: "On macOS 27, some items can be reordered but not yet hidden. Native macOS items such as Clock, Control Center, and Siri stay visible unless experimental system item hiding is enabled, and a few MenuBarAgent modules — like AirDrop and Sound — may also be restricted. Apps on Thaw's hiding denylist share the same restriction. You can still rearrange them in the Visible section."
+            message: "On macOS 27, some items can be reordered but not yet hidden. Native macOS items such as Clock, Control Center, and Siri stay visible unless system item hiding is enabled, and a few MenuBarAgent modules — like AirDrop and Sound — may also be restricted. Apps on Thaw's hiding denylist share the same restriction. You can still rearrange them in the Visible section."
         )
     }
 
     @available(macOS 27, *)
-    private var experimentalSystemItemHidingControls: some View {
+    private var systemItemHidingControls: some View {
         IceSection {
             VStack(alignment: .leading, spacing: 12) {
-                Toggle(isOn: experimentalSystemItemHidingBinding) {
+                Toggle(isOn: systemItemHidingBinding) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Hide macOS system items")
                             .font(.headline)
@@ -162,7 +162,7 @@ struct MenuBarLayoutSettingsPane: View {
         }
     }
 
-    private var experimentalSystemItemHidingBinding: Binding<Bool> {
+    private var systemItemHidingBinding: Binding<Bool> {
         Binding(
             get: { appState.settings.advanced.enableExperimentalSystemItemHiding },
             set: { newValue in
