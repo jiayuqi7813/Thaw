@@ -265,10 +265,6 @@ struct MenuBarLayoutSettingsPane: View {
                     .disabled(isResettingLayout || areControlItemsDisabledBySystem)
                 }
 
-                SettingsWarningPill(
-                    message: "If menu bar items are missing or a section looks empty, try Reset to Visible — it restores the icons."
-                )
-
                 if let resetStatus {
                     Text(resetStatus.message)
                         .font(.footnote)
