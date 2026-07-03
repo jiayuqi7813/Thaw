@@ -516,6 +516,26 @@ final class HIDEventManager: ObservableObject {
         return true
     }
 
+    static nonisolated func menuBarItemBoundsLookupEntries(
+        from items: [MenuBarItem],
+        excluding knownWindowIDs: Set<CGWindowID>,
+        shouldInclude: (MenuBarItem) -> Bool
+    ) -> [(windowID: CGWindowID, bounds: CGRect)] {
+        var seenWindowIDs = knownWindowIDs
+        var entries = [(windowID: CGWindowID, bounds: CGRect)]()
+
+        for item in items where item.isOnScreen && !seenWindowIDs.contains(item.windowID) {
+            guard shouldInclude(item) else {
+                continue
+            }
+
+            entries.append((windowID: item.windowID, bounds: item.bounds))
+            seenWindowIDs.insert(item.windowID)
+        }
+
+        return entries
+    }
+
     /// Rebuilds the window bounds lookup table from the current item cache.
     ///
     /// Includes ALL menu bar item windows (both managed and unmanaged) so that
@@ -523,7 +543,10 @@ final class HIDEventManager: ObservableObject {
     /// detected as being on a menu bar item, not on empty space.
     func refreshMenuBarItemBoundsLookup() {
         guard let appState else { return }
-        rebuildWindowBoundsLookup(from: appState.itemManager.itemCache)
+        rebuildWindowBoundsLookup(
+            from: appState.itemManager.itemCache,
+            including: appState.itemManager.lastOnScreenMenuBarItems.0
+        )
     }
 
     /// Whether an item's cached bounds should participate in hover/click/tooltip
@@ -539,7 +562,10 @@ final class HIDEventManager: ObservableObject {
     /// Includes ALL menu bar item windows (both managed and unmanaged) so that
     /// clicks on unmanaged items like Clock and Control Center are correctly
     /// detected as being on a menu bar item, not on empty space.
-    private func rebuildWindowBoundsLookup(from cache: MenuBarItemManager.ItemCache) {
+    private func rebuildWindowBoundsLookup(
+        from cache: MenuBarItemManager.ItemCache,
+        including recentOnScreenItems: [MenuBarItem] = []
+    ) {
         var knownWindowIDs = Set<CGWindowID>()
         var buffer = [(windowID: CGWindowID, bounds: CGRect)]()
 
@@ -558,17 +584,20 @@ final class HIDEventManager: ObservableObject {
             }
         }
 
-        // Add any managed items that might not be in the Window Server list yet.
-        // This is a fallback for items that might not be reported by the Window Server.
-        let items = cache.managedItems
-        for item in items where item.isOnScreen && !knownWindowIDs.contains(item.windowID) {
-            guard shouldIncludeInMenuBarBoundsLookup(item) else {
-                continue
-            }
-            buffer.append((windowID: item.windowID, bounds: item.bounds))
-            knownWindowIDs.insert(item.windowID)
-        }
+        let recentEntries = Self.menuBarItemBoundsLookupEntries(
+            from: recentOnScreenItems,
+            excluding: knownWindowIDs,
+            shouldInclude: shouldIncludeInMenuBarBoundsLookup
+        )
+        buffer.append(contentsOf: recentEntries)
+        knownWindowIDs.formUnion(recentEntries.map(\.windowID))
 
+        let managedEntries = Self.menuBarItemBoundsLookupEntries(
+            from: cache.managedItems,
+            excluding: knownWindowIDs,
+            shouldInclude: shouldIncludeInMenuBarBoundsLookup
+        )
+        buffer.append(contentsOf: managedEntries)
         let entries = buffer
         windowBoundsLock.withLock { $0 = entries }
     }
@@ -590,7 +619,10 @@ final class HIDEventManager: ObservableObject {
                 windowBoundsLock.withLock { $0 = [] }
                 return
             }
-            rebuildWindowBoundsLookup(from: appState.itemManager.itemCache)
+            rebuildWindowBoundsLookup(
+                from: appState.itemManager.itemCache,
+                including: appState.itemManager.lastOnScreenMenuBarItems.0
+            )
             return
         }
 
@@ -678,7 +710,10 @@ final class HIDEventManager: ObservableObject {
                 .removeDuplicates()
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] cache in
-                    self?.rebuildWindowBoundsLookup(from: cache)
+                    self?.rebuildWindowBoundsLookup(
+                        from: cache,
+                        including: appState.itemManager.lastOnScreenMenuBarItems.0
+                    )
                 }
                 .store(in: &c)
 
@@ -718,7 +753,10 @@ final class HIDEventManager: ObservableObject {
 
         // Build the initial bounds lookup from the current cache.
         if let appState {
-            rebuildWindowBoundsLookup(from: appState.itemManager.itemCache)
+            rebuildWindowBoundsLookup(
+                from: appState.itemManager.itemCache,
+                including: appState.itemManager.lastOnScreenMenuBarItems.0
+            )
         }
 
         // Periodically check that the mouseMovedTap is still alive.
