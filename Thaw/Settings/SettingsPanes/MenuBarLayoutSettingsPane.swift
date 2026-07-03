@@ -158,6 +158,10 @@ struct MenuBarLayoutSettingsPane: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
+                Text("Note: When Thaw Bar is off, hidden Clock, Control Center, and Siri stay anchored at the right side of the layout. You can still change whether they are visible or hidden.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
