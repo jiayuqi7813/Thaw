@@ -9,6 +9,7 @@
 *.dSYM
 *.ipa
 build/  
+plans/
 DerivedData/
 Sparkle
 ThawCtl/.build/
