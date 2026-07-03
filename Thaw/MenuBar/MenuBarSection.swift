@@ -515,7 +515,13 @@ final class MenuBarSection {
 
     /// Hides the section.
     func hide() {
-        guard let menuBarManager, !isHidden else {
+        guard let menuBarManager else {
+            return
+        }
+
+        guard !isHidden else {
+            resetClosedPresentationState(using: menuBarManager)
+            stopRehideChecks()
             return
         }
 
@@ -543,6 +549,14 @@ final class MenuBarSection {
         }
 
         stopRehideChecks()
+    }
+
+    private func resetClosedPresentationState(using menuBarManager: MenuBarManager) {
+        menuBarManager.showOnHoverAllowed = true
+        for section in menuBarManager.sections {
+            section.desiredState = .hideSection
+            section.updateControlItemState(for: nil)
+        }
     }
 
     /// Toggles the visibility of the section.
