@@ -1,5 +1,5 @@
 //
-//  CGSWindowHiderTests.swift
+//  RuntimeWindowControllerTests.swift
 //  Project: Thaw
 //
 //  Copyright (Ice) © 2023–2025 Jordan Baird
@@ -7,14 +7,15 @@
 //  Licensed under the GNU GPLv3
 
 @testable import Thaw
+import PlatformRuntimeKit
 import XCTest
 
-// MARK: - CGSWindowHider Tests
+// MARK: - RuntimeWindowController Tests
 
 /// Covers the off-screen hide/restore bookkeeping through an in-memory window
 /// server. No real CGS calls are made.
 @MainActor
-final class CGSWindowHiderTests: XCTestCase {
+final class RuntimeWindowControllerTests: XCTestCase {
     func testApplyMovesProcessWindowsOffScreenAndRestoresOnRemoval() {
         // pid 100 owns two menu-bar windows at known origins.
         let store = FakeWindowServer(
@@ -24,8 +25,8 @@ final class CGSWindowHiderTests: XCTestCase {
         let hider = makeHider(store)
 
         XCTAssertEqual(hider.apply(hiddenPIDs: [100]), [100])
-        XCTAssertEqual(store.origins[10]?.x, CGSWindowHider.offScreenX)
-        XCTAssertEqual(store.origins[11]?.x, CGSWindowHider.offScreenX)
+        XCTAssertEqual(store.origins[10]?.x, RuntimeWindowController.offScreenX)
+        XCTAssertEqual(store.origins[11]?.x, RuntimeWindowController.offScreenX)
 
         // Removing the pid from the set restores the original origins exactly.
         XCTAssertEqual(hider.apply(hiddenPIDs: []), [])
@@ -59,8 +60,8 @@ final class CGSWindowHiderTests: XCTestCase {
         let hider = makeHider(store)
 
         hider.apply(hiddenPIDs: [100, 200])
-        XCTAssertEqual(store.origins[10]?.x, CGSWindowHider.offScreenX)
-        XCTAssertEqual(store.origins[20]?.x, CGSWindowHider.offScreenX)
+        XCTAssertEqual(store.origins[10]?.x, RuntimeWindowController.offScreenX)
+        XCTAssertEqual(store.origins[20]?.x, RuntimeWindowController.offScreenX)
 
         hider.restoreAll()
         XCTAssertEqual(store.origins[10], CGPoint(x: 200, y: 0))
@@ -76,7 +77,7 @@ final class CGSWindowHiderTests: XCTestCase {
         let hider = makeHider(store, notificationCenter: notificationCenter)
 
         hider.apply(hiddenPIDs: [100])
-        XCTAssertEqual(store.origins[10]?.x, CGSWindowHider.offScreenX)
+        XCTAssertEqual(store.origins[10]?.x, RuntimeWindowController.offScreenX)
 
         notificationCenter.post(name: NSApplication.willTerminateNotification, object: nil)
         XCTAssertEqual(store.origins[10], CGPoint(x: 200, y: 0))
@@ -85,13 +86,13 @@ final class CGSWindowHiderTests: XCTestCase {
     private func makeHider(
         _ store: FakeWindowServer,
         notificationCenter: NotificationCenter = NotificationCenter()
-    ) -> CGSWindowHider {
-        let environment = CGSWindowHider.Environment(
+    ) -> RuntimeWindowController {
+        let environment = RuntimeWindowController.Environment(
             menuBarWindowIDs: { store.windowsByPID[$0] ?? [] },
             windowOrigin: { store.origins[$0] },
             moveWindow: { store.move($0, to: $1) }
         )
-        return CGSWindowHider(environment: environment, notificationCenter: notificationCenter)
+        return RuntimeWindowController(environment: environment, notificationCenter: notificationCenter)
     }
 
     private final class FakeWindowServer {

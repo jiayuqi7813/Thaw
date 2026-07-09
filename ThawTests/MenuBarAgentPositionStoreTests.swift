@@ -1,5 +1,5 @@
 //
-//  MenuBarAgentPositionStoreTests.swift
+//  RuntimePositionStoreTests.swift
 //  Project: Thaw
 //
 //  Copyright (Ice) © 2023–2025 Jordan Baird
@@ -7,24 +7,25 @@
 //  Licensed under the GNU GPLv3
 
 @testable import Thaw
+import PlatformRuntimeKit
 import XCTest
 
 @available(macOS 27, *)
 @MainActor
-final class MenuBarAgentPositionStoreTests: XCTestCase {
+final class RuntimePositionStoreTests: XCTestCase {
     // Key-resolution and midpoint cases live in
-    // TrailingItemPreferredPositionsKeysTests (the shared source of truth this
-    // store delegates to). This suite covers only the store's own
+    // PlatformRuntimeKitTests/RuntimePreferenceKeysTests (the
+    // shared source of truth this store delegates to). This suite covers only the store's own
     // orchestration: neighborItems, move, and applyOrder.
 
-    func testManagedAgentRestarterUsesCustomSignalForMenuBarAgentProcess() {
+    func testRuntimeProcessControllerUsesCustomSignalForMenuBarAgentProcess() {
         let applications = [
-            ManagedAgentRestarter.RunningApplication(bundleIdentifier: "com.apple.MenuBarAgent", processIdentifier: 20),
-            ManagedAgentRestarter.RunningApplication(bundleIdentifier: "com.example.other", processIdentifier: 21),
+            RuntimeProcessController.RunningApplication(bundleIdentifier: "com.apple.MenuBarAgent", processIdentifier: 20),
+            RuntimeProcessController.RunningApplication(bundleIdentifier: "com.example.other", processIdentifier: 21),
         ]
         var sentSignals: [(pid_t, Int32)] = []
 
-        ManagedAgentRestarter.restart(
+        RuntimeProcessController.restart(
             bundleID: "com.apple.MenuBarAgent",
             signal: SIGKILL,
             runningApplications: applications
@@ -43,7 +44,7 @@ final class MenuBarAgentPositionStoreTests: XCTestCase {
         let a = item("A", x: 0)
         let target = item("T", x: 30)
         let c = item("C", x: 60)
-        let result = MenuBarAgentPositionStore.neighborItems(
+        let result = RuntimePositionStore.neighborItems(
             forMoving: a,
             to: .rightOfItem(target),
             liveItems: [a, target, c]
@@ -57,7 +58,7 @@ final class MenuBarAgentPositionStoreTests: XCTestCase {
         let moved = item("M", x: 90)
         let target = item("T", x: 0)
         let c = item("C", x: 30)
-        let result = MenuBarAgentPositionStore.neighborItems(
+        let result = RuntimePositionStore.neighborItems(
             forMoving: moved,
             to: .leftOfItem(target),
             liveItems: [target, c, moved]
@@ -75,13 +76,13 @@ final class MenuBarAgentPositionStoreTests: XCTestCase {
 
         var written: [String: Int]?
         var nudged = false
-        let env = MenuBarAgentPositionStore.Environment(
+        let env = RuntimePositionStore.Environment(
             readPositions: { ["status:A::A": 50, "status:A::T": 100, "status:A::C": 200] },
             writePositions: { written = $0 },
             nudgeAgent: { nudged = true }
         )
 
-        let applied = MenuBarAgentPositionStore.move(
+        let applied = RuntimePositionStore.move(
             item: a,
             to: .rightOfItem(target),
             liveItems: [a, target, c],
@@ -100,13 +101,13 @@ final class MenuBarAgentPositionStoreTests: XCTestCase {
     func testMoveDefersWhenKeyUnresolved() {
         let a = item("A", x: 0)
         let target = item("T", x: 30)
-        let env = MenuBarAgentPositionStore.Environment(
+        let env = RuntimePositionStore.Environment(
             readPositions: { ["status:A::T": 100] }, // no key for A
             writePositions: { _ in XCTFail("should not write") },
             nudgeAgent: { XCTFail("should not nudge") }
         )
         XCTAssertFalse(
-            MenuBarAgentPositionStore.move(
+            RuntimePositionStore.move(
                 item: a,
                 to: .rightOfItem(target),
                 liveItems: [a, target],
@@ -119,13 +120,13 @@ final class MenuBarAgentPositionStoreTests: XCTestCase {
         let a = item("A", x: 0)
         let target = item("T", x: 30)
         let c = item("C", x: 60)
-        let env = MenuBarAgentPositionStore.Environment(
+        let env = RuntimePositionStore.Environment(
             readPositions: { ["status:A::A": 50, "status:A::T": 100, "status:A::C": 101] },
             writePositions: { _ in XCTFail("should not write") },
             nudgeAgent: { XCTFail("should not nudge") }
         )
         XCTAssertFalse(
-            MenuBarAgentPositionStore.move(
+            RuntimePositionStore.move(
                 item: a,
                 to: .rightOfItem(target),
                 liveItems: [a, target, c],
@@ -144,7 +145,7 @@ final class MenuBarAgentPositionStoreTests: XCTestCase {
         let c = item("C", x: 60)
 
         var written: [String: Int]?
-        let env = MenuBarAgentPositionStore.Environment(
+        let env = RuntimePositionStore.Environment(
             readPositions: {
                 [
                     "status:com.test.A::A": 50,
@@ -157,7 +158,7 @@ final class MenuBarAgentPositionStoreTests: XCTestCase {
         )
 
         XCTAssertFalse(
-            MenuBarAgentPositionStore.move(
+            RuntimePositionStore.move(
                 item: a,
                 to: .rightOfItem(clock),
                 liveItems: [a, clock, c],
@@ -166,7 +167,7 @@ final class MenuBarAgentPositionStoreTests: XCTestCase {
         )
 
         XCTAssertTrue(
-            MenuBarAgentPositionStore.move(
+            RuntimePositionStore.move(
                 item: a,
                 to: .rightOfItem(clock),
                 liveItems: [a, clock, c],
@@ -185,7 +186,7 @@ final class MenuBarAgentPositionStoreTests: XCTestCase {
             bounds: CGRect(x: 30, y: 0, width: 24, height: 22)
         )
         let c = item("C", x: 60)
-        let env = MenuBarAgentPositionStore.Environment(
+        let env = RuntimePositionStore.Environment(
             readPositions: {
                 [
                     "status:com.test.A::A": 50,
@@ -198,7 +199,7 @@ final class MenuBarAgentPositionStoreTests: XCTestCase {
         )
 
         XCTAssertFalse(
-            MenuBarAgentPositionStore.move(
+            RuntimePositionStore.move(
                 item: a,
                 to: .rightOfItem(siri),
                 liveItems: [a, siri, c],
@@ -217,13 +218,13 @@ final class MenuBarAgentPositionStoreTests: XCTestCase {
         let c = item("C", x: 60)
         var written: [String: Int]?
         var nudges = 0
-        let env = MenuBarAgentPositionStore.Environment(
+        let env = RuntimePositionStore.Environment(
             readPositions: { ["status:com.test.A::A": 100, "status:com.test.A::B": 200, "status:com.test.A::C": 300] },
             writePositions: { written = $0 },
             nudgeAgent: { nudges += 1 }
         )
 
-        let changed = MenuBarAgentPositionStore.applyOrder(
+        let changed = RuntimePositionStore.applyOrder(
             desiredOrder: [c.uniqueIdentifier, a.uniqueIdentifier, b.uniqueIdentifier],
             liveItems: [a, b, c],
             environment: env
@@ -241,12 +242,12 @@ final class MenuBarAgentPositionStoreTests: XCTestCase {
     func testApplyOrderNoopWhenAlreadyOrdered() {
         let a = item("A", x: 0)
         let b = item("B", x: 30)
-        let env = MenuBarAgentPositionStore.Environment(
+        let env = RuntimePositionStore.Environment(
             readPositions: { ["status:com.test.A::A": 100, "status:com.test.A::B": 200] },
             writePositions: { _ in XCTFail("should not write") },
             nudgeAgent: { XCTFail("should not nudge") }
         )
-        let changed = MenuBarAgentPositionStore.applyOrder(
+        let changed = RuntimePositionStore.applyOrder(
             desiredOrder: [a.uniqueIdentifier, b.uniqueIdentifier],
             liveItems: [a, b],
             environment: env
@@ -261,12 +262,12 @@ final class MenuBarAgentPositionStoreTests: XCTestCase {
         let b = item("B", x: 30)
         let c = item("C", x: 60)
         var written: [String: Int]?
-        let env = MenuBarAgentPositionStore.Environment(
+        let env = RuntimePositionStore.Environment(
             readPositions: { ["status:com.test.A::A": 300, "status:com.test.A::B": 200, "status:com.test.A::C": 100] },
             writePositions: { written = $0 },
             nudgeAgent: {}
         )
-        _ = MenuBarAgentPositionStore.applyOrder(
+        _ = RuntimePositionStore.applyOrder(
             desiredOrder: [c.uniqueIdentifier, a.uniqueIdentifier, b.uniqueIdentifier],
             liveItems: [a, b, c],
             environment: env

@@ -10,6 +10,7 @@
 import Cocoa
 @preconcurrency import Combine
 import os
+import MenuBarModel
 
 /// Manager that monitors input events and implements the features
 /// that are triggered by them, such as showing hidden items on
@@ -556,7 +557,7 @@ final class HIDEventManager: ObservableObject {
     /// hit-testing. On macOS 27, concealed and reflow-collateral items keep
     /// phantom AX frames (sometimes at y≈1400+) with no rendered glyph.
     private func shouldIncludeInMenuBarBoundsLookup(_ item: MenuBarItem) -> Bool {
-        let section = appState?.menuBarManager.simpleItemHider?.section(for: item)
+        let section = appState?.menuBarManager.sectionController?.section(for: item)
         return Self.shouldIncludeItemInMenuBarBoundsLookup(item, section: section)
     }
 
@@ -1405,12 +1406,7 @@ extension HIDEventManager {
         // already passed (no specific menu item is hit). Filter by role: a
         // menu bar / menu / menu item role means the cursor is over the front
         // app's menu bar, not over a third-party widget overlay.
-        switch AXHelpers.role(for: element) {
-        case .menuBar, .menu, .menuItem, .menuBarItem:
-            return false
-        default:
-            return true
-        }
+        return !AXHelpers.isMenuBarChromeRole(element)
     }
 
     /// Returns whether the given PID belongs to the macOS WindowServer
@@ -2004,12 +2000,12 @@ extension HIDEventManager {
             return false
         }
 
-        let hider = appState.menuBarManager.simpleItemHider
+        let controller = appState.menuBarManager.sectionController
         return appState.itemManager.itemCache.managedItems.contains { item in
             guard item.bounds.contains(mouseLocation) else {
                 return false
             }
-            let section = hider?.section(for: item)
+            let section = controller?.section(for: item)
             return Self.shouldIncludeItemInMenuBarBoundsLookup(item, section: section)
         }
     }

@@ -313,7 +313,7 @@ final class LayoutBarContainer: NSView {
             {
                 return []
             }
-            if !SimpleItemHider.canAssign(
+            if !MenuBarSectionController.canAssign(
                 item,
                 to: section,
                 experimentalSystemItemHiding: experimentalSystemItemHiding

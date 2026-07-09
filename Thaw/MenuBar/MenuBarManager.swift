@@ -7,7 +7,9 @@
 //  Licensed under the GNU GPLv3
 
 import Combine
+import PlatformRuntimeKit
 import SwiftUI
+import MenuBarModel
 
 /// Manager for the state of the menu bar.
 @MainActor
@@ -94,7 +96,7 @@ final class MenuBarManager: ObservableObject {
 
     /// macOS 27 only: assignment-backed hiding through the Assessment Mode
     /// visibility restriction. `nil` on macOS <=26.
-    private(set) var simpleItemHider: SimpleItemHider?
+    private(set) var sectionController: MenuBarSectionController?
 
     var shouldDeferMacOS27MenuBarMutation: Bool {
         guard #available(macOS 27, *) else { return false }
@@ -127,10 +129,10 @@ final class MenuBarManager: ObservableObject {
         }
         // macOS 27 (and later) cannot hide items by divider reflow. Keep a
         // separate assignment model that drives the Assessment Mode allowlist.
-        if !MenuBarBackendFactory.current.supportsLegacySectionHiding {
-            let hider = SimpleItemHider(appState: appState)
-            hider.start()
-            simpleItemHider = hider
+        if !MenuBarBackendProvider.current.supportsLegacySectionHiding {
+            let controller = MenuBarSectionController(appState: appState)
+            controller.start()
+            sectionController = controller
         }
         rebuildItemHotkeys()
     }

@@ -1,0 +1,46 @@
+//
+//  MenuBarSectionName.swift
+//  Project: MenuBarModel
+//
+//  Copyright (Thaw) © 2026 Toni Förster
+//  Licensed under the GNU GPLv3
+
+import SwiftUI
+
+/// The name of a menu bar section.
+///
+/// Extracted from `MenuBarSection.Name` so the private hard-path package can
+/// reference section identity without depending on the (app-only) `MenuBarSection`
+/// class itself. `Thaw.MenuBarSection.Name` becomes a `typealias` to this type.
+public enum MenuBarSectionName: String, CaseIterable, Codable, Sendable {
+    case visible
+    case hidden
+    case alwaysHidden
+
+    /// A string to show in the interface.
+    public var displayString: String {
+        switch self {
+        case .visible: "Visible"
+        case .hidden: "Hidden"
+        case .alwaysHidden: "Always-Hidden"
+        }
+    }
+
+    /// A string to use for logging purposes.
+    public var logString: String {
+        switch self {
+        case .visible: "visible section"
+        case .hidden: "hidden section"
+        case .alwaysHidden: "always-hidden section"
+        }
+    }
+
+    /// Localized string key representation.
+    public var localized: LocalizedStringKey {
+        switch self {
+        case .visible: LocalizedStringKey("Visible")
+        case .hidden: LocalizedStringKey("Hidden")
+        case .alwaysHidden: LocalizedStringKey("Always-Hidden")
+        }
+    }
+}

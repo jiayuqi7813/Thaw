@@ -1,12 +1,12 @@
 {
-  "originHash" : "7fcd5a61e81c66f8a0dbb9e99dba2fb00fa3b8a737fdf1503d3b580118ff3e1e",
+  "originHash" : "54fdd113039cd9de3c8023a6f1484f4f3113c687da50bb5bd45168d56e122908",
   "pins" : [
     {
       "identity" : "axswift",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/stonerl/AXSwift",
       "state" : {
-        "revision" : "467ccb39efa69b6d9e49c9f3dc4482da65194781",
+        "revision" : "81dcc36aced905d6464cc25e35f8d13184bbf21c",
         "version" : "0.3.2"
       }
     },

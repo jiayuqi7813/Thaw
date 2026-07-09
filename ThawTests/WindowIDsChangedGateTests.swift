@@ -8,6 +8,8 @@
 
 import CoreGraphics
 @testable import Thaw
+import MenuBarHost
+import PlatformRuntimeKit
 import XCTest
 
 /// Characterizes the windowID-change gate that decides whether a cache cycle
@@ -29,7 +31,7 @@ final class WindowIDsChangedGateTests: XCTestCase {
     /// / relaunch). Must fire.
     func testSameDisplayMissingWindowFires() {
         XCTAssertTrue(
-            LegacyMenuBarBackend().windowIDsChanged(
+            HostMenuBarBackend().windowIDsChanged(
                 previous: [10, 11, 12],
                 current: [10, 11], // 12 disappeared
                 previousDisplayID: d1,
@@ -43,7 +45,7 @@ final class WindowIDsChangedGateTests: XCTestCase {
     /// so their apparent disappearance must not trigger a saved-layout apply.
     func testMacOS27IgnoresMissingSyntheticControlItemWindowID() {
         XCTAssertFalse(
-            AssertionMenuBarBackend().windowIDsChanged(
+            RuntimeMenuBarBackend().windowIDsChanged(
                 previous: [10, 11, 12], // managed items plus the hidden divider
                 current: [10, 11], // managed items after control-item extraction
                 previousDisplayID: d1,
@@ -56,7 +58,7 @@ final class WindowIDsChangedGateTests: XCTestCase {
     /// owned by another path): must not fire.
     func testSameDisplayNoMissingWindowDoesNotFire() {
         XCTAssertFalse(
-            LegacyMenuBarBackend().windowIDsChanged(
+            HostMenuBarBackend().windowIDsChanged(
                 previous: [10, 11],
                 current: [10, 11, 13], // only an addition
                 previousDisplayID: d1,
@@ -70,7 +72,7 @@ final class WindowIDsChangedGateTests: XCTestCase {
     /// item quit. Must NOT fire. This is the fix; it is red against the stub.
     func testActiveDisplaySwitchDoesNotFire() {
         XCTAssertFalse(
-            LegacyMenuBarBackend().windowIDsChanged(
+            HostMenuBarBackend().windowIDsChanged(
                 previous: [10, 11, 12], // display 1's windows
                 current: [20, 21, 22], // display 2's windows
                 previousDisplayID: d1,
@@ -82,7 +84,7 @@ final class WindowIDsChangedGateTests: XCTestCase {
     /// First cycle (no previous frame to diff against): must not fire.
     func testEmptyPreviousDoesNotFire() {
         XCTAssertFalse(
-            LegacyMenuBarBackend().windowIDsChanged(
+            HostMenuBarBackend().windowIDsChanged(
                 previous: [],
                 current: [10, 11],
                 previousDisplayID: d1,
@@ -95,7 +97,7 @@ final class WindowIDsChangedGateTests: XCTestCase {
     /// windowID-disappearance signal rather than suppressing a real change.
     func testNilDisplayFallsBackToWindowIDSignal() {
         XCTAssertTrue(
-            LegacyMenuBarBackend().windowIDsChanged(
+            HostMenuBarBackend().windowIDsChanged(
                 previous: [10, 11, 12],
                 current: [10, 11],
                 previousDisplayID: nil,
@@ -103,7 +105,7 @@ final class WindowIDsChangedGateTests: XCTestCase {
             )
         )
         XCTAssertTrue(
-            LegacyMenuBarBackend().windowIDsChanged(
+            HostMenuBarBackend().windowIDsChanged(
                 previous: [10, 11, 12],
                 current: [10, 11],
                 previousDisplayID: d1,

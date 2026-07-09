@@ -8,6 +8,7 @@
 
 @preconcurrency import AXSwift
 import Cocoa
+import MenuBarModel
 
 enum AXHelpers {
     private static let queue = DispatchQueue.targetingGlobal(
@@ -89,6 +90,23 @@ enum AXHelpers {
         queue.sync { try? element.role() }
     }
 
+    /// Raw `AXRole` string. Prefer this when AXSwift's `Role` enum is missing a
+    /// case (notably `AXMenuBarItem`).
+    static func roleString(for element: UIElement) -> String? {
+        queue.sync { try? element.attribute(.role) as String? }
+    }
+
+    /// Whether the element is menu-bar chrome (menu bar, menu, or menu item).
+    /// Used to distinguish the front app's menu titles from third-party overlays.
+    static func isMenuBarChromeRole(_ element: UIElement) -> Bool {
+        switch roleString(for: element) {
+        case "AXMenuBar", "AXMenu", "AXMenuItem", "AXMenuBarItem":
+            true
+        default:
+            false
+        }
+    }
+
     /// Unions the frames of application menu titles in a menu bar element.
     ///
     /// On macOS 27 the menu bar's AX children can include status-item hosts;
@@ -100,11 +118,8 @@ enum AXHelpers {
                 return
             }
             if #available(macOS 27, *) {
-                guard let role = role(for: child) else {
-                    return
-                }
-                switch role {
-                case .menuBarItem, .menuItem:
+                switch roleString(for: child) {
+                case "AXMenuBarItem", "AXMenuItem":
                     result = result.union(childFrame)
                 default:
                     break

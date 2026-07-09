@@ -8,6 +8,8 @@
 
 import CoreGraphics
 @testable import Thaw
+import MenuBarHost
+import PlatformRuntimeKit
 import XCTest
 
 /// Characterizes the OS-specific layout policy that moved out of
@@ -15,8 +17,8 @@ import XCTest
 /// exercised against both backends so the Legacy/Assertion contrast is pinned.
 @MainActor
 final class MenuBarBackendTests: XCTestCase {
-    private let legacy = LegacyMenuBarBackend()
-    private let assertion = AssertionMenuBarBackend()
+    private let legacy = HostMenuBarBackend()
+    private let assertion = RuntimeMenuBarBackend()
 
     // MARK: - relocationBounds
 

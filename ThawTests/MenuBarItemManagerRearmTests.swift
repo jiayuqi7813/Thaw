@@ -8,6 +8,7 @@
 
 import CoreGraphics
 @testable import Thaw
+import PlatformRuntimeKit
 import XCTest
 
 /// Verifies the cache-refresh contract of rearmActiveProfileLayout, the half
@@ -111,7 +112,7 @@ final class MenuBarItemManagerRearmTests: XCTestCase {
         ]
 
         XCTAssertTrue(
-            AssertionMenuBarBackend().shouldRetainLastGoodCache(
+            RuntimeMenuBarBackend().shouldRetainLastGoodCache(
                 snapshotItems: snapshot,
                 previousCachedItems: previous
             )
@@ -138,12 +139,12 @@ final class MenuBarItemManagerRearmTests: XCTestCase {
         ]
 
         XCTAssertTrue(
-            AssertionMenuBarBackend().canSynthesizeControlItems(
+            RuntimeMenuBarBackend().canSynthesizeControlItems(
                 snapshotItems: snapshotWithVisibleControl
             )
         )
         XCTAssertFalse(
-            AssertionMenuBarBackend().canSynthesizeControlItems(
+            RuntimeMenuBarBackend().canSynthesizeControlItems(
                 snapshotItems: snapshotWithoutVisibleControl
             )
         )

@@ -1,5 +1,5 @@
 //
-//  SimpleItemHider.swift
+//  MenuBarSectionController.swift
 //  Project: Thaw
 //
 //  Copyright (Ice) © 2023–2025 Jordan Baird
@@ -8,13 +8,15 @@
 
 @preconcurrency import AXSwift
 import Cocoa
+import PlatformRuntimeKit
+import MenuBarModel
 
-/// The subset of ``AssessmentModeBackend`` that ``SimpleItemHider`` calls into.
+/// The subset of ``RuntimeSessionController`` that ``MenuBarSectionController`` calls into.
 /// Exists so tests can substitute a fake and characterize the orchestration in
-/// ``SimpleItemHider`` without touching the real private visibility-restriction
+/// ``MenuBarSectionController`` without touching the real private visibility-restriction
 /// assertion.
 @MainActor
-protocol AssessmentModeBackending: AnyObject {
+protocol RuntimeSessionControllering: AnyObject {
     var isHidingAvailable: Bool { get }
     @discardableResult
     func apply(sectionAssignment: [String: MenuBarSection.Name], allItems: [MenuBarItem]) -> Bool
@@ -24,44 +26,44 @@ protocol AssessmentModeBackending: AnyObject {
     func refreshAvailability() -> Bool
 }
 
-extension AssessmentModeBackend: AssessmentModeBackending {}
+extension RuntimeSessionController: RuntimeSessionControllering {}
 
-/// The subset of ``ControlCenterModuleManager`` that ``SimpleItemHider`` calls
+/// The subset of ``RuntimeModuleController`` that ``MenuBarSectionController`` calls
 /// into.
 @MainActor
-protocol ControlCenterModuleManaging: AnyObject {
+protocol RuntimeModuleControlling: AnyObject {
     @discardableResult
     func apply(hiddenMenuExtraTitles titles: Set<String>) -> Bool
 }
 
-extension ControlCenterModuleManager: ControlCenterModuleManaging {}
+extension RuntimeModuleController: RuntimeModuleControlling {}
 
-/// The common shape of ``CGSWindowHider`` and ``AXItemHider``: both hide
+/// The common shape of ``RuntimeWindowController`` and ``AXItemHider``: both hide
 /// items surgically by PID/window and report which PIDs they actually
-/// handled, so ``SimpleItemHider`` can strip them from the next pass. CGS
+/// handled, so ``MenuBarSectionController`` can strip them from the next pass. CGS
 /// runs first (handles pre-27 macOS where per-item windows exist); AX runs
 /// second and catches PIDs CGS could not (gated out on macOS 27 by plan 012,
 /// since `AXHidden` isn't settable on hosted menu-bar items there).
 @MainActor
-protocol SurgicalItemHider: AnyObject {
+protocol RuntimeWindowControlling: AnyObject {
     @discardableResult
     func apply(hiddenPIDs: Set<pid_t>, allItems: [MenuBarItem]) -> Set<pid_t>
     func restoreAll()
 }
 
-extension AXItemHider: SurgicalItemHider {}
+extension AXItemHider: RuntimeWindowControlling {}
 
-extension CGSWindowHider: SurgicalItemHider {
+extension RuntimeWindowController: RuntimeWindowControlling {
     @discardableResult
     func apply(hiddenPIDs: Set<pid_t>, allItems _: [MenuBarItem]) -> Set<pid_t> {
         apply(hiddenPIDs: hiddenPIDs)
     }
 }
 
-/// The subset of ``TrailingItemPositionStore`` that ``SimpleItemHider`` calls
+/// The subset of ``RuntimePreferenceStore`` that ``MenuBarSectionController`` calls
 /// into.
 @MainActor
-protocol TrailingItemPositioning: AnyObject {
+protocol RuntimePreferenceProviding: AnyObject {
     var hasHiddenItems: Bool { get }
     func readPositions() -> [String: Int]
     func writePositions(_ dict: [String: Int])
@@ -74,7 +76,7 @@ protocol TrailingItemPositioning: AnyObject {
     func lockVisiblePositions(visibleItemKeys: Set<String>, allItems: [MenuBarItem]) -> Set<String>
 }
 
-extension TrailingItemPositionStore: TrailingItemPositioning {}
+extension RuntimePreferenceStore: RuntimePreferenceProviding {}
 
 /// macOS 27 section-based hiding, the authority behind the restored
 /// drag-between-sections layout UI.
@@ -90,16 +92,16 @@ extension TrailingItemPositionStore: TrailingItemPositioning {}
 ///   section currently shown from the Thaw icon or hotkeys. This only changes
 ///   the live assertion allowlist; persisted assignments stay untouched.
 ///
-/// The actual hiding is delegated to ``AssessmentModeBackend``: the private
+/// The actual hiding is delegated to ``RuntimeSessionController``: the private
 /// visibility-restriction assertion that genuinely removes the icons and reflows
 /// the bar. Its allowlist is recomputed from the assignment map. When the private
 /// API is unavailable the backend is inert (nothing is hidden) and there is no
 /// cosmetic overlay fallback.
 ///
-/// Created only on macOS 27+ (see `MenuBarManager`), so everything it owns is
+/// Created only on macOS 27+ (see ``MenuBarManager``), so everything it owns is
 /// implicitly gated to that OS — macOS 26 keeps its native section machinery.
 @MainActor
-final class SimpleItemHider: ObservableObject {
+final class MenuBarSectionController: ObservableObject {
     /// Shared UserDefaults key for the persisted per-section item order
     /// (`[sectionRawValue: [uniqueIdentifier]]`). Uses the same key as
     /// `MenuBarItemManager.savedSectionOrder` so both subsystems read from
@@ -119,7 +121,7 @@ final class SimpleItemHider: ObservableObject {
     private static let oldOrderKey = "Thaw.simpleSectionOrder"
 
     private weak var appState: AppState?
-    private let diagLog = DiagLog(category: "SimpleItemHider")
+    private let diagLog = DiagLog(category: "MenuBarSectionController")
 
     /// Section each item is assigned to, keyed by ``MenuBarItem/uniqueIdentifier``.
     /// Entries equal to `.visible` are omitted (the default), so the map only
@@ -137,7 +139,7 @@ final class SimpleItemHider: ObservableObject {
     /// Hidden items; `.alwaysHidden` reveals both Hidden and Always-Hidden items.
     @Published private(set) var revealedSection: MenuBarSection.Name?
 
-    /// Mirrors ``AssessmentModeBackend/isHidingAvailable``: whether the private
+    /// Mirrors ``RuntimeSessionController/isHidingAvailable``: whether the private
     /// Assessment Mode assertion API is present on this system. `false` means
     /// reordering still works but hiding is inert — surfaced as a settings
     /// warning. Re-checked on ``NSApplication/didBecomeActiveNotification``
@@ -160,19 +162,19 @@ final class SimpleItemHider: ObservableObject {
 
     /// The backend that performs the hiding (the private visibility-restriction
     /// assertion).
-    private let backend: AssessmentModeBackending
+    private let backend: RuntimeSessionControllering
 
     /// Governs Apple Control Center modules (AirDrop / Focus / User / Now Playing
     /// / WiFi / Bluetooth) that the assessment-mode allowlist cannot hide. Items
     /// it owns are hidden via their Control Center preference and kept out of the
     /// backend input.
-    private let ccModuleManager: ControlCenterModuleManaging
+    private let ccModuleManager: RuntimeModuleControlling
 
     /// Off-screen CGS window hider. When the experimental window
     /// hiding flag is on, third-party items are hidden by moving their windows
     /// off-screen via CGS instead of the assessment-mode assertion, so hiding one
     /// item no longer reflows the bar and ghosts dynamic neighbors like iStat.
-    private let cgsWindowHider: SurgicalItemHider
+    private let cgsWindowHider: RuntimeWindowControlling
 
     /// AX-based item hider. On macOS 27 per-item CG windows don't exist, so the
     /// CGS hider cannot operate. This hider sets `AXHidden` on each item's AX
@@ -181,15 +183,15 @@ final class SimpleItemHider: ObservableObject {
     ///
     /// Note: AXHidden is not settable on macOS 27 menu-bar items; this hider is
     /// kept for diagnostics but is effectively a no-op there.
-    private let axItemHider: SurgicalItemHider
+    private let axItemHider: RuntimeWindowControlling
 
     /// The two surgical passes, in the fixed order `applyExperimentalWindowHiding`
-    /// runs them: CGS first, then AX. Both conform to `SurgicalItemHider`, but
+    /// runs them: CGS first, then AX. Both conform to `RuntimeWindowControlling`, but
     /// the orchestration below still calls them by name rather than looping
     /// over this array, because the AX pass carries an extra macOS-version
     /// gate (plan 012) that isn't part of the shared protocol. Exposed so
     /// tests can assert the ordering without duplicating that gating logic.
-    var surgicalHiders: [SurgicalItemHider] {
+    var surgicalHiders: [RuntimeWindowControlling] {
         [cgsWindowHider, axItemHider]
     }
 
@@ -198,7 +200,7 @@ final class SimpleItemHider: ObservableObject {
     /// Writing visible items' current positions to `TrailingItemPreferredPositions`
     /// before the assertion fires tells MenuBarAgent to anchor them in place
     /// during reflow, preventing the ghosting.
-    private let positionStore: TrailingItemPositioning
+    private let positionStore: RuntimePreferenceProviding
 
     private var timer: Timer?
     private var boundaryReconciliationTask: Task<Void, Never>?
@@ -207,27 +209,27 @@ final class SimpleItemHider: ObservableObject {
     convenience init(appState: AppState) {
         self.init(
             appState: appState,
-            backend: AssessmentModeBackend(),
-            ccModuleManager: ControlCenterModuleManager(),
-            cgsWindowHider: CGSWindowHider(),
+            backend: RuntimeSessionController(),
+            ccModuleManager: RuntimeModuleController(),
+            cgsWindowHider: RuntimeWindowController(),
             axItemHider: AXItemHider(),
-            positionStore: TrailingItemPositionStore()
+            positionStore: RuntimePreferenceStore()
         )
     }
 
     /// Designated initializer. Production code always goes through
     /// ``init(appState:)`` above, which supplies the real collaborators; this
     /// entry point exists so tests can substitute fakes for the five
-    /// collaborators and characterize ``SimpleItemHider``'s instance lifecycle
+    /// collaborators and characterize ``MenuBarSectionController``'s instance lifecycle
     /// without touching the private visibility-restriction assertion, Control
     /// Center, CGS, AX, or `TrailingItemPreferredPositions`.
     init(
         appState: AppState?,
-        backend: AssessmentModeBackending,
-        ccModuleManager: ControlCenterModuleManaging,
-        cgsWindowHider: SurgicalItemHider,
-        axItemHider: SurgicalItemHider,
-        positionStore: TrailingItemPositioning
+        backend: RuntimeSessionControllering,
+        ccModuleManager: RuntimeModuleControlling,
+        cgsWindowHider: RuntimeWindowControlling,
+        axItemHider: RuntimeWindowControlling,
+        positionStore: RuntimePreferenceProviding
     ) {
         self.appState = appState
         let order = Self.loadOrder()
@@ -1143,7 +1145,7 @@ final class SimpleItemHider: ObservableObject {
         // they show/hide only on a real assignment change (drag to/from Hidden).
         var ccHiddenTitles = Set<String>()
         for (identifier, section) in sectionAssignment where section != .visible {
-            if let title = ControlCenterModuleManager.governableMenuExtraTitle(forItemIdentifier: identifier) {
+            if let title = RuntimeModuleController.governableMenuExtraTitle(forItemIdentifier: identifier) {
                 ccHiddenTitles.insert(title)
             }
         }
@@ -1198,7 +1200,7 @@ final class SimpleItemHider: ObservableObject {
     /// cache has stale `isOnScreen` values.
     private func verifyHidingUnsupportedItemsVisiblePostAssertion() {
         guard #available(macOS 27, *),
-              AssessmentModeBackend.isAvailable,
+              RuntimeSessionController.isAvailable,
               !MenuBarItemTag.hidingUnsupportedBundleIDs.isEmpty
         else { return }
 
@@ -1264,7 +1266,7 @@ final class SimpleItemHider: ObservableObject {
                 snapshots[identifier]
             else { continue }
 
-            guard let key = TrailingItemPreferredPositionsKeys.resolveKey(
+            guard let key = RuntimePreferenceKeys.resolveKey(
                 for: item,
                 existingKeys: existingKeys,
                 positions: positions,
@@ -1289,7 +1291,7 @@ final class SimpleItemHider: ObservableObject {
     /// AX coordinates (synthetic drags cannot recover those).
     @discardableResult
     func pulseRestrictionAfterReflow(liveItems: [MenuBarItem]) -> Bool {
-        guard AssessmentModeBackend.isAvailable else { return false }
+        guard RuntimeSessionController.isAvailable else { return false }
         guard sectionAssignment.values.contains(where: { $0 == .hidden || $0 == .alwaysHidden }) else {
             return false
         }
@@ -1310,7 +1312,7 @@ final class SimpleItemHider: ObservableObject {
     private func backendAssignmentInput() -> [String: MenuBarSection.Name] {
         var backendAssignment = effectiveAssignmentExcludingTemporarilyRevealed()
         for identifier in backendAssignment.keys
-            where ControlCenterModuleManager.isGovernable(itemIdentifier: identifier)
+            where RuntimeModuleController.isGovernable(itemIdentifier: identifier)
         {
             backendAssignment.removeValue(forKey: identifier)
         }
@@ -1351,7 +1353,7 @@ final class SimpleItemHider: ObservableObject {
     ) {
         // Build the ordered list of surgical hiders to run on this OS version.
         // CGS runs on all versions; AX runs only on macOS < 27 (per plan 012).
-        let surgicalHidersToRun: [SurgicalItemHider] = {
+        let surgicalHidersToRun: [RuntimeWindowControlling] = {
             var hiders = surgicalHiders
             if #available(macOS 27, *) {
                 // AXItemHider is gated out on macOS 27+; drop it from the pipeline.
@@ -1381,12 +1383,12 @@ final class SimpleItemHider: ObservableObject {
         let positionsSnapshot = positionStore.readPositions()
         let snapshotKeys = Array(positionsSnapshot.keys)
         func resolvedPlistKey(for item: MenuBarItem) -> String {
-            TrailingItemPreferredPositionsKeys.resolveKey(
+            RuntimePreferenceKeys.resolveKey(
                 for: item,
                 existingKeys: snapshotKeys,
                 positions: positionsSnapshot,
                 liveItems: allItems
-            ) ?? TrailingItemPreferredPositionsKeys.naiveKey(for: item)
+            ) ?? RuntimePreferenceKeys.naiveKey(for: item)
         }
 
         // ── 1. Plist-based hide/show (experimental) ──
@@ -1680,6 +1682,8 @@ final class SimpleItemHider: ObservableObject {
             ?? AXHelpers.title(for: element)?.nonEmpty
     }
 }
+
+extension MenuBarSectionController: HidingStateProviding {}
 
 private extension String {
     var nonEmpty: String? {

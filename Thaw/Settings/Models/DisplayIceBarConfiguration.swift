@@ -7,6 +7,7 @@
 //  Licensed under the GNU GPLv3
 
 import AppKit
+import MenuBarModel
 
 /// Per-display configuration for the Thaw Bar.
 struct DisplayIceBarConfiguration: Codable, Equatable {

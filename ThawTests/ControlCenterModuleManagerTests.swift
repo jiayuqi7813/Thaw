@@ -1,5 +1,5 @@
 //
-//  ControlCenterModuleManagerTests.swift
+//  RuntimeModuleControllerTests.swift
 //  Project: Thaw
 //
 //  Copyright (Ice) © 2023–2025 Jordan Baird
@@ -7,30 +7,31 @@
 //  Licensed under the GNU GPLv3
 
 @testable import Thaw
+import PlatformRuntimeKit
 import XCTest
 
-// MARK: - ControlCenterModuleManager Tests
+// MARK: - RuntimeModuleController Tests
 
 /// Covers identifier mapping and state transitions through an in-memory
 /// environment. Tests never mutate live Control Center preferences or restart
 /// the Control Center process.
 @MainActor
-final class ControlCenterModuleManagerTests: XCTestCase {
+final class RuntimeModuleControllerTests: XCTestCase {
     private static let airDropTitle = "com.apple.menuextra.airdrop"
     private static let airDropKey = "AirDrop"
     private static let bluetoothTitle = "com.apple.menuextra.bluetooth"
     private static let bluetoothKey = "Bluetooth"
 
-    func testManagedAgentRestarterSignalsOnlyMatchingControlCenterProcesses() {
+    func testRuntimeProcessControllerSignalsOnlyMatchingControlCenterProcesses() {
         let applications = [
-            ManagedAgentRestarter.RunningApplication(bundleIdentifier: "com.apple.controlcenter", processIdentifier: 10),
-            ManagedAgentRestarter.RunningApplication(bundleIdentifier: "com.example.other", processIdentifier: 11),
-            ManagedAgentRestarter.RunningApplication(bundleIdentifier: nil, processIdentifier: 12),
-            ManagedAgentRestarter.RunningApplication(bundleIdentifier: "com.apple.controlcenter", processIdentifier: 13),
+            RuntimeProcessController.RunningApplication(bundleIdentifier: "com.apple.controlcenter", processIdentifier: 10),
+            RuntimeProcessController.RunningApplication(bundleIdentifier: "com.example.other", processIdentifier: 11),
+            RuntimeProcessController.RunningApplication(bundleIdentifier: nil, processIdentifier: 12),
+            RuntimeProcessController.RunningApplication(bundleIdentifier: "com.apple.controlcenter", processIdentifier: 13),
         ]
         var sentSignals: [(pid_t, Int32)] = []
 
-        ManagedAgentRestarter.restart(
+        RuntimeProcessController.restart(
             bundleID: "com.apple.controlcenter",
             signal: SIGTERM,
             runningApplications: applications
@@ -47,25 +48,25 @@ final class ControlCenterModuleManagerTests: XCTestCase {
 
     func testGovernableTitleFromMenuBarAgentIdentifier() {
         XCTAssertEqual(
-            ControlCenterModuleManager.governableMenuExtraTitle(
+            RuntimeModuleController.governableMenuExtraTitle(
                 forItemIdentifier: "com.apple.MenuBarAgent:com.apple.menuextra.airdrop"
             ),
             "com.apple.menuextra.airdrop"
         )
         XCTAssertEqual(
-            ControlCenterModuleManager.governableMenuExtraTitle(
+            RuntimeModuleController.governableMenuExtraTitle(
                 forItemIdentifier: "com.apple.MenuBarAgent:com.apple.menuextra.now-playing"
             ),
             "com.apple.menuextra.now-playing"
         )
         XCTAssertEqual(
-            ControlCenterModuleManager.governableMenuExtraTitle(
+            RuntimeModuleController.governableMenuExtraTitle(
                 forItemIdentifier: "com.apple.MenuBarAgent:com.apple.menuextra.user"
             ),
             "com.apple.menuextra.user"
         )
         XCTAssertEqual(
-            ControlCenterModuleManager.governableMenuExtraTitle(
+            RuntimeModuleController.governableMenuExtraTitle(
                 forItemIdentifier: "com.apple.MenuBarAgent:com.apple.menuextra.focusmode"
             ),
             "com.apple.menuextra.focusmode"
@@ -74,7 +75,7 @@ final class ControlCenterModuleManagerTests: XCTestCase {
 
     func testGovernableTitleFromBareTitle() {
         XCTAssertEqual(
-            ControlCenterModuleManager.governableMenuExtraTitle(
+            RuntimeModuleController.governableMenuExtraTitle(
                 forItemIdentifier: "com.apple.menuextra.airdrop"
             ),
             "com.apple.menuextra.airdrop"
@@ -85,13 +86,13 @@ final class ControlCenterModuleManagerTests: XCTestCase {
         // Core modules with confirmed per-host keys: hideable via CC pref even
         // though Assessment Mode keeps them in its 0...8 allowlist.
         XCTAssertEqual(
-            ControlCenterModuleManager.governableMenuExtraTitle(
+            RuntimeModuleController.governableMenuExtraTitle(
                 forItemIdentifier: "com.apple.MenuBarAgent:com.apple.menuextra.wifi"
             ),
             "com.apple.menuextra.wifi"
         )
         XCTAssertEqual(
-            ControlCenterModuleManager.governableMenuExtraTitle(
+            RuntimeModuleController.governableMenuExtraTitle(
                 forItemIdentifier: "com.apple.MenuBarAgent:com.apple.menuextra.bluetooth"
             ),
             "com.apple.menuextra.bluetooth"
@@ -100,15 +101,15 @@ final class ControlCenterModuleManagerTests: XCTestCase {
 
     func testNonGovernableIdentifiersReturnNil() {
         // Clock has no per-host key and is layout-anchored — not governed here.
-        XCTAssertNil(ControlCenterModuleManager.governableMenuExtraTitle(
+        XCTAssertNil(RuntimeModuleController.governableMenuExtraTitle(
             forItemIdentifier: "com.apple.MenuBarAgent:com.apple.menuextra.clock"
         ))
         // Third-party items.
-        XCTAssertNil(ControlCenterModuleManager.governableMenuExtraTitle(
+        XCTAssertNil(RuntimeModuleController.governableMenuExtraTitle(
             forItemIdentifier: "app.cotypist.Cotypist:Item-0"
         ))
         // A substring match must not be mistaken for a suffix match.
-        XCTAssertNil(ControlCenterModuleManager.governableMenuExtraTitle(
+        XCTAssertNil(RuntimeModuleController.governableMenuExtraTitle(
             forItemIdentifier: "com.apple.menuextra.airdrop.extra"
         ))
     }
@@ -116,13 +117,13 @@ final class ControlCenterModuleManagerTests: XCTestCase {
     // MARK: isGovernable(itemIdentifier:)
 
     func testIsGovernable() {
-        XCTAssertTrue(ControlCenterModuleManager.isGovernable(
+        XCTAssertTrue(RuntimeModuleController.isGovernable(
             itemIdentifier: "com.apple.MenuBarAgent:com.apple.menuextra.focusmode"
         ))
-        XCTAssertTrue(ControlCenterModuleManager.isGovernable(
+        XCTAssertTrue(RuntimeModuleController.isGovernable(
             itemIdentifier: "com.apple.MenuBarAgent:com.apple.menuextra.bluetooth"
         ))
-        XCTAssertFalse(ControlCenterModuleManager.isGovernable(
+        XCTAssertFalse(RuntimeModuleController.isGovernable(
             itemIdentifier: "com.apple.MenuBarAgent:com.apple.menuextra.clock"
         ))
     }
@@ -130,7 +131,7 @@ final class ControlCenterModuleManagerTests: XCTestCase {
     // MARK: Mapping & value constants
 
     func testEveryGovernedTitleMapsToAModuleKey() {
-        for (title, key) in ControlCenterModuleManager.moduleKeysByMenuExtraTitle {
+        for (title, key) in RuntimeModuleController.moduleKeysByMenuExtraTitle {
             XCTAssertTrue(
                 title.hasPrefix("com.apple.menuextra."),
                 "governed title should be a menuextra ID: \(title)"
@@ -140,24 +141,24 @@ final class ControlCenterModuleManagerTests: XCTestCase {
     }
 
     func testShownAndHiddenValuesAreDistinct() {
-        XCTAssertEqual(ControlCenterModuleManager.shownValue, 2)
-        XCTAssertEqual(ControlCenterModuleManager.hiddenValue, 8)
+        XCTAssertEqual(RuntimeModuleController.shownValue, 2)
+        XCTAssertEqual(RuntimeModuleController.hiddenValue, 8)
         XCTAssertNotEqual(
-            ControlCenterModuleManager.shownValue,
-            ControlCenterModuleManager.hiddenValue
+            RuntimeModuleController.shownValue,
+            RuntimeModuleController.hiddenValue
         )
     }
 
     // MARK: Preference state transitions
 
     func testApplyHidesShownModuleAndRepeatedApplyIsNoOp() {
-        let harness = makeHarness(values: [Self.airDropKey: ControlCenterModuleManager.shownValue])
+        let harness = makeHarness(values: [Self.airDropKey: RuntimeModuleController.shownValue])
 
         XCTAssertTrue(harness.manager.apply(hiddenMenuExtraTitles: [Self.airDropTitle]))
-        XCTAssertEqual(harness.store.values[Self.airDropKey], ControlCenterModuleManager.hiddenValue)
+        XCTAssertEqual(harness.store.values[Self.airDropKey], RuntimeModuleController.hiddenValue)
         XCTAssertEqual(
             harness.store.writes,
-            [.init(key: Self.airDropKey, value: ControlCenterModuleManager.hiddenValue)]
+            [.init(key: Self.airDropKey, value: RuntimeModuleController.hiddenValue)]
         )
         XCTAssertEqual(harness.store.synchronizeCount, 1)
         XCTAssertEqual(harness.store.restartCount, 1)
@@ -178,7 +179,7 @@ final class ControlCenterModuleManagerTests: XCTestCase {
         XCTAssertEqual(
             harness.store.writes,
             [
-                .init(key: Self.airDropKey, value: ControlCenterModuleManager.hiddenValue),
+                .init(key: Self.airDropKey, value: RuntimeModuleController.hiddenValue),
                 .init(key: Self.airDropKey, value: 5),
             ]
         )
@@ -187,12 +188,12 @@ final class ControlCenterModuleManagerTests: XCTestCase {
     }
 
     func testInitiallyHiddenModuleRemainsHiddenAfterRestore() {
-        let harness = makeHarness(values: [Self.airDropKey: ControlCenterModuleManager.hiddenValue])
+        let harness = makeHarness(values: [Self.airDropKey: RuntimeModuleController.hiddenValue])
 
         XCTAssertFalse(harness.manager.apply(hiddenMenuExtraTitles: [Self.airDropTitle]))
         XCTAssertFalse(harness.manager.apply(hiddenMenuExtraTitles: []))
 
-        XCTAssertEqual(harness.store.values[Self.airDropKey], ControlCenterModuleManager.hiddenValue)
+        XCTAssertEqual(harness.store.values[Self.airDropKey], RuntimeModuleController.hiddenValue)
         XCTAssertTrue(harness.store.writes.isEmpty)
         XCTAssertEqual(harness.store.synchronizeCount, 0)
         XCTAssertEqual(harness.store.restartCount, 0)
@@ -208,7 +209,7 @@ final class ControlCenterModuleManagerTests: XCTestCase {
         XCTAssertEqual(
             harness.store.writes,
             [
-                .init(key: Self.airDropKey, value: ControlCenterModuleManager.hiddenValue),
+                .init(key: Self.airDropKey, value: RuntimeModuleController.hiddenValue),
                 .init(key: Self.airDropKey, value: nil),
             ]
         )
@@ -227,15 +228,15 @@ final class ControlCenterModuleManagerTests: XCTestCase {
 
     func testTransitionBetweenModulesRestoresAndHidesWithOneRestart() {
         let harness = makeHarness(values: [
-            Self.airDropKey: ControlCenterModuleManager.shownValue,
+            Self.airDropKey: RuntimeModuleController.shownValue,
             Self.bluetoothKey: 3,
         ])
 
         XCTAssertTrue(harness.manager.apply(hiddenMenuExtraTitles: [Self.airDropTitle]))
         XCTAssertTrue(harness.manager.apply(hiddenMenuExtraTitles: [Self.bluetoothTitle]))
 
-        XCTAssertEqual(harness.store.values[Self.airDropKey], ControlCenterModuleManager.shownValue)
-        XCTAssertEqual(harness.store.values[Self.bluetoothKey], ControlCenterModuleManager.hiddenValue)
+        XCTAssertEqual(harness.store.values[Self.airDropKey], RuntimeModuleController.shownValue)
+        XCTAssertEqual(harness.store.values[Self.bluetoothKey], RuntimeModuleController.hiddenValue)
         XCTAssertEqual(harness.store.synchronizeCount, 2)
         XCTAssertEqual(harness.store.restartCount, 2)
 
@@ -248,14 +249,14 @@ final class ControlCenterModuleManagerTests: XCTestCase {
     func testTerminationNotificationRestoresManagedModules() {
         let notificationCenter = NotificationCenter()
         let harness = makeHarness(
-            values: [Self.airDropKey: ControlCenterModuleManager.shownValue],
+            values: [Self.airDropKey: RuntimeModuleController.shownValue],
             notificationCenter: notificationCenter
         )
         XCTAssertTrue(harness.manager.apply(hiddenMenuExtraTitles: [Self.airDropTitle]))
 
         notificationCenter.post(name: NSApplication.willTerminateNotification, object: nil)
 
-        XCTAssertEqual(harness.store.values[Self.airDropKey], ControlCenterModuleManager.shownValue)
+        XCTAssertEqual(harness.store.values[Self.airDropKey], RuntimeModuleController.shownValue)
         XCTAssertEqual(harness.store.synchronizeCount, 2)
         XCTAssertEqual(harness.store.restartCount, 2)
     }
@@ -265,14 +266,14 @@ final class ControlCenterModuleManagerTests: XCTestCase {
         notificationCenter: NotificationCenter = NotificationCenter()
     ) -> Harness {
         let store = InMemoryEnvironment(values: values)
-        let environment = ControlCenterModuleManager.Environment(
+        let environment = RuntimeModuleController.Environment(
             readValue: { store.values[$0] },
             writeValue: { value, key in store.writeValue(value, forKey: key) },
             synchronize: { store.synchronizeCount += 1 },
-            restartControlCenter: { store.restartCount += 1 }
+            restartSystemHost: { store.restartCount += 1 }
         )
         return Harness(
-            manager: ControlCenterModuleManager(
+            manager: RuntimeModuleController(
                 environment: environment,
                 notificationCenter: notificationCenter
             ),
@@ -281,7 +282,7 @@ final class ControlCenterModuleManagerTests: XCTestCase {
     }
 
     private struct Harness {
-        let manager: ControlCenterModuleManager
+        let manager: RuntimeModuleController
         let store: InMemoryEnvironment
     }
 

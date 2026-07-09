@@ -7,16 +7,18 @@
 //  Licensed under the GNU GPLv3
 
 @testable import Thaw
+import MenuBarModel
+import PlatformRuntimeKit
 import XCTest
 
 /// Characterization suite for ``SystemMenuBarModuleCatalog``. These lock in the
-/// exact mappings the catalog replaced in ``ControlCenterModuleManager`` and
-/// ``AssessmentModeBackend`` so the relocation stays behavior-preserving.
+/// exact mappings the catalog replaced in ``RuntimeModuleController`` and
+/// ``RuntimeSessionController`` so the relocation stays behavior-preserving.
 final class SystemMenuBarModuleCatalogTests: XCTestCase {
     // MARK: - Control Center mapping parity
 
     func testControlCenterKeysMatchOriginalLiteral() {
-        // The exact dictionary ControlCenterModuleManager used before the
+        // The exact dictionary RuntimeModuleController used before the
         // catalog. Any drift here is a runtime CC-governance change.
         XCTAssertEqual(
             SystemMenuBarModuleCatalog.controlCenterKeysByMenuExtraTitle,
@@ -31,9 +33,9 @@ final class SystemMenuBarModuleCatalogTests: XCTestCase {
         )
     }
 
-    func testControlCenterModuleManagerExposesCatalogMap() {
+    func testRuntimeModuleControllerExposesCatalogMap() {
         XCTAssertEqual(
-            ControlCenterModuleManager.moduleKeysByMenuExtraTitle,
+            RuntimeModuleController.moduleKeysByMenuExtraTitle,
             SystemMenuBarModuleCatalog.controlCenterKeysByMenuExtraTitle
         )
     }

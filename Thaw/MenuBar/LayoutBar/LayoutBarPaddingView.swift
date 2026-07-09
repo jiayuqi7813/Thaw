@@ -8,6 +8,7 @@
 
 import Cocoa
 import Combine
+import PlatformRuntimeKit
 
 /// A Cocoa view that manages the menu bar layout interface.
 final class LayoutBarPaddingView: NSView {
@@ -201,7 +202,7 @@ final class LayoutBarPaddingView: NSView {
         // still the spatial boundary between sections. Cross-section drops first
         // Command-drag the live item across that divider and only commit the new
         // assignment after AX order verifies the physical transition.
-        if !MenuBarBackendFactory.current.supportsLegacySectionHiding {
+        if !MenuBarBackendProvider.current.supportsLegacySectionHiding {
             if draggingSource.isNewItemsBadge {
                 let sourceContainer = draggingSource.oldContainerInfo?.container
                 container.appState?.itemManager.updateNewItemsPlacement(
@@ -230,7 +231,7 @@ final class LayoutBarPaddingView: NSView {
                 return false
             }
 
-            let hider = container.appState?.menuBarManager.simpleItemHider
+            let controller = container.appState?.menuBarManager.sectionController
             let sourceSection = sourceContainer?.section ?? container.section
             let orderedItems = orderedLayoutItemsForSectionOrder()
             let experimentalSystemItemHiding = container.appState?.settings.advanced.enableExperimentalSystemItemHiding ?? false
@@ -238,7 +239,7 @@ final class LayoutBarPaddingView: NSView {
                 Self.allowsAnchoredSystemItemReordering(appState: container.appState)
 
             guard item.isPhysicallyOrderable(experimentalSystemItemHiding: physicalOrderExperimentalSystemItemHiding) else {
-                guard SimpleItemHider.canAssign(
+                guard MenuBarSectionController.canAssign(
                     item,
                     to: container.section,
                     experimentalSystemItemHiding: experimentalSystemItemHiding
@@ -254,8 +255,8 @@ final class LayoutBarPaddingView: NSView {
                     return false
                 }
 
-                hider?.setSection(container.section, item: item)
-                hider?.setSectionOrder(from: orderedItems, for: container.section)
+                controller?.setSection(container.section, item: item)
+                controller?.setSectionOrder(from: orderedItems, for: container.section)
                 if let appState = container.appState {
                     Task { await appState.itemManager.cacheItemsRegardless(skipRecentMoveCheck: true) }
                 }
@@ -270,7 +271,7 @@ final class LayoutBarPaddingView: NSView {
                 // owner is on the hiding denylist. Reject a drop into a
                 // non-visible section and snap it back, rather than committing a
                 // hidden assignment the assertion can't honor.
-                guard SimpleItemHider.canAssign(
+                guard MenuBarSectionController.canAssign(
                     item,
                     to: container.section,
                     experimentalSystemItemHiding: experimentalSystemItemHiding
@@ -292,8 +293,8 @@ final class LayoutBarPaddingView: NSView {
                 // immediately from the new assignment, and physical order within a
                 // section is reconciled separately on reveal, so just commit the
                 // new section + order here.
-                hider?.setSection(container.section, item: item)
-                hider?.setSectionOrder(from: orderedItems, for: container.section)
+                controller?.setSection(container.section, item: item)
+                controller?.setSectionOrder(from: orderedItems, for: container.section)
                 if let appState = container.appState {
                     Task { await appState.itemManager.cacheItemsRegardless(skipRecentMoveCheck: true) }
                 }
@@ -304,19 +305,19 @@ final class LayoutBarPaddingView: NSView {
             }
 
             if let index = arrangedViews.firstIndex(of: draggingSource) {
-                if macOS27SectionIsPhysicallyLive(container.section, hider: hider) {
+                if macOS27SectionIsPhysicallyLive(container.section, controller: controller) {
                     if container.section == .visible,
                        let appState = container.appState
                     {
                         let liveItems = appState.itemManager.itemCache.managedItems(for: .visible)
                         let desiredIDs = orderedItems.map(\.uniqueIdentifier)
-                        let achievableItems = LayoutPlanner.achievableOrderSegments(
+                        let achievableItems = RuntimeLayoutCoordinator.achievableOrderSegments(
                             items: liveItems,
                             desiredOrder: desiredIDs,
                             experimentalSystemItemHiding: physicalOrderExperimentalSystemItemHiding
                         ).flatMap(\.self)
 
-                        let destination = LayoutPlanner.achievableDestination(
+                        let destination = RuntimeLayoutCoordinator.achievableDestination(
                             items: liveItems,
                             item: item,
                             desiredOrder: desiredIDs,
@@ -338,7 +339,7 @@ final class LayoutBarPaddingView: NSView {
                             // The requested order is either already live or would
                             // cross a fixed anchor. Persist only its achievable
                             // projection so reconciliation cannot retry forever.
-                            hider?.setSectionOrder(from: achievableItems, for: .visible)
+                            controller?.setSectionOrder(from: achievableItems, for: .visible)
                             Task { await appState.itemManager.cacheItemsRegardless(skipRecentMoveCheck: true) }
                             container.canSetArrangedViews = true
                             sourceContainer?.canSetArrangedViews = true
@@ -377,8 +378,8 @@ final class LayoutBarPaddingView: NSView {
 
                 // Concealed sections only persist layout-bar order; the items
                 // are snapshots with no live AX element to Command-drag.
-                hider?.setSection(container.section, item: item)
-                hider?.setSectionOrder(from: orderedItems, for: container.section)
+                controller?.setSection(container.section, item: item)
+                controller?.setSectionOrder(from: orderedItems, for: container.section)
 
                 if let appState = container.appState {
                     Task { await appState.itemManager.cacheItemsRegardless(skipRecentMoveCheck: true) }
@@ -525,7 +526,7 @@ final class LayoutBarPaddingView: NSView {
                     skipPreferredPositionMove: recoveringStrandedVisibleControl
                 )
                 if let sectionOrderToCommit {
-                    appState.menuBarManager.simpleItemHider?.setSectionOrder(
+                    appState.menuBarManager.sectionController?.setSectionOrder(
                         from: sectionOrderToCommit,
                         for: container.section
                     )
@@ -544,7 +545,7 @@ final class LayoutBarPaddingView: NSView {
                 // showing it for a move that visibly worked is a false alarm.
                 try? await Task.sleep(for: .milliseconds(250))
                 await appState.itemManager.cacheItemsRegardless(skipRecentMoveCheck: true)
-                if !MenuBarBackendFactory.current.supportsLegacySectionHiding {
+                if !MenuBarBackendProvider.current.supportsLegacySectionHiding {
                     // macOS 27 verification must come from fresh AX order inside
                     // MenuBarItemManager. The layout cache may still contain the
                     // user's visual drop intent, so do not treat it as proof.
@@ -644,18 +645,18 @@ final class LayoutBarPaddingView: NSView {
     /// Whether items in the section currently have live AX elements to reorder.
     private func macOS27SectionIsPhysicallyLive(
         _ section: MenuBarSection.Name,
-        hider: SimpleItemHider?
+        controller: MenuBarSectionController?
     ) -> Bool {
         switch section {
         case .visible:
             return true
         case .hidden:
-            guard let revealed = hider?.revealedSection else {
+            guard let revealed = controller?.revealedSection else {
                 return false
             }
             return revealed == .hidden || revealed == .alwaysHidden
         case .alwaysHidden:
-            return hider?.revealedSection == .alwaysHidden
+            return controller?.revealedSection == .alwaysHidden
         }
     }
 

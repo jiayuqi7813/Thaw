@@ -48,6 +48,7 @@ jobs:
         uses: ./.github/actions/build
         with:
           apple-team-id: ${{ secrets.APPLE_TEAM_ID }}
+          package-token: ${{ secrets.PLATFORM_RUNTIME_KIT_TOKEN || secrets.GH_PACKAGES_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Export Archive
         uses: ./.github/actions/export-and-package

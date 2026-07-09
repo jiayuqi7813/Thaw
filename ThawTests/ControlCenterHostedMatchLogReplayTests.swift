@@ -7,6 +7,7 @@
 //  Licensed under the GNU GPLv3
 
 import CoreGraphics
+import MenuBarModel
 @testable import Thaw
 import XCTest
 

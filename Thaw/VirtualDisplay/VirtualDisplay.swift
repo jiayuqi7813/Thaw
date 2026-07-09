@@ -8,6 +8,7 @@
 
 import CoreGraphics
 import Foundation
+import MenuBarModel
 
 /// A headless virtual display created via the private CGVirtualDisplay API.
 ///

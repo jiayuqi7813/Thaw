@@ -7,6 +7,7 @@
 //  Licensed under the GNU GPLv3
 
 import Foundation
+import MenuBarModel
 import XPC
 
 /// A wrapper around an XPC listener object.

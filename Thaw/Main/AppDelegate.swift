@@ -7,6 +7,7 @@
 //  Licensed under the GNU GPLv3
 
 import SwiftUI
+import MenuBarModel
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -447,7 +448,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let bundle = components.queryItems?.first(where: { $0.name == "bundle" })?.value
         let itemID = components.queryItems?.first(where: { $0.name == "item-id" })?.value
 
-        guard let simpleItemHider = appState.menuBarManager.simpleItemHider else {
+        guard let sectionController = appState.menuBarManager.sectionController else {
             appState.diagLog.warning("Settings URI reveal-item: per-item reveal is unavailable on this OS")
             return
         }
@@ -455,14 +456,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let identifier = SettingsURIHandler.resolveRevealItemIdentifier(
             bundle: bundle,
             itemID: itemID,
-            sectionAssignment: simpleItemHider.sectionAssignment
+            sectionAssignment: sectionController.sectionAssignment
         ) else {
             appState.diagLog.warning("Settings URI reveal-item: missing or ambiguous bundle/item-id in \(url.absoluteString)")
             return
         }
 
-        simpleItemHider.revealItemTemporarily(identifier)
-        simpleItemHider.scheduleTemporaryItemConceal(identifier)
+        sectionController.revealItemTemporarily(identifier)
+        sectionController.scheduleTemporaryItemConceal(identifier)
         appState.diagLog.info("Settings URI reveal-item: revealed \(identifier) for sender \(sender ?? "unknown")")
     }
 

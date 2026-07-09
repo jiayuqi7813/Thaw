@@ -1,5 +1,5 @@
 //
-//  SimpleItemHiderTests.swift
+//  MenuBarSectionControllerTests.swift
 //  Project: Thaw
 //
 //  Copyright (Ice) © 2023–2025 Jordan Baird
@@ -7,19 +7,20 @@
 //  Licensed under the GNU GPLv3
 
 @testable import Thaw
+import PlatformRuntimeKit
 import XCTest
 
-/// Characterizes `SimpleItemHider`'s instance lifecycle against fakes for its
+/// Characterizes `MenuBarSectionController`'s instance lifecycle against fakes for its
 /// five collaborators. `refresh()` (and everything that calls it — `show`,
 /// `hideRevealedSections`, `setSection`, `revealItemTemporarily`) guards on
 /// `appState` being non-nil as its very first line, so constructing the
-/// hider with `appState: nil` exercises the guard itself (a real no-op
+/// controller with `appState: nil` exercises the guard itself (a real no-op
 /// production path when the item manager hasn't attached yet) while still
 /// letting the reveal/assignment state transitions run and be observed
-/// through the hider's own internal (non-private) accessors.
+/// through the controller's own internal (non-private) accessors.
 @MainActor
-final class SimpleItemHiderTests: XCTestCase {
-    final class FakeAssessmentModeBackend: AssessmentModeBackending {
+final class MenuBarSectionControllerTests: XCTestCase {
+    final class FakeRuntimeSessionController: RuntimeSessionControllering {
         private(set) var applyCallCount = 0
         private(set) var pulseCallCount = 0
         private(set) var markExternallyTornDownCallCount = 0
@@ -46,7 +47,7 @@ final class SimpleItemHiderTests: XCTestCase {
         }
     }
 
-    final class FakeControlCenterModuleManager: ControlCenterModuleManaging {
+    final class FakeRuntimeModuleController: RuntimeModuleControlling {
         private(set) var applyCallCount = 0
 
         func apply(hiddenMenuExtraTitles _: Set<String>) -> Bool {
@@ -55,7 +56,7 @@ final class SimpleItemHiderTests: XCTestCase {
         }
     }
 
-    final class FakeCGSWindowHider: SurgicalItemHider {
+    final class FakeRuntimeWindowController: RuntimeWindowControlling {
         private(set) var applyCallCount = 0
         private(set) var restoreAllCallCount = 0
 
@@ -69,7 +70,7 @@ final class SimpleItemHiderTests: XCTestCase {
         }
     }
 
-    final class FakeAXItemHider: SurgicalItemHider {
+    final class FakeAXItemHider: RuntimeWindowControlling {
         private(set) var applyCallCount = 0
         private(set) var restoreAllCallCount = 0
 
@@ -93,7 +94,7 @@ final class SimpleItemHiderTests: XCTestCase {
         }
     }
 
-    final class OrderRecordingSurgicalHider: SurgicalItemHider {
+    final class OrderRecordingSurgicalHider: RuntimeWindowControlling {
         let name: String
         let log: CallOrderLog
         let handledPIDs: Set<pid_t>
@@ -114,7 +115,7 @@ final class SimpleItemHiderTests: XCTestCase {
         func restoreAll() {}
     }
 
-    final class FakeTrailingItemPositionStore: TrailingItemPositioning {
+    final class FakeRuntimePreferenceStore: RuntimePreferenceProviding {
         private(set) var hasHiddenItems = false
         private(set) var restoreAllCallCount = 0
         var storedPositions: [String: Int] = [:]
@@ -149,7 +150,7 @@ final class SimpleItemHiderTests: XCTestCase {
     /// A position store whose `hideItems` returns a caller-supplied set of plist
     /// keys, letting a test assert how `applyExperimentalWindowHiding` maps those
     /// returned keys back onto live items when stripping the assertion input.
-    final class KeyReturningFakePositionStore: TrailingItemPositioning {
+    final class KeyReturningFakePositionStore: RuntimePreferenceProviding {
         var storedPositions: [String: Int]
         let hideReturnKeys: Set<String>
         private(set) var hasHiddenItems = false
@@ -185,23 +186,23 @@ final class SimpleItemHiderTests: XCTestCase {
         }
     }
 
-    private var backend: FakeAssessmentModeBackend!
-    private var ccModuleManager: FakeControlCenterModuleManager!
-    private var cgsWindowHider: FakeCGSWindowHider!
+    private var backend: FakeRuntimeSessionController!
+    private var ccModuleManager: FakeRuntimeModuleController!
+    private var cgsWindowHider: FakeRuntimeWindowController!
     private var axItemHider: FakeAXItemHider!
-    private var positionStore: FakeTrailingItemPositionStore!
+    private var positionStore: FakeRuntimePreferenceStore!
 
     override func setUp() {
         super.setUp()
-        backend = FakeAssessmentModeBackend()
-        ccModuleManager = FakeControlCenterModuleManager()
-        cgsWindowHider = FakeCGSWindowHider()
+        backend = FakeRuntimeSessionController()
+        ccModuleManager = FakeRuntimeModuleController()
+        cgsWindowHider = FakeRuntimeWindowController()
         axItemHider = FakeAXItemHider()
-        positionStore = FakeTrailingItemPositionStore()
+        positionStore = FakeRuntimePreferenceStore()
     }
 
-    private func makeHider() -> SimpleItemHider {
-        SimpleItemHider(
+    private func makeController() -> MenuBarSectionController {
+        MenuBarSectionController(
             appState: nil,
             backend: backend,
             ccModuleManager: ccModuleManager,
@@ -228,11 +229,11 @@ final class SimpleItemHiderTests: XCTestCase {
             log: log,
             handledPIDs: [axHandledPID]
         )
-        let positionStore = FakeTrailingItemPositionStore()
-        let backend = FakeAssessmentModeBackend()
-        let ccModuleManager = FakeControlCenterModuleManager()
+        let positionStore = FakeRuntimePreferenceStore()
+        let backend = FakeRuntimeSessionController()
+        let ccModuleManager = FakeRuntimeModuleController()
 
-        let hider = SimpleItemHider(
+        let controller = MenuBarSectionController(
             appState: nil,
             backend: backend,
             ccModuleManager: ccModuleManager,
@@ -268,7 +269,7 @@ final class SimpleItemHiderTests: XCTestCase {
         ]
 
         // Drive the surgical pipeline directly (bypassing the plist pass).
-        hider.applyExperimentalWindowHiding(
+        controller.applyExperimentalWindowHiding(
             enabled: true,
             effectiveAssignment: backendAssignment,
             allItems: allItems,
@@ -321,11 +322,11 @@ final class SimpleItemHiderTests: XCTestCase {
             storedPositions: [cpuKey: 100, memKey: 200],
             hideReturnKeys: [cpuKey, memKey]
         )
-        let hider = SimpleItemHider(
+        let controller = MenuBarSectionController(
             appState: nil,
-            backend: FakeAssessmentModeBackend(),
-            ccModuleManager: FakeControlCenterModuleManager(),
-            cgsWindowHider: FakeCGSWindowHider(),
+            backend: FakeRuntimeSessionController(),
+            ccModuleManager: FakeRuntimeModuleController(),
+            cgsWindowHider: FakeRuntimeWindowController(),
             axItemHider: FakeAXItemHider(),
             positionStore: positionStore
         )
@@ -335,7 +336,7 @@ final class SimpleItemHiderTests: XCTestCase {
             memItem.uniqueIdentifier: .hidden,
         ]
 
-        hider.applyExperimentalWindowHiding(
+        controller.applyExperimentalWindowHiding(
             enabled: true,
             effectiveAssignment: backendAssignment,
             allItems: allItems,
@@ -356,21 +357,21 @@ final class SimpleItemHiderTests: XCTestCase {
 
     func testAssertionLayoutMembershipDivergedReadsHiderAssignment() {
         // macOS 27 membership is assignment-driven: divergence must be read from
-        // SimpleItemHider.section(for:), not from the item's spatial X (which
+        // MenuBarSectionController.section(for:), not from the item's spatial X (which
         // still reads hidden-side after an assertion reflow).
-        let hider = makeHider()
+        let controller = makeController()
         let item = MenuBarItem.fixture(
             tag: .appItem(bundleID: "com.test.a", title: "Foo"),
             windowID: 5,
             bounds: CGRect(x: 200, y: 0, width: 24, height: 22)
         )
-        hider.setSection(.hidden, item: item)
+        controller.setSection(.hidden, item: item)
 
         // Control-item geometry is irrelevant on this backend; supply a fixture.
         let controlItems = MenuBarItemManager.ControlItemPair.fixture(
             hiddenAt: CGRect(x: 100, y: 0, width: 10, height: 22)
         )
-        let backend = AssertionMenuBarBackend()
+        let backend = RuntimeMenuBarBackend()
 
         // Assigned hidden but saved visible → divergence.
         XCTAssertTrue(
@@ -378,7 +379,7 @@ final class SimpleItemHiderTests: XCTestCase {
                 savedSectionByBaseID: ["com.test.a:Foo": .visible],
                 items: [item],
                 controlItems: controlItems,
-                hider: hider
+                hider: controller
             )
         )
         // Assigned hidden and saved hidden → no divergence.
@@ -387,10 +388,10 @@ final class SimpleItemHiderTests: XCTestCase {
                 savedSectionByBaseID: ["com.test.a:Foo": .hidden],
                 items: [item],
                 controlItems: controlItems,
-                hider: hider
+                hider: controller
             )
         )
-        // No hider → cannot read assignment, never diverges.
+        // No controller → cannot read assignment, never diverges.
         XCTAssertFalse(
             backend.layoutMembershipDiverged(
                 savedSectionByBaseID: ["com.test.a:Foo": .visible],
@@ -402,9 +403,9 @@ final class SimpleItemHiderTests: XCTestCase {
     }
 
     func testRefresh_NoOpsWithoutAttachedAppState() {
-        let hider = makeHider()
+        let controller = makeController()
 
-        hider.refresh()
+        controller.refresh()
 
         // refresh() guards on `appState` being non-nil as its very first
         // line; with no item manager attached yet (the real state before
@@ -413,62 +414,62 @@ final class SimpleItemHiderTests: XCTestCase {
     }
 
     func testShow_RevealsOnlyRequestedSection() {
-        let hider = makeHider()
+        let controller = makeController()
 
-        hider.show(.hidden)
+        controller.show(.hidden)
 
-        XCTAssertEqual(hider.revealedSection, .hidden)
+        XCTAssertEqual(controller.revealedSection, .hidden)
     }
 
     func testShow_IsIdempotentForSameSection() {
-        let hider = makeHider()
+        let controller = makeController()
 
-        hider.show(.hidden)
-        hider.show(.hidden)
+        controller.show(.hidden)
+        controller.show(.hidden)
 
         // Second call with the same already-revealed target returns early
         // (guarded by `revealedSection != target`); refresh() is a no-op
         // either way here, so this only characterizes the reveal state
         // itself, not call counts into refresh().
-        XCTAssertEqual(hider.revealedSection, .hidden)
+        XCTAssertEqual(controller.revealedSection, .hidden)
     }
 
     func testHideRevealedSections_ClearsReveal() {
-        let hider = makeHider()
-        hider.show(.hidden)
-        XCTAssertEqual(hider.revealedSection, .hidden)
+        let controller = makeController()
+        controller.show(.hidden)
+        XCTAssertEqual(controller.revealedSection, .hidden)
 
-        hider.hideRevealedSections()
+        controller.hideRevealedSections()
 
-        XCTAssertNil(hider.revealedSection)
+        XCTAssertNil(controller.revealedSection)
     }
 
     func testHideRevealedSections_NoOpsWhenNothingRevealed() {
-        let hider = makeHider()
+        let controller = makeController()
 
         // Must not crash or misbehave when called with nothing revealed.
-        hider.hideRevealedSections()
+        controller.hideRevealedSections()
 
-        XCTAssertNil(hider.revealedSection)
+        XCTAssertNil(controller.revealedSection)
     }
 
     func testSetSection_PersistsAssignment() {
-        let hider = makeHider()
+        let controller = makeController()
         let identifier = "com.example.app:Item-0"
 
-        hider.setSection(.hidden, identifier: identifier)
+        controller.setSection(.hidden, identifier: identifier)
 
-        XCTAssertEqual(hider.section(for: identifier), .hidden)
+        XCTAssertEqual(controller.section(for: identifier), .hidden)
     }
 
     func testSetSection_RejectsControlItemIdentifier() {
-        let hider = makeHider()
+        let controller = makeController()
         let controlItemIdentifier = ControlItem.Identifier.hidden.rawValue
 
-        hider.setSection(.hidden, identifier: controlItemIdentifier)
+        controller.setSection(.hidden, identifier: controlItemIdentifier)
 
         // Control-item identifiers can never be assigned a section — they're
         // the dividers themselves, not hideable app items.
-        XCTAssertEqual(hider.section(for: controlItemIdentifier), .visible)
+        XCTAssertEqual(controller.section(for: controlItemIdentifier), .visible)
     }
 }

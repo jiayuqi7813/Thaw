@@ -9,6 +9,7 @@
 import Cocoa
 import Combine
 import ScreenCaptureKit
+import MenuBarModel
 
 enum MenuBarSplitPillGeometry {
     static func leadingBounds(
@@ -946,7 +947,7 @@ private final class MenuBarOverlayPanelContentView: NSView {
                         }
                         .store(in: &c)
 
-                    appState.menuBarManager.simpleItemHider?.$revealedSection
+                    appState.menuBarManager.sectionController?.$revealedSection
                         .receive(on: DispatchQueue.main)
                         .sink { [weak self] revealed in
                             guard let self else { return }
@@ -1049,11 +1050,11 @@ private final class MenuBarOverlayPanelContentView: NSView {
             }
             guard !Task.isCancelled else { return }
 
-            let hider = overlayPanel?.appState?.menuBarManager.simpleItemHider
+            let controller = overlayPanel?.appState?.menuBarManager.sectionController
             let context = MenuBarSplitPillGeometry.TrailingPillContext(
-                revealedSection: hider?.revealedSection,
+                revealedSection: controller?.revealedSection,
                 section: { item in
-                    hider?.section(for: item) ?? .visible
+                    controller?.section(for: item) ?? .visible
                 }
             )
             let bounds = MenuBarSplitPillGeometry.trailingPillBounds(
@@ -1061,8 +1062,8 @@ private final class MenuBarOverlayPanelContentView: NSView {
                 context: context
             )
             cachedAXItemBounds = bounds
-            let isRevealingHidden = hider?.revealedSection == .hidden
-                || hider?.revealedSection == .alwaysHidden
+            let isRevealingHidden = controller?.revealedSection == .hidden
+                || controller?.revealedSection == .alwaysHidden
             cachedChevronFrame = isRevealingHidden
                 ? .zero
                 : (items.first(where: { $0.tag.matchesVisibleControlItem })?.bounds ?? .zero)

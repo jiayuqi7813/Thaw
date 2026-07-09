@@ -7,6 +7,8 @@
 //  Licensed under the GNU GPLv3
 
 import CoreGraphics
+import MenuBarHost
+import PlatformRuntimeKit
 @testable import Thaw
 import XCTest
 
@@ -453,8 +455,8 @@ final class MenuBarItemCaptureSectionTests: XCTestCase {
     }
 
     func testBackendAdaptersExposeDistinctSectionModels() {
-        let legacy = LegacyMenuBarBackend()
-        let assertion = AssertionMenuBarBackend()
+        let legacy = HostMenuBarBackend()
+        let assertion = RuntimeMenuBarBackend()
 
         XCTAssertTrue(legacy.supportsLegacySectionHiding)
         XCTAssertFalse(legacy.usesAssertionHiding)

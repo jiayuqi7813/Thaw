@@ -8,6 +8,8 @@
 
 import CoreGraphics
 @testable import Thaw
+import MenuBarHost
+import PlatformRuntimeKit
 import XCTest
 
 // MARK: - MenuBarItemTag.Namespace Tests
@@ -977,7 +979,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
             .alwaysHidden: ["com.example.always:Always"],
         ]
 
-        let assignment = SimpleItemHider.assignmentFromOrder(
+        let assignment = MenuBarSectionController.assignmentFromOrder(
             order,
             alwaysHiddenEnabled: false
         )
@@ -1004,7 +1006,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
             ],
         ]
 
-        let assignment = SimpleItemHider.assignmentFromOrder(order)
+        let assignment = MenuBarSectionController.assignmentFromOrder(order)
 
         XCTAssertEqual(
             assignment,
@@ -1016,24 +1018,6 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         )
     }
 
-    func testCacheRebucketterDropsStaleCachedCopyWhenLiveItemReappears() {
-        let iStatItem = MenuBarItem.fixture(
-            tag: .appItem(bundleID: "com.bjango.istatmenus.status", title: "CPU #%"),
-            windowID: 10
-        )
-        let hidden = MenuBarItem.fixture(
-            tag: .appItem(bundleID: "com.example.hidden", title: "Hidden"),
-            windowID: 11
-        )
-
-        let retained = CacheRebucketter.retainedCachedItems(
-            [iStatItem, hidden],
-            replacingLiveIdentifiers: [iStatItem.uniqueIdentifier]
-        )
-
-        XCTAssertEqual(retained.map(\.uniqueIdentifier), [hidden.uniqueIdentifier])
-    }
-
     @MainActor
     func testAssignmentFromOrderPreservesAlwaysHiddenWhenEnabled() {
         let order: [MenuBarSection.Name: [String]] = [
@@ -1041,7 +1025,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
             .alwaysHidden: ["com.example.always:Always"],
         ]
 
-        let assignment = SimpleItemHider.assignmentFromOrder(
+        let assignment = MenuBarSectionController.assignmentFromOrder(
             order,
             alwaysHiddenEnabled: true
         )
@@ -1061,7 +1045,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
             "com.example.hidden:Hidden": .hidden,
         ]
 
-        let invalid = SimpleItemHider.invalidAssignmentIdentifiers(
+        let invalid = MenuBarSectionController.invalidAssignmentIdentifiers(
             sectionAssignment: assignment,
             liveItems: [],
             experimentalSystemItemHiding: false
@@ -1080,7 +1064,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
             clock.uniqueIdentifier: .hidden,
         ]
 
-        let invalid = SimpleItemHider.invalidAssignmentIdentifiers(
+        let invalid = MenuBarSectionController.invalidAssignmentIdentifiers(
             sectionAssignment: assignment,
             liveItems: [clock],
             experimentalSystemItemHiding: false
@@ -1091,7 +1075,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
 
     @MainActor
     func testMergeMigratedSectionOrderFromLegacyOrderOnly() {
-        let order = SimpleItemHider.mergeMigratedSectionOrder(
+        let order = MenuBarSectionController.mergeMigratedSectionOrder(
             sharedOrder: nil,
             legacyOrder: ["hidden": ["a", "b"]],
             legacyAssignment: nil
@@ -1102,7 +1086,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
 
     @MainActor
     func testMergeMigratedSectionOrderAppendsLegacyOrderWithoutDuplicates() {
-        let order = SimpleItemHider.mergeMigratedSectionOrder(
+        let order = MenuBarSectionController.mergeMigratedSectionOrder(
             sharedOrder: ["hidden": ["a"]],
             legacyOrder: ["hidden": ["a", "b"]],
             legacyAssignment: nil
@@ -1113,7 +1097,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
 
     @MainActor
     func testMergeMigratedSectionOrderCanonicalizesIStatIdentifiers() {
-        let order = SimpleItemHider.mergeMigratedSectionOrder(
+        let order = MenuBarSectionController.mergeMigratedSectionOrder(
             sharedOrder: [
                 "visible": [
                     "com.bjango.istatmenus.status:CPU 45%",
@@ -1139,7 +1123,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
 
     @MainActor
     func testMergeMigratedSectionOrderAppendsLegacyAssignment() {
-        let order = SimpleItemHider.mergeMigratedSectionOrder(
+        let order = MenuBarSectionController.mergeMigratedSectionOrder(
             sharedOrder: ["hidden": ["a"]],
             legacyOrder: nil,
             legacyAssignment: ["c": "hidden"]
@@ -1150,7 +1134,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
 
     @MainActor
     func testLoadOrderMigratesLegacyKeysIntoSharedOrder() {
-        let suiteName = "ThawTests.SimpleItemHiderMigration.\(UUID().uuidString)"
+        let suiteName = "ThawTests.MenuBarSectionControllerMigration.\(UUID().uuidString)"
         guard let defaults = UserDefaults(suiteName: suiteName) else {
             XCTFail("Unable to create isolated UserDefaults suite")
             return
@@ -1161,7 +1145,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
 
         defaults.set(["hidden": ["a", "b"]], forKey: "Thaw.simpleSectionOrder")
 
-        let order = SimpleItemHider.loadOrder(defaults: defaults)
+        let order = MenuBarSectionController.loadOrder(defaults: defaults)
 
         XCTAssertEqual(order[.hidden], ["a", "b"])
         XCTAssertEqual(
@@ -1174,7 +1158,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
 
     @MainActor
     func testLoadOrderMigratesLegacyHiddenKeyAndRemovesIt() {
-        let suiteName = "ThawTests.SimpleItemHiderLegacyHidden.\(UUID().uuidString)"
+        let suiteName = "ThawTests.MenuBarSectionControllerLegacyHidden.\(UUID().uuidString)"
         guard let defaults = UserDefaults(suiteName: suiteName) else {
             XCTFail("Unable create isolated UserDefaults suite")
             return
@@ -1188,7 +1172,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
             forKey: "Thaw.simpleHiddenItemIdentifiers"
         )
 
-        let order = SimpleItemHider.loadOrder(defaults: defaults)
+        let order = MenuBarSectionController.loadOrder(defaults: defaults)
 
         XCTAssertEqual(order[.hidden]?.count, 2)
         XCTAssertNil(defaults.object(forKey: "Thaw.simpleHiddenItemIdentifiers"))
@@ -1203,7 +1187,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         let bounds = CGRect(x: 120, y: 0, width: 42, height: 24)
         // Assertion backend (macOS 27): AX bounds are the source of truth.
         XCTAssertEqual(
-            AssertionMenuBarBackend().relocationBounds(
+            RuntimeMenuBarBackend().relocationBounds(
                 itemBounds: bounds,
                 windowServerBounds: nil
             ),
@@ -1211,7 +1195,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         )
         // Legacy backend trusts the WindowServer geometry, which is nil here.
         XCTAssertNil(
-            LegacyMenuBarBackend().relocationBounds(
+            HostMenuBarBackend().relocationBounds(
                 itemBounds: bounds,
                 windowServerBounds: nil
             )
@@ -1274,7 +1258,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         let thaw = item(tag: .visibleControlItem, x: 140, windowID: 1521)
         let beta = appItem(bundleID: "com.example.beta", title: "Beta", x: 180, windowID: 1522)
 
-        let destination = LayoutPlanner.achievableDestination(
+        let destination = RuntimeLayoutCoordinator.achievableDestination(
             items: [alpha, thaw, beta],
             item: thaw,
             desiredOrder: [thaw.uniqueIdentifier, alpha.uniqueIdentifier, beta.uniqueIdentifier]
@@ -1296,7 +1280,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         let thaw = item(tag: .visibleControlItem, x: 140, windowID: 1531)
         let beta = appItem(bundleID: "com.example.beta", title: "Beta", x: 180, windowID: 1532)
 
-        let plannedMove = LayoutPlanner.visibleControlRestoreMove(
+        let plannedMove = RuntimeLayoutCoordinator.visibleControlRestoreMove(
             items: [alpha, thaw, beta],
             desiredOrder: [thaw.uniqueIdentifier, alpha.uniqueIdentifier, beta.uniqueIdentifier]
         )
@@ -1321,9 +1305,9 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         let items = [alpha, thaw, beta]
         let desiredOrder = [thaw.uniqueIdentifier, alpha.uniqueIdentifier, beta.uniqueIdentifier]
 
-        XCTAssertTrue(LayoutPlanner.visibleControlIsStranded(thaw, among: items))
+        XCTAssertTrue(RuntimeLayoutCoordinator.visibleControlIsStranded(thaw, among: items))
 
-        let plannedMove = LayoutPlanner.visibleControlRestoreMove(
+        let plannedMove = RuntimeLayoutCoordinator.visibleControlRestoreMove(
             items: items,
             desiredOrder: desiredOrder
         )
@@ -1338,7 +1322,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
     @MainActor
     func testAssigningLiveItemToHiddenRetainsImmediateSnapshot() throws {
         guard #available(macOS 27, *) else {
-            throw XCTSkip("SimpleItemHider snapshots are macOS 27-specific")
+            throw XCTSkip("MenuBarSectionController snapshots are macOS 27-specific")
         }
 
         let shottr = appItem(
@@ -1348,7 +1332,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
             windowID: 1519
         )
 
-        let snapshots = SimpleItemHider.updatedSnapshots(
+        let snapshots = MenuBarSectionController.updatedSnapshots(
             [:],
             afterAssigning: shottr,
             to: .hidden
@@ -1369,7 +1353,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         let beta = appItem(bundleID: "com.example.beta", title: "Beta", x: 48, windowID: 12)
         let gamma = appItem(bundleID: "com.example.gamma", title: "Gamma", x: 72, windowID: 13)
 
-        let ordered = SimpleItemHider.orderedItems(
+        let ordered = MenuBarSectionController.orderedItems(
             [alpha, wifi, beta, gamma],
             in: .visible,
             using: [gamma.uniqueIdentifier, beta.uniqueIdentifier, alpha.uniqueIdentifier]
@@ -1391,7 +1375,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         let wifi = systemItem(title: "WiFi", x: 24, windowID: 111)
         let beta = appItem(bundleID: "com.example.beta", title: "Beta", x: 48, windowID: 112)
 
-        let ordered = SimpleItemHider.orderedItems(
+        let ordered = MenuBarSectionController.orderedItems(
             [alpha, wifi, beta],
             in: .visible,
             using: []
@@ -1417,7 +1401,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         let controlCenter = systemItem(title: "BentoBox-0", x: 120, windowID: 19)
         let unknownModule = systemItem(title: "Item-0", x: 144, windowID: 20)
 
-        let ordered = SimpleItemHider.orderedItems(
+        let ordered = MenuBarSectionController.orderedItems(
             [alpha, beta, wifi, gamma, delta, controlCenter, unknownModule],
             in: .visible,
             using: [
@@ -1455,7 +1439,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         let clock = systemItem(title: "Clock", x: 24, windowID: 21)
         let beta = appItem(bundleID: "com.example.beta", title: "Beta", x: 48, windowID: 22)
 
-        let ordered = SimpleItemHider.orderedItems(
+        let ordered = MenuBarSectionController.orderedItems(
             [alpha, clock, beta],
             in: .visible,
             using: [clock.uniqueIdentifier, beta.uniqueIdentifier, alpha.uniqueIdentifier]
@@ -1478,7 +1462,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         let unknownModule = systemItem(title: "Item-0", x: 36, windowID: 33)
         let beta = appItem(bundleID: "com.example.beta", title: "Beta", x: 48, windowID: 32)
 
-        let identifiers = SimpleItemHider.persistableOrderIdentifiers(
+        let identifiers = MenuBarSectionController.persistableOrderIdentifiers(
             from: [alpha, clock, unknownModule, beta],
             in: .visible
         )
@@ -1489,7 +1473,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
     @MainActor
     func testTemporaryHiddenRevealKeepsAlwaysHiddenConcealed() throws {
         guard #available(macOS 27, *) else {
-            throw XCTSkip("SimpleItemHider reveal is macOS 27-specific")
+            throw XCTSkip("MenuBarSectionController reveal is macOS 27-specific")
         }
 
         let assignment: [String: MenuBarSection.Name] = [
@@ -1497,7 +1481,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
             "com.example.always:Always": .alwaysHidden,
         ]
 
-        let effective = SimpleItemHider.effectiveSectionAssignment(
+        let effective = MenuBarSectionController.effectiveSectionAssignment(
             assignment,
             revealing: .hidden
         )
@@ -1508,7 +1492,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
     @MainActor
     func testTemporarySingleItemRevealExcludesOnlyThatItem() throws {
         guard #available(macOS 27, *) else {
-            throw XCTSkip("SimpleItemHider reveal is macOS 27-specific")
+            throw XCTSkip("MenuBarSectionController reveal is macOS 27-specific")
         }
 
         let assignment: [String: MenuBarSection.Name] = [
@@ -1517,7 +1501,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
             "com.example.always:Always": .alwaysHidden,
         ]
 
-        let effective = SimpleItemHider.effectiveSectionAssignment(
+        let effective = MenuBarSectionController.effectiveSectionAssignment(
             assignment,
             revealing: nil,
             temporarilyRevealedIDs: ["com.example.alpha:Alpha"]
@@ -1535,7 +1519,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
     @MainActor
     func testTemporaryAlwaysHiddenRevealAllowsAllAssignedItems() throws {
         guard #available(macOS 27, *) else {
-            throw XCTSkip("SimpleItemHider reveal is macOS 27-specific")
+            throw XCTSkip("MenuBarSectionController reveal is macOS 27-specific")
         }
 
         let assignment: [String: MenuBarSection.Name] = [
@@ -1543,7 +1527,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
             "com.example.always:Always": .alwaysHidden,
         ]
 
-        let effective = SimpleItemHider.effectiveSectionAssignment(
+        let effective = MenuBarSectionController.effectiveSectionAssignment(
             assignment,
             revealing: .alwaysHidden
         )
@@ -1554,7 +1538,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
     @MainActor
     func testEffectiveAssignmentDropsThawOwnedEntries() throws {
         guard #available(macOS 27, *) else {
-            throw XCTSkip("SimpleItemHider reveal is macOS 27-specific")
+            throw XCTSkip("MenuBarSectionController reveal is macOS 27-specific")
         }
 
         let thawID = "\(Constants.bundleIdentifier):Thaw.ControlItem.Visible"
@@ -1567,7 +1551,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
             "com.example.hidden:Hidden": .hidden,
         ]
 
-        let effective = SimpleItemHider.effectiveSectionAssignment(
+        let effective = MenuBarSectionController.effectiveSectionAssignment(
             assignment,
             revealing: nil
         )
@@ -1578,7 +1562,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
     @MainActor
     func testPersistableVisibleOrderIncludesVisibleControlButExcludesOtherThawOwnedItems() throws {
         guard #available(macOS 27, *) else {
-            throw XCTSkip("SimpleItemHider reveal is macOS 27-specific")
+            throw XCTSkip("MenuBarSectionController reveal is macOS 27-specific")
         }
 
         let thaw = item(
@@ -1593,14 +1577,14 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         )
         let app = appItem(bundleID: "com.example.alpha", title: "Alpha", x: 48, windowID: 92)
 
-        let identifiers = SimpleItemHider.persistableOrderIdentifiers(
+        let identifiers = MenuBarSectionController.persistableOrderIdentifiers(
             from: [thaw, hostThaw, app],
             in: .visible
         )
 
         XCTAssertEqual(identifiers, [thaw.uniqueIdentifier, app.uniqueIdentifier])
 
-        let hiddenIdentifiers = SimpleItemHider.persistableOrderIdentifiers(
+        let hiddenIdentifiers = MenuBarSectionController.persistableOrderIdentifiers(
             from: [thaw, hostThaw, app],
             in: .hidden
         )
@@ -1611,21 +1595,21 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
     @MainActor
     func testExperimentalSystemItemHidingPersistsHiddenSystemItemOrder() throws {
         guard #available(macOS 27, *) else {
-            throw XCTSkip("SimpleItemHider order persistence is macOS 27-specific")
+            throw XCTSkip("MenuBarSectionController order persistence is macOS 27-specific")
         }
 
         let clock = systemItem(title: "Clock", x: 24, windowID: 93)
         let app = appItem(bundleID: "com.example.alpha", title: "Alpha", x: 48, windowID: 94)
 
         XCTAssertEqual(
-            SimpleItemHider.persistableOrderIdentifiers(
+            MenuBarSectionController.persistableOrderIdentifiers(
                 from: [clock, app],
                 in: .hidden
             ),
             [app.uniqueIdentifier]
         )
         XCTAssertEqual(
-            SimpleItemHider.persistableOrderIdentifiers(
+            MenuBarSectionController.persistableOrderIdentifiers(
                 from: [clock, app],
                 in: .hidden,
                 experimentalSystemItemHiding: true
@@ -1637,7 +1621,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
     @MainActor
     func testGenericThawItemIsProtectedFromAssignmentHiding() throws {
         guard #available(macOS 27, *) else {
-            throw XCTSkip("SimpleItemHider protection is macOS 27-specific")
+            throw XCTSkip("MenuBarSectionController protection is macOS 27-specific")
         }
 
         let genericThaw = item(
@@ -1652,15 +1636,15 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         )
         let app = appItem(bundleID: "com.example.alpha", title: "Item-0", x: 48, windowID: 96)
 
-        XCTAssertTrue(SimpleItemHider.isProtectedAssignmentItem(genericThaw))
-        XCTAssertTrue(SimpleItemHider.isProtectedAssignmentItem(hostThaw))
-        XCTAssertFalse(SimpleItemHider.isProtectedAssignmentItem(app))
+        XCTAssertTrue(MenuBarSectionController.isProtectedAssignmentItem(genericThaw))
+        XCTAssertTrue(MenuBarSectionController.isProtectedAssignmentItem(hostThaw))
+        XCTAssertFalse(MenuBarSectionController.isProtectedAssignmentItem(app))
     }
 
     @MainActor
     func testExperimentalSystemItemHidingAllowsForcedVisibleSystemItems() throws {
         guard #available(macOS 27, *) else {
-            throw XCTSkip("SimpleItemHider protection is macOS 27-specific")
+            throw XCTSkip("MenuBarSectionController protection is macOS 27-specific")
         }
 
         let clock = systemItem(title: "Clock", x: 24, windowID: 97)
@@ -1677,12 +1661,12 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         XCTAssertTrue(siri.isMovable(experimentalSystemItemHiding: true))
         XCTAssertFalse(siri.isPhysicallyOrderable(experimentalSystemItemHiding: true))
         XCTAssertTrue(clock.canBeHidden(experimentalSystemItemHiding: true))
-        XCTAssertFalse(SimpleItemHider.canAssign(clock, to: .hidden, experimentalSystemItemHiding: false))
-        XCTAssertTrue(SimpleItemHider.canAssign(clock, to: .hidden, experimentalSystemItemHiding: true))
-        XCTAssertFalse(SimpleItemHider.canAssign(siri, to: .hidden, experimentalSystemItemHiding: false))
-        XCTAssertTrue(SimpleItemHider.canAssign(siri, to: .hidden, experimentalSystemItemHiding: true))
-        XCTAssertTrue(SimpleItemHider.isProtectedAssignmentItem(clock, experimentalSystemItemHiding: false))
-        XCTAssertFalse(SimpleItemHider.isProtectedAssignmentItem(clock, experimentalSystemItemHiding: true))
+        XCTAssertFalse(MenuBarSectionController.canAssign(clock, to: .hidden, experimentalSystemItemHiding: false))
+        XCTAssertTrue(MenuBarSectionController.canAssign(clock, to: .hidden, experimentalSystemItemHiding: true))
+        XCTAssertFalse(MenuBarSectionController.canAssign(siri, to: .hidden, experimentalSystemItemHiding: false))
+        XCTAssertTrue(MenuBarSectionController.canAssign(siri, to: .hidden, experimentalSystemItemHiding: true))
+        XCTAssertTrue(MenuBarSectionController.isProtectedAssignmentItem(clock, experimentalSystemItemHiding: false))
+        XCTAssertFalse(MenuBarSectionController.isProtectedAssignmentItem(clock, experimentalSystemItemHiding: true))
 
         let hiddenDivider = item(tag: .hiddenControlItem, x: 0, windowID: 99)
         XCTAssertTrue(hiddenDivider.tag.matchesSectionBoundaryControlItem)
@@ -1696,8 +1680,8 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
             throw XCTSkip("Assessment Mode hiding is macOS 27-specific")
         }
 
-        XCTAssertTrue(AssessmentModeBackend.protectedBundleIDs.contains(Constants.bundleIdentifier))
-        XCTAssertTrue(AssessmentModeBackend.protectedBundleIDs.contains("\(Constants.bundleIdentifier).MenuBarHost"))
+        XCTAssertTrue(RuntimeSessionController.protectedBundleIDs.contains(Constants.bundleIdentifier))
+        XCTAssertTrue(RuntimeSessionController.protectedBundleIDs.contains("\(Constants.bundleIdentifier).MenuBarHost"))
     }
 
     @MainActor
@@ -1710,9 +1694,9 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         // macOS 27: it only hosts Siri (no MBSystemItemIdentifier entry), so
         // bundle-level concealment is the only available path. The
         // bundlesWithVisibleItem guard prevents collateral if a sibling ever appears.
-        XCTAssertFalse(AssessmentModeBackend.isSystemHostBundleID("com.apple.systemuiserver"))
-        XCTAssertTrue(AssessmentModeBackend.isSystemHostBundleID("com.apple.MenuBarAgent"))
-        XCTAssertTrue(AssessmentModeBackend.isSystemHostBundleID("com.apple.controlcenter"))
+        XCTAssertFalse(RuntimeSessionController.isSystemHostBundleID("com.apple.systemuiserver"))
+        XCTAssertTrue(RuntimeSessionController.isSystemHostBundleID("com.apple.MenuBarAgent"))
+        XCTAssertTrue(RuntimeSessionController.isSystemHostBundleID("com.apple.controlcenter"))
     }
 
     @MainActor
@@ -1723,7 +1707,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
 
         // MBSystemItemIdentifier has exactly 9 cases (raw values 0...8); the
         // restriction must allow exactly those to keep the core system controls.
-        XCTAssertEqual(AssessmentModeBackend.allowedSystemItems.map(\.intValue), Array(0 ... 8))
+        XCTAssertEqual(RuntimeSessionController.allowedSystemItems.map(\.intValue), Array(0 ... 8))
     }
 
     @MainActor
@@ -1732,9 +1716,9 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
             throw XCTSkip("Assessment Mode hiding is macOS 27-specific")
         }
 
-        XCTAssertEqual(AssessmentModeBackend.systemItemIdentifier(for: systemItem(title: "Clock", x: 24, windowID: 99).tag), 2)
-        XCTAssertEqual(AssessmentModeBackend.systemItemIdentifier(for: systemItem(title: "BentoBox-0", x: 48, windowID: 100).tag), 8)
-        XCTAssertNil(AssessmentModeBackend.systemItemIdentifier(for: appItem(bundleID: "com.example.alpha", title: "Alpha", x: 72, windowID: 101).tag))
+        XCTAssertEqual(RuntimeSessionController.systemItemIdentifier(for: systemItem(title: "Clock", x: 24, windowID: 99).tag), 2)
+        XCTAssertEqual(RuntimeSessionController.systemItemIdentifier(for: systemItem(title: "BentoBox-0", x: 48, windowID: 100).tag), 8)
+        XCTAssertNil(RuntimeSessionController.systemItemIdentifier(for: appItem(bundleID: "com.example.alpha", title: "Alpha", x: 72, windowID: 101).tag))
     }
 
     @MainActor
@@ -1756,20 +1740,20 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
     @MainActor
     func testTemporaryRevealHiddenStateMatchesSectionControls() throws {
         guard #available(macOS 27, *) else {
-            throw XCTSkip("SimpleItemHider reveal is macOS 27-specific")
+            throw XCTSkip("MenuBarSectionController reveal is macOS 27-specific")
         }
 
-        XCTAssertTrue(SimpleItemHider.isSectionHidden(.visible, revealedSection: nil))
-        XCTAssertTrue(SimpleItemHider.isSectionHidden(.hidden, revealedSection: nil))
-        XCTAssertTrue(SimpleItemHider.isSectionHidden(.alwaysHidden, revealedSection: nil))
+        XCTAssertTrue(MenuBarSectionController.isSectionHidden(.visible, revealedSection: nil))
+        XCTAssertTrue(MenuBarSectionController.isSectionHidden(.hidden, revealedSection: nil))
+        XCTAssertTrue(MenuBarSectionController.isSectionHidden(.alwaysHidden, revealedSection: nil))
 
-        XCTAssertFalse(SimpleItemHider.isSectionHidden(.visible, revealedSection: .hidden))
-        XCTAssertFalse(SimpleItemHider.isSectionHidden(.hidden, revealedSection: .hidden))
-        XCTAssertTrue(SimpleItemHider.isSectionHidden(.alwaysHidden, revealedSection: .hidden))
+        XCTAssertFalse(MenuBarSectionController.isSectionHidden(.visible, revealedSection: .hidden))
+        XCTAssertFalse(MenuBarSectionController.isSectionHidden(.hidden, revealedSection: .hidden))
+        XCTAssertTrue(MenuBarSectionController.isSectionHidden(.alwaysHidden, revealedSection: .hidden))
 
-        XCTAssertFalse(SimpleItemHider.isSectionHidden(.visible, revealedSection: .alwaysHidden))
-        XCTAssertFalse(SimpleItemHider.isSectionHidden(.hidden, revealedSection: .alwaysHidden))
-        XCTAssertFalse(SimpleItemHider.isSectionHidden(.alwaysHidden, revealedSection: .alwaysHidden))
+        XCTAssertFalse(MenuBarSectionController.isSectionHidden(.visible, revealedSection: .alwaysHidden))
+        XCTAssertFalse(MenuBarSectionController.isSectionHidden(.hidden, revealedSection: .alwaysHidden))
+        XCTAssertFalse(MenuBarSectionController.isSectionHidden(.alwaysHidden, revealedSection: .alwaysHidden))
     }
 
     @MainActor
@@ -1783,7 +1767,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         let appID = "com.example.alpha:Alpha"
         let visibleAppID = "com.example.beta:Beta"
 
-        let sanitized = SimpleItemHider.sanitizedSectionAssignment([
+        let sanitized = MenuBarSectionController.sanitizedSectionAssignment([
             appID: .hidden,
             hiddenControlID: .alwaysHidden,
             genericThawID: .hidden,
@@ -1804,7 +1788,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         let alwaysHiddenApp = "com.example.gamma:Gamma"
         let thawControl = "\(MenuBarItemTag.Namespace.thaw):\(ControlItem.Identifier.hidden.rawValue)"
 
-        let fromMap = SimpleItemHider.assignment(
+        let fromMap = MenuBarSectionController.assignment(
             from: [
                 hiddenApp: "hidden",
                 visibleApp: "visible",
@@ -1818,7 +1802,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
             alwaysHiddenApp: .alwaysHidden,
         ])
 
-        let fromOrder = SimpleItemHider.assignment(
+        let fromOrder = MenuBarSectionController.assignment(
             from: [:],
             itemOrder: [
                 "visible": [visibleApp],
@@ -1837,7 +1821,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         let gamma = item(tag: gammaTag, x: 48, windowID: 42)
 
         XCTAssertFalse(
-            LayoutPlanner.liveOrderSatisfiesDestination(
+            RuntimeLayoutCoordinator.liveOrderSatisfiesDestination(
                 items: [alpha, beta, gamma],
                 item: alpha,
                 destination: .leftOfItem(gamma)
@@ -1848,7 +1832,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         let movedAlpha = item(tag: alphaTag, x: 24, windowID: 40)
         let movedGamma = item(tag: gammaTag, x: 48, windowID: 42)
         XCTAssertTrue(
-            LayoutPlanner.liveOrderSatisfiesDestination(
+            RuntimeLayoutCoordinator.liveOrderSatisfiesDestination(
                 items: [movedBeta, movedAlpha, movedGamma],
                 item: alpha,
                 destination: .leftOfItem(gamma)
@@ -1877,14 +1861,14 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         let orderedItems = [hidden, divider, visible]
 
         XCTAssertEqual(
-            LayoutPlanner.sectionBoundaryDestination(
+            RuntimeLayoutCoordinator.sectionBoundaryDestination(
                 for: .hidden,
                 controlItems: controls
             ),
             .leftOfItem(divider)
         )
         XCTAssertEqual(
-            LayoutPlanner.sectionBoundaryDestination(
+            RuntimeLayoutCoordinator.sectionBoundaryDestination(
                 for: .visible,
                 controlItems: controls
             ),
@@ -1892,7 +1876,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         )
 
         XCTAssertTrue(
-            LayoutPlanner.liveOrderSatisfiesSectionBoundary(
+            RuntimeLayoutCoordinator.liveOrderSatisfiesSectionBoundary(
                 items: orderedItems,
                 item: hidden,
                 section: .hidden,
@@ -1900,7 +1884,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
             )
         )
         XCTAssertTrue(
-            LayoutPlanner.liveOrderSatisfiesSectionBoundary(
+            RuntimeLayoutCoordinator.liveOrderSatisfiesSectionBoundary(
                 items: orderedItems,
                 item: visible,
                 section: .visible,
@@ -1908,7 +1892,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
             )
         )
         XCTAssertFalse(
-            LayoutPlanner.liveOrderSatisfiesSectionBoundary(
+            RuntimeLayoutCoordinator.liveOrderSatisfiesSectionBoundary(
                 items: orderedItems,
                 item: visible,
                 section: .hidden,
@@ -1916,7 +1900,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
             )
         )
         XCTAssertFalse(
-            LayoutPlanner.liveOrderSatisfiesSectionBoundary(
+            RuntimeLayoutCoordinator.liveOrderSatisfiesSectionBoundary(
                 items: orderedItems,
                 item: hidden,
                 section: .visible,
@@ -1940,7 +1924,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         )
 
         XCTAssertEqual(
-            LayoutPlanner.dividerMoveDestination(
+            RuntimeLayoutCoordinator.dividerMoveDestination(
                 items: [thaw, divider, hidden],
                 sectionAssignment: [hidden.uniqueIdentifier: .hidden],
                 controlItems: controls
@@ -1954,7 +1938,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
             windowID: 63
         )
         XCTAssertNil(
-            LayoutPlanner.dividerMoveDestination(
+            RuntimeLayoutCoordinator.dividerMoveDestination(
                 items: [correctlyPlacedDivider, thaw, hidden],
                 sectionAssignment: [hidden.uniqueIdentifier: .hidden],
                 controlItems: .init(
@@ -1971,7 +1955,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         let beta = appItem(bundleID: "com.example.beta", title: "Beta", x: 48, windowID: 72)
         let gamma = appItem(bundleID: "com.example.gamma", title: "Gamma", x: 72, windowID: 73)
 
-        let segments = LayoutPlanner.achievableOrderSegments(
+        let segments = RuntimeLayoutCoordinator.achievableOrderSegments(
             items: [alpha, clock, beta, gamma],
             desiredOrder: [gamma.uniqueIdentifier, beta.uniqueIdentifier, alpha.uniqueIdentifier]
         )
@@ -1988,7 +1972,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         let beta = appItem(bundleID: "com.example.beta", title: "Beta", x: 48, windowID: 72)
         let gamma = appItem(bundleID: "com.example.gamma", title: "Gamma", x: 72, windowID: 73)
 
-        let segments = LayoutPlanner.achievableOrderSegments(
+        let segments = RuntimeLayoutCoordinator.achievableOrderSegments(
             items: [alpha, clock, beta, gamma],
             desiredOrder: [
                 gamma.uniqueIdentifier,
@@ -2014,7 +1998,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         )
         let beta = appItem(bundleID: "com.example.beta", title: "Beta", x: 48, windowID: 76)
 
-        let segments = LayoutPlanner.achievableOrderSegments(
+        let segments = RuntimeLayoutCoordinator.achievableOrderSegments(
             items: [alpha, siri, beta],
             desiredOrder: [
                 beta.uniqueIdentifier,
@@ -2029,7 +2013,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
             [[alpha.uniqueIdentifier], [beta.uniqueIdentifier]]
         )
         XCTAssertNil(
-            LayoutPlanner.achievableDestination(
+            RuntimeLayoutCoordinator.achievableDestination(
                 items: [alpha, siri, beta],
                 item: beta,
                 desiredOrder: [
@@ -2054,7 +2038,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         let controls = MenuBarItemManager.ControlItemPair(hidden: divider, alwaysHidden: nil)
 
         XCTAssertTrue(
-            LayoutPlanner.liveOrderSatisfiesSectionBoundary(
+            RuntimeLayoutCoordinator.liveOrderSatisfiesSectionBoundary(
                 items: [alpha, siri, beta, divider],
                 item: siri,
                 section: .hidden,
@@ -2077,9 +2061,9 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
             windowID: 76
         )
 
-        XCTAssertFalse(LayoutPlanner.isEligibleForSectionOrder(sound, section: .hidden))
-        XCTAssertTrue(LayoutPlanner.isEligibleForSectionOrder(network, section: .hidden))
-        XCTAssertTrue(LayoutPlanner.isEligibleForSectionOrder(sound, section: .visible))
+        XCTAssertFalse(RuntimeLayoutCoordinator.isEligibleForSectionOrder(sound, section: .hidden))
+        XCTAssertTrue(RuntimeLayoutCoordinator.isEligibleForSectionOrder(network, section: .hidden))
+        XCTAssertTrue(RuntimeLayoutCoordinator.isEligibleForSectionOrder(sound, section: .visible))
     }
 
     func testMacOS27DirectDragTargetsNeighborInsideAnchorSegment() {
@@ -2088,7 +2072,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         let clock = item(tag: .clock, x: 48, windowID: 82)
         let gamma = appItem(bundleID: "com.example.gamma", title: "Gamma", x: 72, windowID: 83)
 
-        let destination = LayoutPlanner.achievableDestination(
+        let destination = RuntimeLayoutCoordinator.achievableDestination(
             items: [alpha, beta, clock, gamma],
             item: alpha,
             desiredOrder: [beta.uniqueIdentifier, gamma.uniqueIdentifier, alpha.uniqueIdentifier]
@@ -2107,7 +2091,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         // physically orderable — all four items land in one segment. Alpha needs
         // to move from position 0 to between clock and gamma; `achievableDestination`
         // picks the first available right-hand neighbour (.leftOfItem(gamma)).
-        let destination = LayoutPlanner.achievableDestination(
+        let destination = RuntimeLayoutCoordinator.achievableDestination(
             items: [alpha, beta, clock, gamma],
             item: alpha,
             desiredOrder: [
@@ -2128,7 +2112,7 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         let visible = appItem(bundleID: "com.example.visible", title: "Visible", x: 48, windowID: 92)
 
         XCTAssertNil(
-            LayoutPlanner.dividerMoveDestination(
+            RuntimeLayoutCoordinator.dividerMoveDestination(
                 items: [divider, clock, visible],
                 sectionAssignment: [:],
                 controlItems: .init(hidden: divider, alwaysHidden: nil)

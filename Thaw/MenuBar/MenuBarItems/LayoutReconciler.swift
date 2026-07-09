@@ -7,6 +7,7 @@
 //  Licensed under the GNU GPLv3
 
 import CoreGraphics
+import PlatformRuntimeKit
 
 // MARK: - DesiredLayout
 
@@ -180,7 +181,7 @@ enum LayoutReconciler {
         // .fallbackToHidden guarantees a non-nil result for every section, so
         // the coalescing default is unreachable — it only keeps the signature
         // non-optional without a force-unwrap.
-        LayoutPlanner.sectionBoundaryDestination(
+        RuntimeLayoutCoordinator.sectionBoundaryDestination(
             for: section,
             controlItems: controlItems,
             missingAlwaysHidden: .fallbackToHidden

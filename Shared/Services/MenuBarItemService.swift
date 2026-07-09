@@ -7,6 +7,7 @@
 //  Licensed under the GNU GPLv3
 
 import Foundation
+import MenuBarModel
 
 enum MenuBarItemService {
     static let name = "com.stonerl.Thaw.MenuBarItemService"

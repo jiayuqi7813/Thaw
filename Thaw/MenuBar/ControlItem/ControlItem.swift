@@ -8,6 +8,8 @@
 
 import Cocoa
 import Combine
+import PlatformRuntimeKit
+import MenuBarModel
 
 // MARK: - ControlItem
 
@@ -16,44 +18,9 @@ import Combine
 final class ControlItem: NSObject {
     private let diagLog = DiagLog(category: "ControlItem")
 
-    /// An identifier for a control item.
-    enum Identifier: String, CaseIterable {
-        /// The identifier for the control item for the visible section.
-        case visible = "Thaw.ControlItem.Visible"
-        /// The identifier for the control item for the hidden section.
-        case hidden = "Thaw.ControlItem.Hidden"
-        /// The identifier for the control item for the always-hidden section.
-        case alwaysHidden = "Thaw.ControlItem.AlwaysHidden"
-
-        /// A tag for the control item with this identifier.
-        var tag: MenuBarItemTag {
-            switch self {
-            case .visible: .visibleControlItem
-            case .hidden: .hiddenControlItem
-            case .alwaysHidden: .alwaysHiddenControlItem
-            }
-        }
-
-        /// Returns the length associated with this identifier and
-        /// the given hiding state.
-        func length(for state: HidingState) -> CGFloat {
-            switch self {
-            case .visible:
-                Lengths.standard
-            case .hidden, .alwaysHidden:
-                switch state {
-                case .showSection:
-                    Lengths.standard
-                case .hideSection:
-                    // macOS 27 no longer reflows over-wide status items, so an
-                    // expanded divider just overflows off the right edge and
-                    // confuses section classification instead of hiding anything.
-                    // Keep it at standard width there.
-                    MenuBarBackendFactory.current.supportsLegacySectionHiding ? Lengths.expanded : Lengths.standard
-                }
-            }
-        }
-    }
+    /// An identifier for a control item. Extracted to
+    /// `MenuBarModel.ControlItemIdentifier`.
+    typealias Identifier = ControlItemIdentifier
 
     /// A hiding state for a control item.
     enum HidingState {
@@ -104,7 +71,7 @@ final class ControlItem: NSObject {
     }
 
     /// A namespace for control item lengths.
-    private enum Lengths {
+    fileprivate enum Lengths {
         static let standard: CGFloat = NSStatusItem.variableLength
         static let expanded: CGFloat = 10000
     }
@@ -550,7 +517,7 @@ final class ControlItem: NSObject {
             switch Self.sectionDividerPresentation(
                 state: state,
                 style: appState.settings.advanced.sectionDividerStyle,
-                supportsSectionHiding: MenuBarBackendFactory.current.supportsLegacySectionHiding
+                supportsSectionHiding: MenuBarBackendProvider.current.supportsLegacySectionHiding
             ) {
             case .hidden:
                 button.isEnabled = true
@@ -595,7 +562,7 @@ final class ControlItem: NSObject {
         }
 
         let animateLength = shouldAnimateNextVisibilityUpdate
-            && MenuBarBackendFactory.current.supportsLegacySectionHiding
+            && MenuBarBackendProvider.current.supportsLegacySectionHiding
             && (identifier == .hidden || identifier == .alwaysHidden)
             && !appState.isDraggingMenuBarItem
         shouldAnimateNextVisibilityUpdate = false
@@ -604,7 +571,7 @@ final class ControlItem: NSObject {
             constraint?.isActive = true
             setStatusItemLength(identifier.length(for: state), animated: animateLength)
 
-            let shouldUseSpacers = MenuBarBackendFactory.current.supportsLegacySectionHiding
+            let shouldUseSpacers = MenuBarBackendProvider.current.supportsLegacySectionHiding
                 && (identifier == .hidden || identifier == .alwaysHidden)
                 && state == .hideSection
             updateSpacerItems(forHiddenState: shouldUseSpacers)
@@ -1075,7 +1042,7 @@ final class ControlItem: NSObject {
                     s.desiredState = .showSection
                     s.updateControlItemState(for: nil)
                 }
-                menuBarManager.simpleItemHider?.show(.alwaysHidden)
+                menuBarManager.sectionController?.show(.alwaysHidden)
             } else {
                 diagLog.debug("performPrimaryAction: showAlwaysHidden — section found=\(menuBarManager.section(withName: .alwaysHidden) != nil), isEnabled=\(menuBarManager.section(withName: .alwaysHidden)?.isEnabled ?? false)")
             }
@@ -1088,9 +1055,9 @@ final class ControlItem: NSObject {
                     s.updateControlItemState(for: nil)
                 }
                 if makeVisible {
-                    menuBarManager.simpleItemHider?.show(.alwaysHidden)
+                    menuBarManager.sectionController?.show(.alwaysHidden)
                 } else {
-                    menuBarManager.simpleItemHider?.hideRevealedSections()
+                    menuBarManager.sectionController?.hideRevealedSections()
                     menuBarManager.iceBarPanel.close()
                 }
             } else {
@@ -1347,6 +1314,30 @@ final class ControlItem: NSObject {
     /// Opens the donate URL.
     @objc private func openDonateURL() {
         NSWorkspace.shared.open(Constants.donateURL)
+    }
+}
+
+// MARK: - ControlItem.Identifier (app-only additions)
+
+extension ControlItem.Identifier {
+    /// Returns the length associated with this identifier and
+    /// the given hiding state.
+    func length(for state: ControlItem.HidingState) -> CGFloat {
+        switch self {
+        case .visible:
+            ControlItem.Lengths.standard
+        case .hidden, .alwaysHidden:
+            switch state {
+            case .showSection:
+                ControlItem.Lengths.standard
+            case .hideSection:
+                // macOS 27 no longer reflows over-wide status items, so an
+                // expanded divider just overflows off the right edge and
+                // confuses section classification instead of hiding anything.
+                // Keep it at standard width there.
+                MenuBarBackendProvider.current.supportsLegacySectionHiding ? ControlItem.Lengths.expanded : ControlItem.Lengths.standard
+            }
+        }
     }
 }
 

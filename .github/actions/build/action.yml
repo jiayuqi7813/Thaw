@@ -5,6 +5,9 @@ inputs:
   apple-team-id:
     description: Apple Developer Team ID
     required: true
+  package-token:
+    description: GitHub token with read access to private Swift packages (PlatformRuntimeKit)
+    required: true
   project-name:
     description: Xcode project file name
     required: false
@@ -21,6 +24,16 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Authorize private Swift packages
+      shell: bash
+      env:
+        PACKAGE_TOKEN: ${{ inputs.package-token }}
+      run: |
+        set -euo pipefail
+        printf 'machine github.com\nlogin x-access-token\npassword %s\n' "$PACKAGE_TOKEN" > ~/.netrc
+        chmod 600 ~/.netrc
+        git config --global url."https://x-access-token:${PACKAGE_TOKEN}@github.com/".insteadOf "https://github.com/"
+
     - name: Cache SwiftPM
       uses: actions/cache@v5
       with:

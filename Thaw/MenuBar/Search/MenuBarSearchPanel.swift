@@ -9,6 +9,7 @@
 import Combine
 import Ifrit
 import SwiftUI
+import MenuBarModel
 
 extension EnvironmentValues {
     @Entry var menuBarSearchPanel: MenuBarSearchPanel?

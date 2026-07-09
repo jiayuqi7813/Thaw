@@ -8,6 +8,7 @@
 
 import AppKit
 import SwiftUI
+import MenuBarModel
 import UniformTypeIdentifiers
 
 struct ProfileSettingsPane: View {

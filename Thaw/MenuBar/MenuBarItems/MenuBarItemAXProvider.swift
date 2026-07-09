@@ -7,6 +7,7 @@
 //  Licensed under the GNU GPLv3
 
 import Cocoa
+import MenuBarModel
 
 /// Enumerates menu bar items through the Accessibility tree.
 ///

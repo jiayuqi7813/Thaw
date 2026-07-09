@@ -43,7 +43,7 @@ $(SRCROOT)/Thaw/MenuBar/HiddenSectionPatch/AXItemHider.swift
 $(SRCROOT)/Thaw/MenuBar/HiddenSectionPatch/AssessmentModeBackend.swift
 $(SRCROOT)/Thaw/MenuBar/HiddenSectionPatch/CGSWindowHider.swift
 $(SRCROOT)/Thaw/MenuBar/HiddenSectionPatch/ControlCenterModuleManager.swift
-$(SRCROOT)/Thaw/MenuBar/HiddenSectionPatch/SimpleItemHider.swift
+$(SRCROOT)/Thaw/MenuBar/HiddenSectionPatch/MenuBarSectionController.swift
 $(SRCROOT)/Thaw/MenuBar/HiddenSectionPatch/TrailingItemPositionStore.swift
 $(SRCROOT)/Thaw/MenuBar/IceBar/IceBar.swift
 $(SRCROOT)/Thaw/MenuBar/IceBar/IceBarColorManager.swift

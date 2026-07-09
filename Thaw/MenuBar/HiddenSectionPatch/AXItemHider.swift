@@ -8,6 +8,7 @@
 
 @preconcurrency import AXSwift
 import Cocoa
+import PlatformRuntimeKit
 
 /// Hides menu-bar items by setting `AXHidden` on their AX elements.
 ///
@@ -16,7 +17,7 @@ import Cocoa
 /// hosted menu-bar items. This hider is therefore gated out on macOS 27 and
 /// retained for older or future OS paths where AX hiding works.
 ///
-/// This is a *complement* to ``CGSWindowHider``. The CGS hider runs first
+/// This is a *complement* to ``RuntimeWindowController``. The CGS hider runs first
 /// (handles pre-27 macOS where per-item windows exist); this hider runs second
 /// and catches PIDs the CGS hider could not handle.
 @MainActor

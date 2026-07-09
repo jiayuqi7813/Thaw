@@ -9,6 +9,7 @@
 import Combine
 import CoreGraphics
 import SwiftUI
+import MenuBarModel
 
 /// The model for app-wide state.
 @MainActor

@@ -11,6 +11,7 @@ import CoreGraphics
 import Foundation
 import os.lock
 @preconcurrency import ScreenCaptureKit
+import MenuBarModel
 
 /// A namespace for screen capture operations.
 enum ScreenCapture {

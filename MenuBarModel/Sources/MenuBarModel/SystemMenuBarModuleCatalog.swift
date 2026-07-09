@@ -15,26 +15,26 @@ import Foundation
 /// governance matches a menu-extra title, assessment-index concealment matches
 /// the live `tag.title` — so both are recorded here rather than duplicated per
 /// subsystem.
-struct SystemMenuBarModule: Equatable {
+public struct SystemMenuBarModule: Equatable, Sendable {
     /// Stable identifier for diagnostics and tests; never used as a runtime
     /// match key.
-    let name: String
+    public let name: String
 
     /// Every `tag.title` that identifies this module for `MBSystemItemIdentifier`
     /// (assessment-index) concealment. Empty when the module has no index.
-    let assessmentTitleAliases: Set<String>
+    public let assessmentTitleAliases: Set<String>
 
     /// The module's `MBSystemItemIdentifier` raw value (0...8), or nil when the
     /// assessment allowlist can't address it individually (e.g. AirDrop, Focus).
-    let assessmentSystemItemID: Int?
+    public let assessmentSystemItemID: Int?
 
     /// The MenuBarAgent menu-extra title used as the Control Center governance
     /// key (e.g. `com.apple.menuextra.airdrop`), or nil when the module has no
     /// Control Center per-host preference.
-    let controlCenterMenuExtraTitle: String?
+    public let controlCenterMenuExtraTitle: String?
 
     /// The Control Center per-host preference key (e.g. `AirDrop`), or nil.
-    let controlCenterPrefKey: String?
+    public let controlCenterPrefKey: String?
 }
 
 // MARK: - SystemMenuBarModuleCatalog
@@ -43,7 +43,7 @@ struct SystemMenuBarModule: Equatable {
 /// new module means adding one ``SystemMenuBarModule`` here — the Control Center
 /// mapping (``ControlCenterModuleManager``) and the assessment-index mapping
 /// (``AssessmentModeBackend``) both derive from this list.
-enum SystemMenuBarModuleCatalog {
+public enum SystemMenuBarModuleCatalog {
     /// All known modules.
     ///
     /// Sources this catalog unifies:
@@ -54,7 +54,7 @@ enum SystemMenuBarModuleCatalog {
     ///     allowlist indices (battery … the primary BentoBox).
     ///
     /// Bluetooth and Wi-Fi appear in both, so they carry both sets of fields.
-    static let all: [SystemMenuBarModule] = [
+    public static let all: [SystemMenuBarModule] = [
         // Control-Center-governable modules (some also assessment-indexable).
         SystemMenuBarModule(
             name: "AirDrop",
@@ -152,7 +152,7 @@ enum SystemMenuBarModuleCatalog {
 
     /// Menu-extra title → Control Center per-host preference key, for every
     /// Control-Center-governable module.
-    static let controlCenterKeysByMenuExtraTitle: [String: String] = {
+    public static let controlCenterKeysByMenuExtraTitle: [String: String] = {
         var map = [String: String]()
         for module in all {
             if let menuExtra = module.controlCenterMenuExtraTitle, let prefKey = module.controlCenterPrefKey {
@@ -164,7 +164,7 @@ enum SystemMenuBarModuleCatalog {
 
     /// The `MBSystemItemIdentifier` raw value for the given live item title, or
     /// nil when no assessment-indexable module claims it.
-    static func assessmentSystemItemID(forTitle title: String) -> Int? {
+    public static func assessmentSystemItemID(forTitle title: String) -> Int? {
         for module in all where module.assessmentTitleAliases.contains(title) {
             return module.assessmentSystemItemID
         }
@@ -173,7 +173,7 @@ enum SystemMenuBarModuleCatalog {
 
     /// Canonical ``TrailingItemPreferredPositions`` key for a MenuBarAgent-hosted
     /// Apple module (e.g. `module:WiFi`).
-    static func trailingPositionsModuleKey(forTitle title: String) -> String {
+    public static func trailingPositionsModuleKey(forTitle title: String) -> String {
         "module:\(title)"
     }
 }

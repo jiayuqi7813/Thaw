@@ -8,6 +8,7 @@
 
 import Cocoa
 import Combine
+import MenuBarModel
 
 /// Manages per-display Thaw Bar configuration.
 ///

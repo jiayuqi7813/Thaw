@@ -15,6 +15,10 @@ build/
 plans/
 DerivedData/
 Sparkle
+MenuBarHost/.build/
+MenuBarHost/.swiftpm/
+MenuBarModel/.build/
+MenuBarModel/.swiftpm/
 ThawCtl/.build/
 xcode-skills
 xcuserdata/  

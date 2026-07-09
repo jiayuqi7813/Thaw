@@ -9,6 +9,7 @@
 import AppKit
 import Foundation
 import Security
+import MenuBarModel
 
 /// Handles settings manipulation via thaw:// URLs with whitelist-based security.
 @MainActor
@@ -450,7 +451,7 @@ enum SettingsURIHandler {
     /// - `itemID` is canonicalized directly via
     ///   ``MenuBarItemTag/canonicalPersistentIdentifier(_:)``.
     /// - `bundle` is resolved against the current `sectionAssignment` (the
-    ///   same map ``SimpleItemHider/setSection(_:identifier:)`` mutates) by
+    ///   same map ``MenuBarSectionController/setSection(_:identifier:)`` mutates) by
     ///   matching the `<bundleID>:` prefix of assigned identifiers. If the
     ///   bundle has zero or more than one assigned item, the request is
     ///   rejected as unresolvable/ambiguous rather than guessing.

@@ -14,6 +14,13 @@
 		7127A9FF2C4886D100D99DEF /* IfritStatic in Frameworks */ = {isa = PBXBuildFile; productRef = 7127A9FE2C4886D100D99DEF /* IfritStatic */; };
 		7168EE532E281CBC00FF9830 /* AXSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 7168EE522E281CBC00FF9830 /* AXSwift */; };
 		7188A68C2E27F9ED008F131D /* MenuBarItemService.xpc in Embed XPC Services */ = {isa = PBXBuildFile; fileRef = 7188A6832E27F9ED008F131D /* MenuBarItemService.xpc */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		D85602169B8B4308ACEB30A0 /* MenuBarModel in Frameworks */ = {isa = PBXBuildFile; productRef = D578D4A98E514566A18944B0 /* MenuBarModel */; };
+		D27A00012F40000000000001 /* PlatformRuntimeKit in Frameworks */ = {isa = PBXBuildFile; productRef = D27A00032F40000000000003 /* PlatformRuntimeKit */; };
+		D27A00022F40000000000002 /* PlatformRuntimeKit in Frameworks */ = {isa = PBXBuildFile; productRef = D27A00042F40000000000004 /* PlatformRuntimeKit */; };
+		E2C0FFEE2F2C000000000001 /* MenuBarModel in Frameworks */ = {isa = PBXBuildFile; productRef = E2C0FFEE2F2C000000000003 /* MenuBarModel */; };
+		E2C0FFEE2F2C000000000002 /* MenuBarHost in Frameworks */ = {isa = PBXBuildFile; productRef = E2C0FFEE2F2C000000000004 /* MenuBarHost */; };
+		E6A2198F9A73488581DC5B97 /* MenuBarHost in Frameworks */ = {isa = PBXBuildFile; productRef = EDF7E8FBA3834C8090E06B59 /* MenuBarHost */; };
+		F3B1A2C4D5E6F7A8B9C0D1E3 /* MenuBarModel in Frameworks */ = {isa = PBXBuildFile; productRef = C2D4E6A8B0C2D4E6A8B0C2D4 /* MenuBarModel */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -106,17 +113,24 @@
 				175061912B1543DD003144CD /* LaunchAtLogin in Frameworks */,
 				1787C4272B16890B002F50DF /* AXSwift in Frameworks */,
 				17F71BB52B880B4500905CBA /* CompactSlider in Frameworks */,
+				D85602169B8B4308ACEB30A0 /* MenuBarModel in Frameworks */,
+				E6A2198F9A73488581DC5B97 /* MenuBarHost in Frameworks */,
+				D27A00012F40000000000001 /* PlatformRuntimeKit in Frameworks */,
 			);
 		};
 		7188A6802E27F9ED008F131D /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
 				7168EE532E281CBC00FF9830 /* AXSwift in Frameworks */,
+				F3B1A2C4D5E6F7A8B9C0D1E3 /* MenuBarModel in Frameworks */,
 			);
 		};
 		E2TESTS0012F2C000000004 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
+				E2C0FFEE2F2C000000000001 /* MenuBarModel in Frameworks */,
+				E2C0FFEE2F2C000000000002 /* MenuBarHost in Frameworks */,
+				D27A00022F40000000000002 /* PlatformRuntimeKit in Frameworks */,
 			);
 		};
 /* End PBXFrameworksBuildPhase section */
@@ -173,6 +187,9 @@
 				170423D82B56DE78004A2549 /* Sparkle */,
 				17F71BB42B880B4500905CBA /* CompactSlider */,
 				7127A9FE2C4886D100D99DEF /* IfritStatic */,
+				D578D4A98E514566A18944B0 /* MenuBarModel */,
+				EDF7E8FBA3834C8090E06B59 /* MenuBarHost */,
+				D27A00032F40000000000003 /* PlatformRuntimeKit */,
 			);
 			productName = Ice;
 			productReference = 7166832A2A767E6A006ABF84 /* Thaw.app */;
@@ -196,6 +213,7 @@
 			name = MenuBarItemService;
 			packageProductDependencies = (
 				7168EE522E281CBC00FF9830 /* AXSwift */,
+				C2D4E6A8B0C2D4E6A8B0C2D4 /* MenuBarModel */,
 			);
 			productName = MenuBarItemService;
 			productReference = 7188A6832E27F9ED008F131D /* MenuBarItemService.xpc */;
@@ -218,6 +236,11 @@
 				E2TESTS0012F2C000000003 /* ThawTests */,
 			);
 			name = ThawTests;
+			packageProductDependencies = (
+				E2C0FFEE2F2C000000000003 /* MenuBarModel */,
+				E2C0FFEE2F2C000000000004 /* MenuBarHost */,
+				D27A00042F40000000000004 /* PlatformRuntimeKit */,
+			);
 			productName = ThawTests;
 			productReference = E2TESTS0012F2C000000001 /* ThawTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
@@ -277,6 +300,9 @@
 				170423D72B56DE78004A2549 /* XCRemoteSwiftPackageReference "Sparkle" */,
 				17F71BB32B880B4500905CBA /* XCRemoteSwiftPackageReference "CompactSlider" */,
 				7127A9FB2C4881BC00D99DEF /* XCRemoteSwiftPackageReference "Ifrit" */,
+				D27A00002F40000000000000 /* XCRemoteSwiftPackageReference "PlatformRuntimeKit" */,
+				A4E38A6A423944089D70B9BB /* XCLocalSwiftPackageReference "MenuBarModel" */,
+				AD2D675A051141C9B42279EC /* XCLocalSwiftPackageReference "MenuBarHost" */,
 			);
 			preferredProjectObjectVersion = 100;
 			productRefGroup = 7166832B2A767E6A006ABF84 /* Products */;
@@ -574,7 +600,7 @@
 				CURRENT_PROJECT_VERSION = 47;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "";
-				DEVELOPMENT_TEAM = 456BPWQ6U5;
+				DEVELOPMENT_TEAM = A7CKWF99ML;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -614,7 +640,7 @@
 				CURRENT_PROJECT_VERSION = 47;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "";
-				DEVELOPMENT_TEAM = 456BPWQ6U5;
+				DEVELOPMENT_TEAM = A7CKWF99ML;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -646,7 +672,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 47;
-				DEVELOPMENT_TEAM = 456BPWQ6U5;
+				DEVELOPMENT_TEAM = A7CKWF99ML;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -676,7 +702,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 47;
-				DEVELOPMENT_TEAM = 456BPWQ6U5;
+				DEVELOPMENT_TEAM = A7CKWF99ML;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -706,7 +732,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 31;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = 456BPWQ6U5;
+				DEVELOPMENT_TEAM = A7CKWF99ML;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = "1.3.0-beta.1";
@@ -726,7 +752,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 31;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = 456BPWQ6U5;
+				DEVELOPMENT_TEAM = A7CKWF99ML;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = "1.3.0-beta.1";
@@ -817,7 +843,26 @@
 				minimumVersion = 4.0.0;
 			};
 		};
+		D27A00002F40000000000000 /* XCRemoteSwiftPackageReference "PlatformRuntimeKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/thaw-app/PlatformRuntimeKit";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		A4E38A6A423944089D70B9BB /* XCLocalSwiftPackageReference "MenuBarModel" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = MenuBarModel;
+		};
+		AD2D675A051141C9B42279EC /* XCLocalSwiftPackageReference "MenuBarHost" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = MenuBarHost;
+		};
+/* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
 		170423D82B56DE78004A2549 /* Sparkle */ = {
@@ -849,6 +894,25 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 1787C4252B16890B002F50DF /* XCRemoteSwiftPackageReference "AXSwift" */;
 			productName = AXSwift;
+		};
+		D578D4A98E514566A18944B0 /* MenuBarModel */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A4E38A6A423944089D70B9BB /* XCLocalSwiftPackageReference "MenuBarModel" */;
+			productName = MenuBarModel;
+		};
+		C2D4E6A8B0C2D4E6A8B0C2D4 /* MenuBarModel */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A4E38A6A423944089D70B9BB /* XCLocalSwiftPackageReference "MenuBarModel" */;
+			productName = MenuBarModel;
+		};
+		E2C0FFEE2F2C000000000003 /* MenuBarModel */ = {isa = XCSwiftPackageProductDependency; package = A4E38A6A423944089D70B9BB /* XCLocalSwiftPackageReference "MenuBarModel" */; productName = MenuBarModel; };
+		D27A00032F40000000000003 /* PlatformRuntimeKit */ = {isa = XCSwiftPackageProductDependency; package = D27A00002F40000000000000 /* XCRemoteSwiftPackageReference "PlatformRuntimeKit" */; productName = PlatformRuntimeKit; };
+		D27A00042F40000000000004 /* PlatformRuntimeKit */ = {isa = XCSwiftPackageProductDependency; package = D27A00002F40000000000000 /* XCRemoteSwiftPackageReference "PlatformRuntimeKit" */; productName = PlatformRuntimeKit; };
+		E2C0FFEE2F2C000000000004 /* MenuBarHost */ = {isa = XCSwiftPackageProductDependency; package = AD2D675A051141C9B42279EC /* XCLocalSwiftPackageReference "MenuBarHost" */; productName = MenuBarHost; };
+		EDF7E8FBA3834C8090E06B59 /* MenuBarHost */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AD2D675A051141C9B42279EC /* XCLocalSwiftPackageReference "MenuBarHost" */;
+			productName = MenuBarHost;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

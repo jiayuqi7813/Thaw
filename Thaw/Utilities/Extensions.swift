@@ -9,6 +9,7 @@
 import Combine
 import os.lock
 import SwiftUI
+import MenuBarModel
 
 // MARK: - Bundle
 

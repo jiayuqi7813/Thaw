@@ -14,6 +14,24 @@ Targets are macOS 26+. macOS 27 "Golden Gate" support is in development on the
 
 - Xcode 26+ on macOS 26+.
 - CI pins `/Applications/Xcode_26.5.app`.
+- `PlatformRuntimeKit` is a **private** binary Swift package
+  (`thaw-app/PlatformRuntimeKit`). Xcode resolves the XCFramework from
+  GitHub Releases. Local kit work: check out the sibling repo and use
+  Xcode’s package override, or set `PRK_DEVELOPMENT=1` in that repo.
+
+## Menu Bar Packages
+
+OS policy is split so macOS 26 can be retired without cluttering the app:
+
+| Package | Path | Role |
+|---------|------|------|
+| `MenuBarModel` | `MenuBarModel/` | Shared domain + `MenuBarBackend` protocol/enums |
+| `MenuBarHost` | `MenuBarHost/` | `HostMenuBarBackend` (host-native / spatial policy) |
+| `PlatformRuntimeKit` | remote XCFramework | `RuntimeMenuBarBackend` + runtime controllers |
+
+Thaw selects the backend via `MenuBarBackendProvider` in
+`Thaw/MenuBar/Backends/`. The XCFramework dynamically links
+`MenuBarModel` (shipped as a dynamic library product from this repo).
 
 ## Build And Test
 
@@ -83,7 +101,7 @@ command chain. For debugging, or when `rtk` is unavailable, use the raw command.
 
 Before touching menu bar hiding code, preserve these invariants:
 
-- `SimpleItemHider.applyExperimentalWindowHiding` pass ordering is
+- `MenuBarSectionController.applyExperimentalWindowHiding` pass ordering is
   load-bearing: plist, then CGS, then AX, then position-lock. Reordering can
   regress the iStat ghosting fix.
 - macOS 27 hiding paths must stay gated to macOS 27+. macOS 26 keeps native

@@ -6,6 +6,7 @@
 //  Copyright (Thaw) © 2026 Toni Förster
 //  Licensed under the GNU GPLv3
 
+import PlatformRuntimeKit
 import SwiftUI
 
 struct LayoutBar: View {
@@ -55,7 +56,7 @@ struct LayoutBar: View {
         // interactive bar there — items without a cached image show a placeholder
         // but stay draggable. (≤26 keeps the blank-placeholder behavior, which
         // covers the genuine "items haven't loaded yet" case.)
-        if !MenuBarBackendFactory.current.supportsLegacySectionHiding {
+        if !MenuBarBackendProvider.current.supportsLegacySectionHiding {
             Representable(appState: appState, section: section)
         } else if imageCache.cacheFailed(for: section) {
             // Avoid flicker during rapid cache refreshes; hold a blank placeholder instead of the error text.

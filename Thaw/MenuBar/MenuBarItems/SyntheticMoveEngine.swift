@@ -7,6 +7,7 @@
 //  Licensed under the GNU GPLv3
 
 import Cocoa
+import PlatformRuntimeKit
 
 /// Executes MenuBarAgent reorders through a synthetic Command-drag.
 ///
@@ -72,7 +73,7 @@ struct SyntheticMoveEngine {
         for attempt in 1 ... max(1, maxAttempts) {
             guard !Task.isCancelled else { throw EventError.cannotComplete }
 
-            if LayoutPlanner.liveOrderSatisfiesDestination(
+            if RuntimeLayoutCoordinator.liveOrderSatisfiesDestination(
                 items: liveItems,
                 item: item,
                 destination: destination,
@@ -99,7 +100,7 @@ struct SyntheticMoveEngine {
 
             Self.diagLog.debug(
                 "Attempt \(attempt): \(item.logString) \(destination.logString); " +
-                    "order=\(LayoutPlanner.orderDescription(liveItems))"
+                    "order=\(RuntimeLayoutCoordinator.orderDescription(liveItems))"
             )
             await postCommandDrag(start, end, source)
             try await Task.sleep(for: Constants.MenuBarTuning.syntheticDragSettleDelay)
@@ -108,7 +109,7 @@ struct SyntheticMoveEngine {
             // source/target bounds. The old implementation performed separate
             // all-app walks for each endpoint and another for verification.
             liveItems = await enumerateItems()
-            if LayoutPlanner.liveOrderSatisfiesDestination(
+            if RuntimeLayoutCoordinator.liveOrderSatisfiesDestination(
                 items: liveItems,
                 item: item,
                 destination: destination,

@@ -8,6 +8,7 @@
 
 import AppKit
 import Foundation
+import MenuBarModel
 
 /// Briefly creates a virtual display when, on a single physical display, menu
 /// bar items remain unresolved (nil sourcePID), so the window server publishes

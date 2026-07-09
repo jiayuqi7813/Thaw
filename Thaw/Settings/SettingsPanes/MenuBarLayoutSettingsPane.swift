@@ -171,7 +171,7 @@ struct MenuBarLayoutSettingsPane: View {
             get: { appState.settings.advanced.enableExperimentalSystemItemHiding },
             set: { newValue in
                 appState.settings.advanced.enableExperimentalSystemItemHiding = newValue
-                appState.menuBarManager.simpleItemHider?.refresh()
+                appState.menuBarManager.sectionController?.refresh()
             }
         )
     }
@@ -225,7 +225,7 @@ struct MenuBarLayoutSettingsPane: View {
             get: { appState.settings.advanced.enableExperimentalOverflowPrevention },
             set: { newValue in
                 appState.settings.advanced.enableExperimentalOverflowPrevention = newValue
-                appState.menuBarManager.simpleItemHider?.refresh()
+                appState.menuBarManager.sectionController?.refresh()
             }
         )
     }
@@ -235,7 +235,7 @@ struct MenuBarLayoutSettingsPane: View {
             get: { appState.settings.advanced.enableExperimentalWindowHiding },
             set: { newValue in
                 appState.settings.advanced.enableExperimentalWindowHiding = newValue
-                appState.menuBarManager.simpleItemHider?.refresh()
+                appState.menuBarManager.sectionController?.refresh()
             }
         )
     }

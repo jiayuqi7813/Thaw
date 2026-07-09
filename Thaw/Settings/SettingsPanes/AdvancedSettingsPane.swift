@@ -38,7 +38,7 @@ struct AdvancedSettingsPane: View {
     }
 
     /// Whether to show the "hiding unsupported" warning: only relevant on
-    /// macOS 27+ (where `simpleItemHider` exists) and only when its backend
+    /// macOS 27+ (where `sectionController` exists) and only when its backend
     /// reports the private Assessment Mode API is unavailable.
     private var isHidingUnavailable: Bool {
         guard #available(macOS 27, *) else { return false }
@@ -46,7 +46,7 @@ struct AdvancedSettingsPane: View {
     }
 
     private func syncHidingAvailability() {
-        isHidingAvailable = menuBarManager.simpleItemHider?.isHidingAvailable ?? true
+        isHidingAvailable = menuBarManager.sectionController?.isHidingAvailable ?? true
     }
 
     var body: some View {
@@ -108,7 +108,7 @@ struct AdvancedSettingsPane: View {
             syncHidingAvailability()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            menuBarManager.simpleItemHider?.refreshHidingAvailability()
+            menuBarManager.sectionController?.refreshHidingAvailability()
             syncHidingAvailability()
         }
     }

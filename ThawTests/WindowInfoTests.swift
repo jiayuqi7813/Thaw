@@ -7,6 +7,7 @@
 //  Licensed under the GNU GPLv3
 
 @testable import Thaw
+import MenuBarModel
 import XCTest
 
 final class WindowInfoTests: XCTestCase {

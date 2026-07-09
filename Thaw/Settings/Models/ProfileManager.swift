@@ -9,6 +9,7 @@
 import Cocoa
 import Combine
 import Foundation
+import MenuBarModel
 
 @MainActor
 final class ProfileManager: ObservableObject {
@@ -620,7 +621,7 @@ final class ProfileManager: ObservableObject {
         } else {
             computedItemOrder
         }
-        // macOS 27 stores section membership in SimpleItemHider, not the legacy
+        // macOS 27 stores section membership in MenuBarSectionController, not the legacy
         // savedSectionOrder key. Mirror the curated cache snapshot so profiles
         // and `defaults read` reflect the full visible/hidden layout.
         let savedSectionOrder: [String: [String]] = if #available(macOS 27, *) {

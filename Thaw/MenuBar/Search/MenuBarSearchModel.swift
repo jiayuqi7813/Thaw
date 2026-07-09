@@ -9,6 +9,7 @@
 import Cocoa
 import Combine
 import Ifrit
+import MenuBarModel
 
 @MainActor
 final class MenuBarSearchModel: ObservableObject {

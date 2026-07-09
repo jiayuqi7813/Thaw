@@ -1,5 +1,5 @@
 //
-//  AssessmentModeBackendTests.swift
+//  RuntimeSessionControllerTests.swift
 //  Project: Thaw
 //
 //  Copyright (Ice) © 2023–2025 Jordan Baird
@@ -7,12 +7,13 @@
 //  Licensed under the GNU GPLv3
 
 @testable import Thaw
+import PlatformRuntimeKit
 import XCTest
 
 @MainActor
-final class AssessmentModeBackendTests: XCTestCase {
+final class RuntimeSessionControllerTests: XCTestCase {
     func testResolveConcealmentHidesBundleWhenNoSiblingVisible() {
-        let result = AssessmentModeBackend.resolveConcealment(
+        let result = RuntimeSessionController.resolveConcealment(
             sectionAssignment: ["hidden-item": .hidden],
             allItems: [],
             knownBundleIDs: ["hidden-item": "com.example.hidden"],
@@ -28,7 +29,7 @@ final class AssessmentModeBackendTests: XCTestCase {
             windowID: 1
         )
 
-        let result = AssessmentModeBackend.resolveConcealment(
+        let result = RuntimeSessionController.resolveConcealment(
             sectionAssignment: ["hidden-item": .hidden],
             allItems: [visible],
             knownBundleIDs: [
@@ -42,9 +43,9 @@ final class AssessmentModeBackendTests: XCTestCase {
     }
 
     func testResolveConcealmentNeverConcealsProtectedBundle() {
-        let protected = AssessmentModeBackend.protectedBundleIDs.first ?? "com.stonerl.Thaw"
+        let protected = RuntimeSessionController.protectedBundleIDs.first ?? "com.stonerl.Thaw"
 
-        let result = AssessmentModeBackend.resolveConcealment(
+        let result = RuntimeSessionController.resolveConcealment(
             sectionAssignment: ["hidden-item": .hidden],
             allItems: [],
             knownBundleIDs: ["hidden-item": protected],
@@ -56,7 +57,7 @@ final class AssessmentModeBackendTests: XCTestCase {
     }
 
     func testResolveConcealmentNeverConcealsDenylistedBundle() {
-        let result = AssessmentModeBackend.resolveConcealment(
+        let result = RuntimeSessionController.resolveConcealment(
             sectionAssignment: ["hidden-item": .hidden],
             allItems: [],
             knownBundleIDs: ["hidden-item": "com.example.denylisted"],
@@ -69,13 +70,13 @@ final class AssessmentModeBackendTests: XCTestCase {
 
     func testShouldReactivateFirstActivation() {
         XCTAssertTrue(
-            AssessmentModeBackend.shouldReactivate(
+            RuntimeSessionController.shouldReactivate(
                 handleIsNil: true,
                 concealedChanged: false,
                 systemItemsChanged: false,
                 newlyAppeared: false,
                 desiredAllowed: ["com.example.allowed"],
-                desiredSystemItems: AssessmentModeBackend.allSystemItems,
+                desiredSystemItems: RuntimeSessionController.allSystemItems,
                 desiredConcealed: ["com.example.hidden"],
                 previousConfig: nil,
                 lastFailed: nil,
@@ -87,13 +88,13 @@ final class AssessmentModeBackendTests: XCTestCase {
 
     func testShouldReactivateNoChangeSteadyState() {
         XCTAssertFalse(
-            AssessmentModeBackend.shouldReactivate(
+            RuntimeSessionController.shouldReactivate(
                 handleIsNil: false,
                 concealedChanged: false,
                 systemItemsChanged: false,
                 newlyAppeared: false,
                 desiredAllowed: ["com.example.allowed"],
-                desiredSystemItems: AssessmentModeBackend.allSystemItems,
+                desiredSystemItems: RuntimeSessionController.allSystemItems,
                 desiredConcealed: ["com.example.hidden"],
                 previousConfig: nil,
                 lastFailed: nil,
@@ -107,17 +108,17 @@ final class AssessmentModeBackendTests: XCTestCase {
         let now = ContinuousClock.now
 
         XCTAssertFalse(
-            AssessmentModeBackend.shouldReactivate(
+            RuntimeSessionController.shouldReactivate(
                 handleIsNil: false,
                 concealedChanged: true,
                 systemItemsChanged: false,
                 newlyAppeared: false,
                 desiredAllowed: ["com.example.allowed"],
-                desiredSystemItems: AssessmentModeBackend.allSystemItems,
+                desiredSystemItems: RuntimeSessionController.allSystemItems,
                 desiredConcealed: ["com.example.hidden"],
                 previousConfig: (
                     allowed: ["com.example.allowed"],
-                    systemItems: AssessmentModeBackend.allSystemItems,
+                    systemItems: RuntimeSessionController.allSystemItems,
                     concealed: ["com.example.hidden"],
                     at: now - .seconds(1)
                 ),
@@ -130,18 +131,18 @@ final class AssessmentModeBackendTests: XCTestCase {
 
     func testShouldReactivateRetriesAfterGenuineChange() {
         XCTAssertTrue(
-            AssessmentModeBackend.shouldReactivate(
+            RuntimeSessionController.shouldReactivate(
                 handleIsNil: false,
                 concealedChanged: true,
                 systemItemsChanged: false,
                 newlyAppeared: false,
                 desiredAllowed: ["com.example.allowed"],
-                desiredSystemItems: AssessmentModeBackend.allSystemItems,
+                desiredSystemItems: RuntimeSessionController.allSystemItems,
                 desiredConcealed: ["com.example.hidden"],
                 previousConfig: nil,
                 lastFailed: (
                     allowed: ["com.example.allowed"],
-                    systemItems: AssessmentModeBackend.allSystemItems.subtracting([0])
+                    systemItems: RuntimeSessionController.allSystemItems.subtracting([0])
                 ),
                 antiFlapWindow: .seconds(3),
                 now: ContinuousClock.now
@@ -151,18 +152,18 @@ final class AssessmentModeBackendTests: XCTestCase {
 
     func testShouldReactivateSuppressesIdenticalFailedConfig() {
         XCTAssertFalse(
-            AssessmentModeBackend.shouldReactivate(
+            RuntimeSessionController.shouldReactivate(
                 handleIsNil: false,
                 concealedChanged: true,
                 systemItemsChanged: false,
                 newlyAppeared: false,
                 desiredAllowed: ["com.example.allowed"],
-                desiredSystemItems: AssessmentModeBackend.allSystemItems,
+                desiredSystemItems: RuntimeSessionController.allSystemItems,
                 desiredConcealed: ["com.example.hidden"],
                 previousConfig: nil,
                 lastFailed: (
                     allowed: ["com.example.allowed"],
-                    systemItems: AssessmentModeBackend.allSystemItems
+                    systemItems: RuntimeSessionController.allSystemItems
                 ),
                 antiFlapWindow: .seconds(3),
                 now: ContinuousClock.now
@@ -171,17 +172,17 @@ final class AssessmentModeBackendTests: XCTestCase {
     }
 
     func testIsHidingAvailableMirrorsIsAvailableAtInit() {
-        let backend = AssessmentModeBackend()
+        let backend = RuntimeSessionController()
 
-        XCTAssertEqual(backend.isHidingAvailable, AssessmentModeBackend.isAvailable)
+        XCTAssertEqual(backend.isHidingAvailable, RuntimeSessionController.isAvailable)
     }
 
     func testRefreshAvailabilityReturnsCurrentIsAvailable() {
-        let backend = AssessmentModeBackend()
+        let backend = RuntimeSessionController()
 
         let refreshed = backend.refreshAvailability()
 
-        XCTAssertEqual(refreshed, AssessmentModeBackend.isAvailable)
-        XCTAssertEqual(backend.isHidingAvailable, AssessmentModeBackend.isAvailable)
+        XCTAssertEqual(refreshed, RuntimeSessionController.isAvailable)
+        XCTAssertEqual(backend.isHidingAvailable, RuntimeSessionController.isAvailable)
     }
 }

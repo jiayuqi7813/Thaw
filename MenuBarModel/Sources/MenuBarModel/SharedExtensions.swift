@@ -13,7 +13,7 @@ import Dispatch
 
 extension CGError {
     /// A string to use for logging purposes.
-    var logString: String {
+    public var logString: String {
         switch self {
         case .success: "\(rawValue): success"
         case .failure: "\(rawValue): failure"
@@ -35,7 +35,7 @@ extension CGError {
 
 extension CGPoint {
     /// Returns the distance between this point and another point.
-    func distance(to other: CGPoint) -> CGFloat {
+    public func distance(to other: CGPoint) -> CGFloat {
         hypot(x - other.x, y - other.y)
     }
 }
@@ -44,7 +44,7 @@ extension CGPoint {
 
 extension CGRect {
     /// The center point of the rectangle.
-    var center: CGPoint {
+    public var center: CGPoint {
         CGPoint(x: midX, y: midY)
     }
 }
@@ -54,7 +54,7 @@ extension CGRect {
 extension DispatchQueue {
     /// Creates and returns a new dispatch queue that targets the global
     /// system queue with the specified quality-of-service class.
-    static func targetingGlobal(
+    public static func targetingGlobal(
         label: String,
         qos: DispatchQoS.QoSClass = .default,
         attributes: Attributes = []

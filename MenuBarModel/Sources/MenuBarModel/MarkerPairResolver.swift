@@ -30,34 +30,47 @@ import Foundation
 /// resolver pairs icons with markers by width and synthesizes the
 /// sourcePID via injected lookups so the algorithm stays pure and
 /// testable.
-enum MarkerPairResolver {
+public enum MarkerPairResolver {
     /// A marker window candidate distilled from the items-only list.
     /// Markers carry bundle-ID-shaped titles (titles containing a ".")
     /// and serve as the recovery handle for paired on-screen icons.
-    struct Marker: Equatable {
-        let windowID: CGWindowID
-        let size: CGSize
-        let title: String
+    public struct Marker: Equatable, Sendable {
+        public let windowID: CGWindowID
+        public let size: CGSize
+        public let title: String
         /// CG-layer kCGWindowOwnerPID. Preferred PID source when it
         /// resolves to a bundle ID that is not Control Center or Thaw.
-        let owningPID: pid_t?
+        public let owningPID: pid_t?
+
+        public init(windowID: CGWindowID, size: CGSize, title: String, owningPID: pid_t?) {
+            self.windowID = windowID
+            self.size = size
+            self.title = title
+            self.owningPID = owningPID
+        }
     }
 
     /// A candidate icon: an on-screen menu bar window with a non-
     /// bundle-ID-shaped title that needs PID resolution.
-    struct UnresolvedIcon: Equatable {
-        let windowID: CGWindowID
-        let title: String?
-        let size: CGSize
+    public struct UnresolvedIcon: Equatable, Sendable {
+        public let windowID: CGWindowID
+        public let title: String?
+        public let size: CGSize
+
+        public init(windowID: CGWindowID, title: String?, size: CGSize) {
+            self.windowID = windowID
+            self.title = title
+            self.size = size
+        }
     }
 
     /// One successful resolution: which icon resolved to which PID,
     /// via which marker.
-    struct Resolution: Equatable {
-        let iconWindowID: CGWindowID
-        let resolvedPID: pid_t
-        let markerWindowID: CGWindowID
-        let markerTitle: String
+    public struct Resolution: Equatable, Sendable {
+        public let iconWindowID: CGWindowID
+        public let resolvedPID: pid_t
+        public let markerWindowID: CGWindowID
+        public let markerTitle: String
     }
 
     /// Pairs unresolved icons with same-size marker windows and
@@ -85,7 +98,7 @@ enum MarkerPairResolver {
     ///     runningApplications(withBundleIdentifier:).first?.
     ///     processIdentifier.
     /// - Returns: one Resolution per successfully resolved icon.
-    static func resolve(
+    public static func resolve(
         unresolvedIcons: [UnresolvedIcon],
         markers: [Marker],
         thawBundleID: String,
@@ -147,7 +160,7 @@ enum MarkerPairResolver {
     /// window qualifies as a marker if its title contains a dot
     /// (bundle-identifier shape), is not a Thaw control item, and is
     /// not the Thaw self-registration window.
-    static func extractMarkers(
+    public static func extractMarkers(
         from windows: [(windowID: CGWindowID, title: String?, size: CGSize, owningPID: pid_t?)],
         thawControlItemPrefix: String,
         thawBundleID: String
@@ -174,7 +187,7 @@ enum MarkerPairResolver {
     /// Item-38, ...). The single source of truth for that shape, shared by
     /// MenuBarItemTag.isControlCenterGenericItem and isCCHostedGenericSlot so the
     /// two can never drift apart.
-    static func isGenericControlCenterTitle(_ title: String?) -> Bool {
+    public static func isGenericControlCenterTitle(_ title: String?) -> Bool {
         guard let title else { return false }
         return title.wholeMatch(of: /Item-\d+/) != nil
     }
@@ -191,7 +204,7 @@ enum MarkerPairResolver {
     /// carry non-generic titles and are unaffected; a widget that publishes its
     /// own extras-bar child (The Clock, com.fabriceleyne.theclock) matches via
     /// that app, not Control Center, so it is never flagged here.
-    static func isCCHostedGenericSlot(
+    public static func isCCHostedGenericSlot(
         appBundleID: String?,
         windowTitle: String?,
         ccBundleID: String
@@ -212,7 +225,7 @@ enum MarkerPairResolver {
 /// candidate app's bundle identifier corroborates a loose spatial match,
 /// so a nearby unrelated neighbor can never be mis-attributed the way a
 /// bare distance threshold would allow.
-enum HostedItemOwnership {
+public enum HostedItemOwnership {
     /// Returns true when title and bundleID, treated as reverse-DNS
     /// strings, are in an owner relationship: they agree on at least two
     /// leading components, and either one is a full component-prefix of
@@ -226,7 +239,7 @@ enum HostedItemOwnership {
     /// neighbors such as com.wireguard.macos vs app.updatest.Updatest.
     /// Comparison is case-insensitive. Generic titles without a reverse-DNS
     /// shape (Item-0, empty) never qualify.
-    static func titleIndicatesOwner(_ title: String?, bundleID: String) -> Bool {
+    public static func titleIndicatesOwner(_ title: String?, bundleID: String) -> Bool {
         guard let title, !title.isEmpty else { return false }
         let titleParts = title.lowercased().split(separator: ".", omittingEmptySubsequences: false)
         let bundleParts = bundleID.lowercased().split(separator: ".", omittingEmptySubsequences: false)

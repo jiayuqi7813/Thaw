@@ -8,7 +8,9 @@
 
 import Cocoa
 import Combine
+import PlatformRuntimeKit
 import os.lock
+import MenuBarModel
 
 /// Cache for menu bar item images.
 final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
@@ -1383,7 +1385,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
             for: section
         )
         let revealedSection = await MainActor.run {
-            appState.menuBarManager.simpleItemHider?.revealedSection
+            appState.menuBarManager.sectionController?.revealedSection
         }
         let shouldUseFreshBounds = Self.shouldUseFreshBounds(
             for: section,
@@ -1687,7 +1689,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         usesVisibilityRestrictions: Bool,
         revealedSection: MenuBarSection.Name?
     ) -> [MenuBarSection.Name] {
-        return MenuBarBackendFactory
+        return MenuBarBackendProvider
             .backend(usesVisibilityRestrictions: usesVisibilityRestrictions)
             .capturableSections(
                 from: requestedSections,
@@ -1725,11 +1727,11 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         let scale = screen.backingScaleFactor
 
         // Concealed macOS 27 sections have only stale snapshot bounds, so crop
-        // them only while SimpleItemHider has actually revealed their live AX
+        // them only while MenuBarSectionController has actually revealed their live AX
         // elements. Their last-good captures remain cached after they hide.
-        let sectionsToCapture = MenuBarBackendFactory.current.capturableSections(
+        let sectionsToCapture = MenuBarBackendProvider.current.capturableSections(
             from: sections,
-            revealedSection: appState.menuBarManager.simpleItemHider?.revealedSection
+            revealedSection: appState.menuBarManager.sectionController?.revealedSection
         )
 
         MenuBarItemImageCache.diagLog.notice("updateCacheWithoutChecks: displayID=\(screen.displayID) backingScaleFactor=\(Double(scale)) hasNotch=\(screen.hasNotch) menuBarHeight=\(Double(screen.getMenuBarHeightEstimate())) sections=\(sectionsToCapture.map(\.logString))")
@@ -1776,11 +1778,11 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
             appState.itemManager.itemCache.managedItems.map(\.tag)
         )
 
-        // Plus the tags of items the hider has assigned (their snapshots). A
+        // Plus the tags of items the section controller has assigned (their snapshots). A
         // concealed item can briefly fall out of `managedItems` between conceal
         // and the snapshot re-add; without this it would lose its last-good icon
         // here and show a blank Hidden slot after a visible→hidden move.
-        let assignedSnapshotTags = appState.menuBarManager.simpleItemHider?.assignedSnapshotTags ?? []
+        let assignedSnapshotTags = appState.menuBarManager.sectionController?.assignedSnapshotTags ?? []
 
         await MainActor.run { [newImages, allValidTags, assignedSnapshotTags] in
             let beforeCount = images.count
@@ -1795,7 +1797,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
             // Remove images for items that no longer exist in the item cache,
             // but preserve images for items that have recent capture failures
             // (they may reappear shortly with a new window ID) and for
-            // hider-assigned items (concealed items mid-re-add).
+            // section-controller-assigned items (concealed items mid-re-add).
             // Use matchesIgnoringWindowID for non-system items so disk-loaded
             // entries are not incorrectly evicted when their windowID is nil.
             images = images.filter { key, _ in
@@ -1930,7 +1932,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         sections requestedSections: [MenuBarSection.Name],
         onlyMissingImages: Bool = true
     ) async {
-        guard appState?.menuBarManager.simpleItemHider != nil else {
+        guard appState?.menuBarManager.sectionController != nil else {
             return
         }
 
@@ -1945,7 +1947,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         // flickering as items appear and disappear twice).
         if sections.contains(.alwaysHidden) {
             await Task { @MainActor [weak self, weak appState] in
-                guard let self, let appState, let hider = appState.menuBarManager.simpleItemHider else {
+                guard let self, let appState, let controller = appState.menuBarManager.sectionController else {
                     return
                 }
 
@@ -1968,22 +1970,22 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                 guard !sectionsToCapture.isEmpty else { return }
                 guard !Task.isCancelled else { return }
 
-                let previousRevealedSection = hider.revealedSection
-                hider.show(.alwaysHidden, reconcileBoundary: false)
+                let previousRevealedSection = controller.revealedSection
+                controller.show(.alwaysHidden, reconcileBoundary: false)
                 defer {
                     switch Self.PrewarmRevealRestorationAction.resolve(
                         previous: previousRevealedSection,
-                        currentAfterShow: hider.revealedSection
+                        currentAfterShow: controller.revealedSection
                     ) {
                     case .hide:
-                        hider.hideRevealedSections()
+                        controller.hideRevealedSections()
                     case .noOp:
                         break
                     case let .show(section):
-                        hider.show(section, reconcileBoundary: false)
+                        controller.show(section, reconcileBoundary: false)
                     }
                 }
-                guard hider.revealedSection == .alwaysHidden else {
+                guard controller.revealedSection == .alwaysHidden else {
                     return
                 }
                 try? await Task.detached {
@@ -1996,7 +1998,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
 
         for section in sections {
             await Task { @MainActor [weak self, weak appState] in
-                guard let self, let appState, let hider = appState.menuBarManager.simpleItemHider else {
+                guard let self, let appState, let controller = appState.menuBarManager.sectionController else {
                     return
                 }
 
@@ -2033,9 +2035,9 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                     for item in itemsToCapture {
                         guard !Task.isCancelled else { return }
 
-                        hider.revealItemTemporarily(item.uniqueIdentifier)
+                        controller.revealItemTemporarily(item.uniqueIdentifier)
                         defer {
-                            hider.concealTemporarilyRevealedItem(item.uniqueIdentifier)
+                            controller.concealTemporarilyRevealedItem(item.uniqueIdentifier)
                         }
 
                         try? await Task.sleep(for: Constants.MenuBarTuning.layoutPrewarmCaptureSettle)
@@ -2077,22 +2079,22 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                     }
                     self.saveToDisk()
                 } else {
-                    let previousRevealedSection = hider.revealedSection
-                    hider.show(section, reconcileBoundary: false)
+                    let previousRevealedSection = controller.revealedSection
+                    controller.show(section, reconcileBoundary: false)
                     defer {
                         switch Self.PrewarmRevealRestorationAction.resolve(
                             previous: previousRevealedSection,
-                            currentAfterShow: hider.revealedSection
+                            currentAfterShow: controller.revealedSection
                         ) {
                         case .hide:
-                            hider.hideRevealedSections()
+                            controller.hideRevealedSections()
                         case .noOp:
                             break
                         case let .show(section):
-                            hider.show(section, reconcileBoundary: false)
+                            controller.show(section, reconcileBoundary: false)
                         }
                     }
-                    guard hider.revealedSection == section else {
+                    guard controller.revealedSection == section else {
                         MenuBarItemImageCache.diagLog.debug(
                             "prewarmConcealedImagesMacOS27: section not revealed for \(section.logString)"
                         )

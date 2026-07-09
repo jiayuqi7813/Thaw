@@ -8,6 +8,7 @@
 
 import Foundation
 import os.lock
+import MenuBarModel
 import XPC
 
 // MARK: - MenuBarItemService.Connection

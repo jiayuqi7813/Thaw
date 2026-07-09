@@ -8,6 +8,7 @@
 
 import Combine
 import SwiftUI
+import MenuBarModel
 
 // MARK: - IceBarPanel
 

@@ -8,6 +8,7 @@
 
 import CoreGraphics
 @testable import Thaw
+import MenuBarModel
 import XCTest
 
 /// Characterization tests for MarkerPairResolver, the helper that

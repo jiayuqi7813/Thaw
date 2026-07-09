@@ -6,45 +6,17 @@
 //  Copyright (Thaw) © 2026 Toni Förster
 //  Licensed under the GNU GPLv3
 
+import PlatformRuntimeKit
 import os
 import SwiftUI
+import MenuBarModel
 
 /// A representation of a section in a menu bar.
 @MainActor
 final class MenuBarSection {
-    /// The name of a menu bar section.
-    enum Name: String, CaseIterable, Codable {
-        case visible
-        case hidden
-        case alwaysHidden
-
-        /// A string to show in the interface.
-        var displayString: String {
-            switch self {
-            case .visible: "Visible"
-            case .hidden: "Hidden"
-            case .alwaysHidden: "Always-Hidden"
-            }
-        }
-
-        /// A string to use for logging purposes.
-        var logString: String {
-            switch self {
-            case .visible: "visible section"
-            case .hidden: "hidden section"
-            case .alwaysHidden: "always-hidden section"
-            }
-        }
-
-        /// Localized string key representation.
-        var localized: LocalizedStringKey {
-            switch self {
-            case .visible: LocalizedStringKey("Visible")
-            case .hidden: LocalizedStringKey("Hidden")
-            case .alwaysHidden: LocalizedStringKey("Always-Hidden")
-            }
-        }
-    }
+    /// The name of a menu bar section. Extracted to
+    /// `MenuBarModel.MenuBarSectionName`.
+    typealias Name = MenuBarSectionName
 
     /// The name of the section.
     let name: Name
@@ -197,7 +169,7 @@ final class MenuBarSection {
 
     /// A Boolean value that indicates whether the section is hidden.
     var isHidden: Bool {
-        guard MenuBarBackendFactory.current.supportsLegacySectionHiding else {
+        guard MenuBarBackendProvider.current.supportsLegacySectionHiding else {
             // macOS 27: the Thaw Bar can present a section while its items stay
             // concealed by the assertion. An open bar must count as "not hidden"
             // so a second Thaw-icon click toggles it closed instead of re-showing
@@ -212,7 +184,7 @@ final class MenuBarSection {
                     return false
                 }
             }
-            return appState?.menuBarManager.simpleItemHider?.isSectionHidden(name) ?? true
+            return appState?.menuBarManager.sectionController?.isSectionHidden(name) ?? true
         }
         if useIceBar {
             if controlItem.state == .showSection {
@@ -249,7 +221,7 @@ final class MenuBarSection {
         // the menu bar", but the layout bars still drive section assignment for
         // the assertion-based hiding. Enable Hidden always; Always-Hidden only
         // when the user opted into it.
-        if !MenuBarBackendFactory.current.supportsLegacySectionHiding {
+        if !MenuBarBackendProvider.current.supportsLegacySectionHiding {
             switch name {
             case .visible:
                 return true
@@ -351,7 +323,7 @@ final class MenuBarSection {
 
         menuBarManager.updateLastShowTimestamp()
 
-        guard MenuBarBackendFactory.current.supportsLegacySectionHiding else {
+        guard MenuBarBackendProvider.current.supportsLegacySectionHiding else {
             // macOS 27: honor the per-display Thaw Bar setting. When enabled,
             // present the popover instead of revealing the items inline in the
             // menu bar. The bar populates its glyphs from a brief reveal/capture
@@ -371,9 +343,9 @@ final class MenuBarSection {
                 return
             }
 
-            // Otherwise reveal the items in place via the assertion-based hider.
+            // Otherwise reveal the items in place via the assertion-based section controller.
             menuBarManager.iceBarPanel.close()
-            menuBarManager.simpleItemHider?.show(name)
+            menuBarManager.sectionController?.show(name)
             switch name {
             case .visible, .hidden:
                 for section in menuBarManager.sections {
@@ -495,7 +467,7 @@ final class MenuBarSection {
             guard
                 let appState,
                 !Task.isCancelled,
-                appState.menuBarManager.simpleItemHider?.revealedSection == revealedName
+                appState.menuBarManager.sectionController?.revealedSection == revealedName
             else {
                 return
             }
@@ -506,7 +478,7 @@ final class MenuBarSection {
                 skipSavedLayoutApply: true
             )
 
-            guard appState.menuBarManager.simpleItemHider?.revealedSection == revealedName else {
+            guard appState.menuBarManager.sectionController?.revealedSection == revealedName else {
                 return
             }
             await appState.imageCache.updateCacheWithoutChecks(sections: sections)
@@ -525,8 +497,8 @@ final class MenuBarSection {
             return
         }
 
-        if !MenuBarBackendFactory.current.supportsLegacySectionHiding {
-            menuBarManager.simpleItemHider?.hideRevealedSections()
+        if !MenuBarBackendProvider.current.supportsLegacySectionHiding {
+            menuBarManager.sectionController?.hideRevealedSections()
             menuBarManager.iceBarPanel.close()
             menuBarManager.showOnHoverAllowed = true
 

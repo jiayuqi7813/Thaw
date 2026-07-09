@@ -10,6 +10,7 @@
 import Cocoa
 import Combine
 import os
+import MenuBarModel
 
 /// A cache for the source process identifiers for menu bar item windows.
 ///
