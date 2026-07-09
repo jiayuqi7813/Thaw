@@ -40,9 +40,9 @@
     {
       "identity" : "platformruntimekit",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/thaw-app/PlatformRuntimeKit-Releases",
+      "location" : "https://github.com/thaw-app/prk-bin",
       "state" : {
-        "revision" : "810410432bbf845332800d29df4e808ee4bee304",
+        "revision" : "6cb33b93ff9b94032b408c0d37ec98b59a8e3a90",
         "version" : "0.0.1"
       }
     },
