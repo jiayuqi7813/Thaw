@@ -1,12 +1,12 @@
 {
-  "originHash" : "54fdd113039cd9de3c8023a6f1484f4f3113c687da50bb5bd45168d56e122908",
+  "originHash" : "3fa7b7e7c3648a0f0150b12c56c7cd90cc4bd23ab9733af5db9c528656a3d0d3",
   "pins" : [
     {
       "identity" : "axswift",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/stonerl/AXSwift",
       "state" : {
-        "revision" : "81dcc36aced905d6464cc25e35f8d13184bbf21c",
+        "revision" : "467ccb39efa69b6d9e49c9f3dc4482da65194781",
         "version" : "0.3.2"
       }
     },
@@ -35,6 +35,15 @@
       "state" : {
         "revision" : "a04ec1c363be3627734f6dad757d82f5d4fa8fcc",
         "version" : "1.1.0"
+      }
+    },
+    {
+      "identity" : "platformruntimekit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/thaw-app/PlatformRuntimeKit-Releases",
+      "state" : {
+        "revision" : "810410432bbf845332800d29df4e808ee4bee304",
+        "version" : "0.0.1"
       }
     },
     {
