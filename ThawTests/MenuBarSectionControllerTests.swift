@@ -26,6 +26,7 @@ final class MenuBarSectionControllerTests: XCTestCase {
         private(set) var markExternallyTornDownCallCount = 0
         var applyResult = false
         var isHidingAvailable = true
+        var isHolding = true
 
         func apply(sectionAssignment _: [String: MenuBarSection.Name], allItems _: [MenuBarItem]) -> Bool {
             applyCallCount += 1
@@ -186,11 +187,11 @@ final class MenuBarSectionControllerTests: XCTestCase {
         }
     }
 
-    private var backend: FakeRuntimeSessionController!
-    private var ccModuleManager: FakeRuntimeModuleController!
-    private var cgsWindowHider: FakeRuntimeWindowController!
-    private var axItemHider: FakeAXItemHider!
-    private var positionStore: FakeRuntimePreferenceStore!
+    private var backend = FakeRuntimeSessionController()
+    private var ccModuleManager = FakeRuntimeModuleController()
+    private var cgsWindowHider = FakeRuntimeWindowController()
+    private var axItemHider = FakeAXItemHider()
+    private var positionStore = FakeRuntimePreferenceStore()
 
     override func setUp() {
         super.setUp()
@@ -210,6 +211,80 @@ final class MenuBarSectionControllerTests: XCTestCase {
             axItemHider: axItemHider,
             positionStore: positionStore
         )
+    }
+
+    func testRecoverySnapshotUsesProvidedLiveItemsWithoutAXRefresh() {
+        let controlled = MenuBarItem(
+            tag: .appItem(bundleID: "com.test.hidden", title: "Hidden"),
+            windowID: 41,
+            ownerPID: 100,
+            sourcePID: 100,
+            bounds: CGRect(x: 120, y: 0, width: 24, height: 22),
+            title: "Hidden",
+            isOnScreen: true
+        )
+        let visible = MenuBarItem(
+            tag: .appItem(bundleID: "com.test.visible", title: "Visible"),
+            windowID: 42,
+            ownerPID: 101,
+            sourcePID: 101,
+            bounds: CGRect(x: 150, y: 0, width: 24, height: 22),
+            title: "Visible",
+            isOnScreen: true
+        )
+        let controlledIdentifiers = Set([controlled.uniqueIdentifier])
+
+        let exposed = MenuBarSectionController.makeRecoverySnapshot(
+            items: [controlled, visible],
+            controlledIdentifiers: controlledIdentifiers,
+            screenCount: 2
+        )
+        let concealed = MenuBarSectionController.makeRecoverySnapshot(
+            items: [visible],
+            controlledIdentifiers: controlledIdentifiers,
+            screenCount: 2
+        )
+
+        XCTAssertFalse(exposed.isControlledHidden)
+        XCTAssertTrue(concealed.isControlledHidden)
+        XCTAssertEqual(concealed.screenCount, 2)
+        XCTAssertNotEqual(exposed.itemSignature, concealed.itemSignature)
+    }
+
+    func testRecoverySnapshotChangesWhenCachedGeometryMoves() {
+        let original = MenuBarItem(
+            tag: .appItem(bundleID: "com.test.visible", title: "Visible"),
+            windowID: 42,
+            ownerPID: 101,
+            sourcePID: 101,
+            bounds: CGRect(x: 150, y: 0, width: 24, height: 22),
+            title: "Visible",
+            isOnScreen: true
+        )
+        let moved = MenuBarItem(
+            tag: original.tag,
+            windowID: original.windowID,
+            ownerPID: original.ownerPID,
+            sourcePID: original.sourcePID,
+            bounds: CGRect(x: 180, y: 0, width: 24, height: 22),
+            title: original.title,
+            isOnScreen: true
+        )
+
+        let before = MenuBarSectionController.makeRecoverySnapshot(
+            items: [original],
+            controlledIdentifiers: [],
+            screenCount: 1
+        )
+        let after = MenuBarSectionController.makeRecoverySnapshot(
+            items: [moved],
+            controlledIdentifiers: [],
+            screenCount: 1
+        )
+
+        XCTAssertNotEqual(before.itemSignature, after.itemSignature)
+        XCTAssertFalse(before.isControlledHidden)
+        XCTAssertFalse(after.isControlledHidden)
     }
 
     func testSurgicalHidersRunInOrder_CGSThenAX() {

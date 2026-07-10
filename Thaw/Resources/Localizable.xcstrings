@@ -1,30 +1,6 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "Active profile" : {
-      "comment" : "Picker option: save spacing changes to the active profile only when relaunch confirmations are disabled."
-    },
-    "All profiles" : {
-      "comment" : "Picker option: save spacing changes to every profile when relaunch confirmations are disabled."
-    },
-    "Apply menu bar spacing change?" : {
-      "comment" : "Title of the just-in-time confirmation shown before a display transition relaunches menu bar apps to apply new spacing."
-    },
-    "Before a display change or spacing edit relaunches your menu bar apps, Thaw asks you to confirm. Turn this off to apply spacing changes and relaunch apps without confirmation." : {
-      "comment" : "Annotation for the Confirm before relaunching apps toggle in the Displays pane."
-    },
-    "Confirm before relaunching apps" : {
-      "comment" : "Toggle in the Displays pane controlling whether spacing changes ask for confirmation before relaunching menu bar apps."
-    },
-    "Don't ask again" : {
-      "comment" : "Suppression checkbox on the spacing relaunch confirmation; disables future confirmations."
-    },
-    "When a profile is active, choose whether spacing changes save to just the active profile or to every profile." : {
-      "comment" : "Annotation for the profile-target picker shown when relaunch confirmations are disabled."
-    },
-    "Without confirmation, save spacing to" : {
-      "comment" : "Label for the picker choosing which profiles receive a spacing change when relaunch confirmations are disabled."
-    },
     "(no script selected)" : {
       "comment" : "A placeholder displayed in the \"Path\" column of a hook row when no script is selected.",
       "localizations" : {
@@ -143,6 +119,9 @@
           }
         }
       }
+    },
+    "%@" : {
+
     },
     "%@ %@ Section" : {
       "comment" : "A menu item title that toggles the visibility of a section in the menu bar. The argument is the name of the section.",
@@ -381,9 +360,6 @@
           }
         }
       }
-    },
-    "%@ can work in a limited mode without Screen Recording." : {
-
     },
     "%@ can work in a limited mode without this permission." : {
       "comment" : "A callout box that explains that the app can work in a limited mode without a particular permission.",
@@ -2803,6 +2779,9 @@
         }
       }
     },
+    "Accessibility is required to continue." : {
+
+    },
     "Acknowledgements" : {
       "comment" : "The button that opens the acknowledgements page.",
       "localizations" : {
@@ -3886,8 +3865,8 @@
         }
       }
     },
-    "Almost there! %@ needs the permissions below to manage your menu bar." : {
-      "comment" : "Subtitle on the permissions screen reassuring the user they're nearly done. The argument is the name of the app."
+    "Allows items such as Clock, Control Center, and Siri to be moved into hidden sections." : {
+
     },
     "Always show hidden items" : {
       "comment" : "A toggle that allows users to configure whether hidden menu bar items should always be visible in the native menu bar on a particular display.",
@@ -4367,6 +4346,7 @@
     },
     "Always-Hidden" : {
       "comment" : "Localized string key for the \"Always-Hidden\" menu bar section.",
+      "extractionState" : "stale",
       "localizations" : {
         "cs" : {
           "stringUnit" : {
@@ -7717,6 +7697,7 @@
     },
     "Back" : {
       "comment" : "A button that navigates back to the previous settings section.",
+      "extractionState" : "stale",
       "localizations" : {
         "cs" : {
           "stringUnit" : {
@@ -8187,6 +8168,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "背景 - 淺色外觀"
+          }
+        }
+      }
+    },
+    "Based on Thaw %@ (%@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Based on Thaw %1$@ (%2$@)"
           }
         }
       }
@@ -11170,6 +11161,9 @@
         }
       }
     },
+    "Clear search" : {
+
+    },
     "Click an empty area of the menu bar to show hidden menu bar items." : {
       "comment" : "Toggle that allows the user to enable or disable the feature of showing hidden menu bar items by clicking on an empty area of the menu bar.",
       "localizations" : {
@@ -11409,6 +11403,12 @@
       }
     },
     "Click menu bar items on your behalf, such as when using the search bar." : {
+
+    },
+    "Click to hide" : {
+
+    },
+    "Click to show" : {
 
     },
     "Columns" : {
@@ -11767,17 +11767,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "偵測到衝突的選單列管理工具"
-          }
-        }
-      }
-    },
-    "When a display transition requires Thaw to apply a different menu bar spacing, Thaw relaunches apps with menu bar items. Relaunching apps may cause unsaved input, progress, or transient app state to be lost." : {
-      "comment" : "A warning that a display transition requiring a different menu bar spacing relaunches menu bar apps, which can lose unsaved state.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "When a display transition requires Thaw to apply a different menu bar spacing, Thaw relaunches apps with menu bar items. Relaunching apps may cause unsaved input, progress, or transient app state to be lost."
           }
         }
       }
@@ -12615,6 +12604,9 @@
         }
       }
     },
+    "Current slide" : {
+
+    },
     "Custom" : {
       "comment" : "Placeholder name for a custom control item image set.",
       "localizations" : {
@@ -13447,6 +13439,9 @@
           }
         }
       }
+    },
+    "Detect menu bar items on your Mac and where they're positioned." : {
+
     },
     "Detect the menu bar items on your Mac and where they're positioned." : {
 
@@ -17623,7 +17618,7 @@
         }
       }
     },
-    "Experimental support for macOS 27 beta - some features may be unavailable or unreliable" : {
+    "Experimental. May cause layout issues on some setups. Only affects macOS 27+ notched displays." : {
 
     },
     "Export" : {
@@ -18224,6 +18219,9 @@
     "Find menu bar items visually when searching." : {
 
     },
+    "Finder" : {
+
+    },
     "Focus" : {
       "comment" : "Localized string key for the \"Focus\" case in the `RehideStrategy` enum.",
       "localizations" : {
@@ -18345,6 +18343,7 @@
     },
     "Forward" : {
       "comment" : "A button that navigates to the next settings pane.",
+      "extractionState" : "stale",
       "localizations" : {
         "cs" : {
           "stringUnit" : {
@@ -18461,9 +18460,6 @@
           }
         }
       }
-    },
-    "Found existing settings. Icon positions can't be restored." : {
-
     },
     "Full" : {
       "comment" : "Localized string key for the menu bar shape kind that takes up the full menu bar.",
@@ -19421,6 +19417,9 @@
         }
       }
     },
+    "Go to slide" : {
+
+    },
     "Gradient" : {
       "comment" : "Localized string key representation of the `MenuBarTintKind.gradient` case.",
       "localizations" : {
@@ -19540,6 +19539,9 @@
         }
       }
     },
+    "Grant Access" : {
+
+    },
     "Grant Permission" : {
       "comment" : "A button label that requests permission from the user.",
       "localizations" : {
@@ -19658,6 +19660,9 @@
           }
         }
       }
+    },
+    "Granted" : {
+
     },
     "Grid" : {
       "comment" : "Label for the grid layout mode.",
@@ -19780,6 +19785,7 @@
     },
     "Hidden" : {
       "comment" : "Localized string key for the \"Hidden\" menu bar section.",
+      "extractionState" : "stale",
       "localizations" : {
         "cs" : {
           "stringUnit" : {
@@ -20254,8 +20260,17 @@
         }
       }
     },
+    "Hide macOS system items" : {
+
+    },
     "Hide or show menu bar items on demand. Drag items between sections, keep your favorites always visible, and tuck the rest away in the always-hidden section." : {
       "comment" : "Description of the menu bar management onboarding slide."
+    },
+    "Hide third-party items off-screen (experimental)" : {
+
+    },
+    "Hides app items by moving their windows off-screen instead of using the system restriction, so hiding one item no longer makes dynamic neighbors like iStat Menus flicker or disappear." : {
+
     },
     "Hiding is unavailable on this macOS build (the required system capability was not found). Reordering still works; hiding does not." : {
       "comment" : "Warning shown in Advanced settings when the private Assessment Mode hiding API is unavailable on macOS 27+.",
@@ -22065,6 +22080,7 @@
     },
     "Import failed. You can configure settings manually." : {
       "comment" : "A message displayed when the user attempts to import their Ice settings but fails. It instructs the user to configure settings manually.",
+      "extractionState" : "stale",
       "localizations" : {
         "cs" : {
           "stringUnit" : {
@@ -22181,9 +22197,6 @@
           }
         }
       }
-    },
-    "Import from Ice" : {
-      "comment" : "Title of the box offering to import settings from Ice, the original app."
     },
     "Import Profile(s)" : {
       "comment" : "A button label that imports one or more profiles.",
@@ -22306,6 +22319,7 @@
     },
     "Import Settings" : {
       "comment" : "A heading displayed above the import settings section.",
+      "extractionState" : "stale",
       "localizations" : {
         "cs" : {
           "stringUnit" : {
@@ -22425,6 +22439,7 @@
     },
     "Imported" : {
       "comment" : "A button that is disabled and shows \"Imported\" when the user has successfully imported their settings.",
+      "extractionState" : "stale",
       "localizations" : {
         "cs" : {
           "stringUnit" : {
@@ -22544,6 +22559,7 @@
     },
     "Imported %lld settings successfully." : {
       "comment" : "A success message shown after importing settings from Ice. The argument is the number of settings imported.",
+      "extractionState" : "stale",
       "localizations" : {
         "cs" : {
           "stringUnit" : {
@@ -22660,6 +22676,18 @@
           }
         }
       }
+    },
+    "Include always-hidden section in search" : {
+
+    },
+    "Include hidden section in search" : {
+
+    },
+    "Include visible section in search" : {
+
+    },
+    "Install Thaw straight from Droppy's Droplets and it stays updated automatically, or toggle hidden items and search your menu bar without leaving the keyboard, right from Raycast." : {
+
     },
     "Items are arranged in a grid with multiple columns." : {
       "comment" : "A description of the grid layout.",
@@ -23137,6 +23165,9 @@
         }
       }
     },
+    "Items were moved to the Visible section." : {
+
+    },
     "Keep search" : {
       "comment" : "A toggle to keep a search query open.",
       "localizations" : {
@@ -23612,6 +23643,9 @@
           }
         }
       }
+    },
+    "Layout reset. Items were moved to the Always Hidden section." : {
+
     },
     "Layout reset. Items were moved to the Hidden section." : {
       "comment" : "A message displayed after successfully resetting the menu bar layout.",
@@ -26472,9 +26506,6 @@
         }
       }
     },
-    "Menu bar support on macOS 27 is experimental: hiding works through a private system API and some features may be unreliable." : {
-
-    },
     "Modified: %@" : {
       "comment" : "A sublabel within the profile list showing when a profile was last modified.",
       "localizations" : {
@@ -27192,6 +27223,12 @@
         }
       }
     },
+    "Moves every movable item except the %@ icon to the chosen section." : {
+
+    },
+    "Moves every movable item except the %@ icon to the selected section — just like a fresh install." : {
+
+    },
     "Never" : {
       "comment" : "Text displayed in the \"Last update check\" section of the about settings pane, indicating that the last update check date is unknown.",
       "localizations" : {
@@ -27549,6 +27586,9 @@
         }
       }
     },
+    "No analytics usage tracking" : {
+
+    },
     "No items in this section" : {
       "comment" : "A message displayed when a section of the Ice Bar has no items.",
       "localizations" : {
@@ -27670,6 +27710,9 @@
     },
     "No menu bar items available" : {
       "comment" : "Text shown in the per-item hotkeys list when there are no menu bar items to assign a hotkey to."
+    },
+    "No network requests; everything stays on your Mac" : {
+
     },
     "No profile selected" : {
       "comment" : "Subtitle of the display representation of the ThawFocusFilter intent when no profile is selected.",
@@ -28029,9 +28072,7 @@
       }
     },
     "No settings found" : {
-      "comment" : "Text shown in the settings sidebar search when no settings match the search query.",
-      "localizations" : {
-      }
+      "comment" : "Text shown in the settings sidebar search when no settings match the search query."
     },
     "No shape kind selected" : {
       "comment" : "A message displayed when the user hasn't selected a shape kind for the menu bar.",
@@ -29223,6 +29264,9 @@
         }
       }
     },
+    "Note: When Thaw Bar is off, hidden Clock, Control Center, and Siri stay anchored at the right side of the layout. You can still change whether they are visible or hidden." : {
+
+    },
     "Off" : {
       "comment" : "A label for the icon refresh rate when it is set to 0.",
       "localizations" : {
@@ -29460,6 +29504,12 @@
           }
         }
       }
+    },
+    "On macOS 27, some items can be reordered but not yet hidden. Native macOS items such as Clock, Control Center, and Siri stay visible unless system item hiding is enabled, and a few MenuBarAgent modules — like AirDrop and Sound — may also be restricted. Apps on Thaw's hiding denylist share the same restriction. You can still rearrange them in the Visible section." : {
+
+    },
+    "On notched displays, macOS may collapse items behind a chevron when the menu bar is full. This writes hidden items' position weights to extreme values so the native overflow collapses them first, keeping visible items on screen." : {
+
     },
     "onboarding.mockup.management.hide" : {
       "extractionState" : "manual",
@@ -30028,6 +30078,12 @@
     "Open menu bar items" : {
       "comment" : "A disclosure group label in the hotkeys settings pane that expands the list of per-item hotkeys."
     },
+    "Open source (GPL); you can audit exactly what it does" : {
+
+    },
+    "Optional" : {
+
+    },
     "Other" : {
       "comment" : "Section title for advanced settings related to other functionality.",
       "localizations" : {
@@ -30143,16 +30199,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "其他"
-          }
-        }
-      }
-    },
-    "Page %lld of %lld" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Page %1$lld of %2$lld"
           }
         }
       }
@@ -30755,6 +30801,12 @@
         }
       }
     },
+    "Press ⌃ Space" : {
+
+    },
+    "Prevent native menu bar overflow hiding (experimental)" : {
+
+    },
     "Profile" : {
       "comment" : "Title of the parameter in the \"Set Menu Bar Profile\" focus filter.",
       "localizations" : {
@@ -31233,6 +31285,7 @@
     },
     "Quit" : {
       "comment" : "A button label that quits the application.",
+      "extractionState" : "stale",
       "localizations" : {
         "cs" : {
           "stringUnit" : {
@@ -31707,6 +31760,9 @@
         }
       }
     },
+    "Rehide interval" : {
+
+    },
     "Remove %@ from whitelist" : {
       "comment" : "A label for a button that removes an app from the whitelist. The argument is the name of the app.",
       "localizations" : {
@@ -32063,6 +32119,9 @@
           }
         }
       }
+    },
+    "Replay Onboarding" : {
+
     },
     "Report a Bug" : {
       "comment" : "A button that opens a web page where users can report bugs.",
@@ -33018,6 +33077,7 @@
     },
     "Reset Layout" : {
       "comment" : "A button label that resets the menu bar layout.",
+      "extractionState" : "stale",
       "localizations" : {
         "cs" : {
           "stringUnit" : {
@@ -33134,6 +33194,9 @@
           }
         }
       }
+    },
+    "Reset Layout…" : {
+
     },
     "Reset Menu Bar Appearance" : {
       "comment" : "The title of an alert that appears when the user chooses to reset the appearance of the menu bar.",
@@ -33375,6 +33438,7 @@
     },
     "Reset menu bar layout?" : {
       "comment" : "An alert title that asks the user to confirm resetting the menu bar layout.",
+      "extractionState" : "stale",
       "localizations" : {
         "cs" : {
           "stringUnit" : {
@@ -33491,6 +33555,12 @@
           }
         }
       }
+    },
+    "Reset to Always Hidden" : {
+
+    },
+    "Reset to Hidden" : {
+
     },
     "Reset to the default spacing" : {
       "comment" : "A button that resets the menu bar item spacing to its default value.",
@@ -33611,8 +33681,15 @@
         }
       }
     },
+    "Reset to Visible" : {
+
+    },
+    "Reset to…" : {
+
+    },
     "Resets dividers and moves every movable item except the %@ icon to hidden — just like a fresh install." : {
       "comment" : "A description of what resetting the menu bar layout does.",
+      "extractionState" : "stale",
       "localizations" : {
         "cs" : {
           "stringUnit" : {
@@ -33851,6 +33928,7 @@
     },
     "Restores divider defaults and moves every movable item except the %@ icon to Hidden. Use this if the layout looks broken or items won’t load." : {
       "comment" : "A message displayed in an alert when the user confirms resetting the menu bar layout.",
+      "extractionState" : "stale",
       "localizations" : {
         "cs" : {
           "stringUnit" : {
@@ -34802,6 +34880,9 @@
       }
     },
     "Sample colors from the menu bar to adjust its tint and appearance." : {
+
+    },
+    "Sample colors from the menu bar to adjust tint." : {
 
     },
     "Save Current" : {
@@ -36116,10 +36197,11 @@
         }
       }
     },
+    "Search section ordering" : {
+
+    },
     "Search settings…" : {
-      "comment" : "A placeholder text for the search field in the settings window sidebar.",
-      "localizations" : {
-      }
+      "comment" : "A placeholder text for the search field in the settings window sidebar."
     },
     "Section divider style" : {
       "comment" : "Label for a picker that lets the user choose the style of divider to use between menu bar sections.",
@@ -38867,9 +38949,6 @@
         }
       }
     },
-    "Skip" : {
-      "comment" : "Label for the button that skips ahead to the final onboarding slide."
-    },
     "Smart" : {
       "comment" : "Localized string key for the \"Smart\" rehide strategy.",
       "localizations" : {
@@ -40179,11 +40258,17 @@
         }
       }
     },
-    "Thaw gives you complete control over your menu bar — hide clutter, customize the look, and automate your workflow." : {
-      "comment" : "Description of the welcome onboarding slide."
+    "Temporarily shown item delay" : {
+
     },
-    "Thaw needs a couple of permissions to manage your menu bar. You can grant them now, or skip and grant them later from Settings." : {
-      "comment" : "Description of the permissions onboarding slide."
+    "Thaw is ready to manage your menu bar." : {
+
+    },
+    "Thaw needs the permissions below to manage your menu bar. Nothing leaves your Mac; everything runs locally." : {
+
+    },
+    "Thaw tucks the clutter away and keeps the icons you care about front and center. Click the icon anytime to show or hide them." : {
+
     },
     "The %@ Bar is aligned to the left edge of the display." : {
       "comment" : "A label that describes the location of the \\(Constants.displayName) Bar on a display.",
@@ -41018,6 +41103,9 @@
         }
       }
     },
+    "The amount of time to wait before hiding temporarily shown menu bar items." : {
+
+    },
     "The amount of time to wait before showing a tooltip over a menu bar item." : {
       "comment" : "Label for a slider that controls the delay before showing a tooltip over a menu bar item.",
       "localizations" : {
@@ -41493,6 +41581,9 @@
           }
         }
       }
+    },
+    "This is experimental and uses private window APIs. Hidden items are restored when Thaw quits." : {
+
     },
     "This will overwrite the settings of %lld display with the global template. If the active display's spacing changes, Thaw will relaunch each app with a menu bar item. Relaunching apps may cause unsaved input, progress, or transient app state to be lost." : {
       "comment" : "A confirmation message that appears when the user is prompted to apply a global template. The argument is the number of displays that will be affected.",
@@ -45922,6 +46013,7 @@
     },
     "Visible" : {
       "comment" : "Localized string key for the display string of a menu bar section.",
+      "extractionState" : "stale",
       "localizations" : {
         "cs" : {
           "stringUnit" : {
@@ -46278,8 +46370,8 @@
         }
       }
     },
-    "Welcome to Thaw" : {
-      "comment" : "Title of the welcome onboarding slide."
+    "Welcome to your menu bar" : {
+
     },
     "When a display transition requires Thaw to apply a different menu bar spacing, Thaw relaunches apps with menu bar items. Relaunching apps may cause unsaved input, progress, or transient app state to be lost." : {
       "comment" : "A warning that a display transition requiring a different menu bar spacing relaunches menu bar apps, which can lose unsaved state.",
@@ -46661,6 +46753,9 @@
     "Without confirmation, save spacing to" : {
       "comment" : "Label for the picker choosing which profiles receive a spacing change when relaunch confirmations are disabled."
     },
+    "Works With Your Tools" : {
+
+    },
     "Would you like to import your existing configuration?" : {
       "comment" : "A question displayed to the user when they first open the app, asking if they would like to import their existing configuration.",
       "extractionState" : "stale",
@@ -47019,8 +47114,8 @@
         }
       }
     },
-    "Your data stays on your Mac — nothing is ever collected or shared." : {
-      "comment" : "A privacy reassurance shown on the permissions screen."
+    "You're All Set" : {
+
     }
   },
   "version" : "1.1"

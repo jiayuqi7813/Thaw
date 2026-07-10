@@ -256,6 +256,9 @@ final class MenuBarItemManager: ObservableObject {
     /// Serialization gate for cache operations.
     private let cacheGate = CacheGate()
 
+    /// Pending self-terminating coalesced cache rerun (see ``scheduleCoalescedCacheRerun()``).
+    private var coalescedCacheRerunTask: Task<Void, Never>?
+
     /// Storage for internal observers.
     private var cancellables = Set<AnyCancellable>()
 
@@ -281,11 +284,21 @@ final class MenuBarItemManager: ObservableObject {
     /// the idle "cursor pulled to the menu bar / icons shuffling" thrash.
     private var lastFailedDividerSignature: String?
 
+    /// A candidate item signature seen to differ from the cache but not yet
+    /// confirmed by a second observation. `cacheItemsIfNeeded` requires a
+    /// differing signature to persist across two consecutive checks before
+    /// recaching, so a single transient enumeration blip (a dynamic-title app
+    /// momentarily dropping its AX subtree, an app's item flickering during a
+    /// reflow) does not trigger a full recache + assertion re-apply. Genuine
+    /// changes are stable and clear the gate on the very next check.
+    private var pendingItemSignatureCandidate: [String]?
+
     deinit {
         rehideTimer?.invalidate()
         rehideCancellable?.cancel()
         cacheTickCancellable?.cancel()
         menuOpenCheckTask?.cancel()
+        coalescedCacheRerunTask?.cancel()
     }
 
     /// Continuation to signal when background cache task completes.
@@ -2235,6 +2248,42 @@ extension MenuBarItemManager {
         identifiers.contains { $0.hasPrefix(bundleID + ":") }
     }
 
+    /// Runs a self-terminating coalesced cache rerun.
+    ///
+    /// The coalesced rerun exists so a drag/reset that arrived mid-pass is still
+    /// reflected. But an *unconditional* rerun is self-sustaining during an
+    /// assessment-mode restriction reflow (hide / reveal): the bar keeps moving
+    /// and observers keep requesting reruns, so the chain runs full AX recaches
+    /// for the whole reveal — the reveal-time "recache storm" (~10+ passes) that
+    /// makes the bar feel harsh.
+    ///
+    /// This gates the rerun on the actual item signature (now stable against
+    /// MenuBarAgent host-child flicker — see ``RuntimeMenuBarBackend/itemCacheSignature``):
+    /// it does the full recache only when the live signature differs from the
+    /// cache. A genuine mid-cycle drag/reset moves the signature and still reruns
+    /// immediately, but once the reflow settles the signature stops changing and
+    /// the chain terminates instead of chasing the bar. A newer request cancels
+    /// the pending one.
+    private func scheduleCoalescedCacheRerun() {
+        coalescedCacheRerunTask?.cancel()
+        coalescedCacheRerunTask = Task { @MainActor [weak self] in
+            guard let self, !Task.isCancelled else { return }
+            let backend = MenuBarBackendProvider.current
+            let items = await MenuBarItem.getMenuBarItems(option: .activeSpace)
+            guard !Task.isCancelled else { return }
+            guard let signature = backend.itemCacheSignature(items) else {
+                // Non-signature backend (≤26): keep the prior unconditional rerun.
+                await self.cacheItemsRegardless(skipRecentMoveCheck: true)
+                return
+            }
+            guard signature != self.cacheActor.cachedItemSignature else {
+                // Bar has settled — stop the chain rather than recache no-op work.
+                return
+            }
+            await self.cacheItemsRegardless(items.reversed().map(\.windowID))
+        }
+    }
+
     /// Caches the current menu bar items, regardless of whether the
     /// items have changed since the previous cache.
     ///
@@ -2273,7 +2322,7 @@ extension MenuBarItemManager {
             return
         }
         defer {
-            Task { [weak self] in
+            Task { @MainActor [weak self] in
                 guard let self else { return }
                 let needsRerun = await self.cacheGate.end()
                 // macOS 27: a drag/reset that arrived mid-cycle was coalesced —
@@ -2281,7 +2330,7 @@ extension MenuBarItemManager {
                 // assignment. (≤26 keeps its drop-and-forget behavior to avoid
                 // snapshotting positions mid-relocation.)
                 if needsRerun, MenuBarBackendProvider.current.shouldCoalesceCacheRerun {
-                    await self.cacheItemsRegardless(skipRecentMoveCheck: true)
+                    self.scheduleCoalescedCacheRerun()
                 }
             }
         }
@@ -2769,6 +2818,36 @@ extension MenuBarItemManager {
         }
     }
 
+    /// Decides whether a differing item signature warrants a recache, requiring
+    /// the change to be confirmed by two consecutive observations first.
+    ///
+    /// The macOS 27 menu bar enumeration is not perfectly stable: apps with
+    /// dynamic AX subtrees can momentarily drop or re-add items between passes,
+    /// and a restriction reflow can transiently perturb which items enumerate.
+    /// Recaching on every single-pass difference turns that noise into a storm
+    /// of full AX walks and assertion re-applies. Requiring the same differing
+    /// signature twice filters the transients while still reacting promptly to
+    /// genuine changes (which are stable and confirm on the very next check).
+    ///
+    /// - Returns: `recache` — whether to recache now; `newPending` — the
+    ///   candidate signature to remember (`nil` clears the gate).
+    static func signatureRecacheDecision(
+        cached: [String],
+        current: [String],
+        pending: [String]?
+    ) -> (recache: Bool, newPending: [String]?) {
+        // Live state matches the cache: nothing to do, drop any stale candidate.
+        guard current != cached else {
+            return (recache: false, newPending: nil)
+        }
+        // The same differing signature was seen last time too — confirmed.
+        if let pending, pending == current {
+            return (recache: true, newPending: nil)
+        }
+        // First sighting (or the difference itself changed): wait for a repeat.
+        return (recache: false, newPending: current)
+    }
+
     /// Caches the current menu bar items, if the items have changed
     /// since the previous cache.
     ///
@@ -2782,9 +2861,17 @@ extension MenuBarItemManager {
             // Assertion-backed menu bar items use synthetic window IDs, so
             // compare stable visual-order identity instead of WindowServer IDs.
             let cachedSignature = cacheActor.cachedItemSignature
-            if cachedSignature != signature {
-                MenuBarItemManager.diagLog.debug("cacheItemsIfNeeded: item identities changed (\(cachedSignature.count) cached vs \(signature.count) current), triggering recache")
+            let decision = Self.signatureRecacheDecision(
+                cached: cachedSignature,
+                current: signature,
+                pending: pendingItemSignatureCandidate
+            )
+            pendingItemSignatureCandidate = decision.newPending
+            if decision.recache {
+                MenuBarItemManager.diagLog.debug("cacheItemsIfNeeded: item identities changed and confirmed (\(cachedSignature.count) cached vs \(signature.count) current), triggering recache")
                 await cacheItemsRegardless(items.reversed().map(\.windowID))
+            } else if decision.newPending != nil {
+                MenuBarItemManager.diagLog.debug("cacheItemsIfNeeded: item identities differ (\(cachedSignature.count) cached vs \(signature.count) current); deferring recache until a second matching observation")
             }
             return
         }

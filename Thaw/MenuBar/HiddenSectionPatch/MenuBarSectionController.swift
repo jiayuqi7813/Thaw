@@ -18,6 +18,7 @@ import PlatformRuntimeKit
 @MainActor
 protocol RuntimeSessionControllering: AnyObject {
     var isHidingAvailable: Bool { get }
+    var isHolding: Bool { get }
     @discardableResult
     func apply(sectionAssignment: [String: MenuBarSection.Name], allItems: [MenuBarItem]) -> Bool
     func pulse(sectionAssignment: [String: MenuBarSection.Name], allItems: [MenuBarItem]) -> Bool
@@ -214,6 +215,10 @@ final class MenuBarSectionController: ObservableObject {
     /// assertion is re-applied (macOS 27 only). See ``handleAssessmentStateChange()``.
     private var assessmentStateMonitor: AssessmentStateMonitor?
 
+    /// Settle-gates all environment-driven assertion recovery. The driver owns
+    /// AppKit notification sources; PlatformRuntimeKit owns recovery policy.
+    private var recoveryDriver: MenuBarRecoveryDriver?
+
     convenience init(appState: AppState) {
         self.init(
             appState: appState,
@@ -266,6 +271,7 @@ final class MenuBarSectionController: ObservableObject {
             }
         }
 
+        configureRecoveryDriver()
         startRuntimeStateObservers()
     }
 
@@ -280,6 +286,7 @@ final class MenuBarSectionController: ObservableObject {
         }
         prefsWatcher?.stop()
         assessmentStateMonitor?.stop()
+        recoveryDriver?.stop()
     }
 
     /// Starts the macOS 27 runtime-state observers: the `MenuBarAgent`
@@ -315,12 +322,12 @@ final class MenuBarSectionController: ObservableObject {
     /// recovery, including user-drag detection, move cooldowns, assertion settle
     /// windows, and failed-move backoff. Dispatching a second reconcile here would
     /// bypass those guards and can turn MenuBarAgent's own preference rewrites into
-    /// a synthetic-drag loop. This observer only restores concealment immediately;
-    /// the next cache pass remains the single authority for order recovery.
+    /// a synthetic-drag loop. This observer only schedules settle-gated
+    /// concealment recovery; the next cache pass remains the single authority
+    /// for order recovery.
     private func handleExternalPositionsChange(_ positions: [String: Int]) {
-        diagLog.notice("external MenuBarAgent order change (\(positions.count) key(s)); re-asserting concealment")
-        lastRefreshSignature = nil
-        refresh()
+        diagLog.notice("external MenuBarAgent order change (\(positions.count) key(s)); scheduling settled recovery")
+        recoveryDriver?.recover(trigger: .externalPositions)
     }
 
     /// Handles a DND/Assessment-Mode state change. The system may have torn down
@@ -328,8 +335,169 @@ final class MenuBarSectionController: ObservableObject {
     /// re-apply the desired concealment so hidden items do not silently reappear.
     private func handleAssessmentStateChange() {
         refreshHidingAvailability()
-        lastRefreshSignature = nil
-        refresh(forceRestrictionPulse: true)
+        recoveryDriver?.recover(trigger: .assessmentState)
+    }
+
+    private func configureRecoveryDriver() {
+        guard appState != nil, #available(macOS 27, *) else { return }
+        recoveryDriver = MenuBarRecoveryDriver(
+            environment: .init(
+                snapshot: { [weak self] in
+                    self?.recoverySnapshot() ?? .init(
+                        itemSignature: 0,
+                        isControlledHidden: false,
+                        screenCount: NSScreen.screens.count
+                    )
+                },
+                desiredHidden: { [weak self] in
+                    self?.hasDesiredRestriction ?? false
+                },
+                isAssertionAlive: { [weak self] in
+                    self?.backend.isHolding ?? false
+                },
+                repulseAssertion: { [weak self] in
+                    self?.repulseRestrictionForRecovery() ?? false
+                },
+                relockPositions: { [weak self] in
+                    self?.relockVisiblePositionsForRecovery() ?? false
+                },
+                doubleToggle: { [weak self] in
+                    self?.doubleToggleRestrictionForRecovery() ?? false
+                },
+                markTornDown: { [weak self] in
+                    self?.backend.markExternallyTornDown()
+                }
+            )
+        )
+    }
+
+    /// Whether the current reveal state still asks the runtime assertion to
+    /// conceal at least one item.
+    private var hasDesiredRestriction: Bool {
+        backendAssignmentInput().values.contains {
+            $0 == .hidden || $0 == .alwaysHidden
+        }
+    }
+
+    /// Builds a cheap recovery snapshot from the most recent normal AX cache
+    /// pass. The settle probe samples this every 100 ms, so it must never start
+    /// another AX enumeration of its own — doing so recreates the main-thread
+    /// recache storm that makes menu-bar clicks stop registering.
+    private func recoverySnapshot() -> RuntimeRecoveryCoordinator.Snapshot {
+        guard let appState else {
+            return .init(
+                itemSignature: 0,
+                isControlledHidden: false,
+                screenCount: NSScreen.screens.count
+            )
+        }
+        let items = appState.itemManager.lastOnScreenMenuBarItems.0
+        let controlledIdentifiers = Set(
+            backendAssignmentInput().keys.filter {
+                !RuntimeModuleController.isGovernable(itemIdentifier: $0)
+            }
+        )
+        return Self.makeRecoverySnapshot(
+            items: items,
+            controlledIdentifiers: controlledIdentifiers,
+            screenCount: NSScreen.screens.count
+        )
+    }
+
+    static func makeRecoverySnapshot(
+        items: [MenuBarItem],
+        controlledIdentifiers: Set<String>,
+        screenCount: Int
+    ) -> RuntimeRecoveryCoordinator.Snapshot {
+        var hasher = Hasher()
+        for item in items.sorted(by: { lhs, rhs in
+            if lhs.windowID != rhs.windowID {
+                return lhs.windowID < rhs.windowID
+            }
+            return lhs.bounds.minX < rhs.bounds.minX
+        }) {
+            hasher.combine(item.windowID)
+            hasher.combine(item.bounds.minX.rounded())
+        }
+
+        let hasVisibleControlledItem = items.contains { item in
+            item.isOnScreen && controlledIdentifiers.contains(item.uniqueIdentifier)
+        }
+
+        return .init(
+            itemSignature: hasher.finalize(),
+            isControlledHidden: !controlledIdentifiers.isEmpty && !hasVisibleControlledItem,
+            screenCount: screenCount
+        )
+    }
+
+    /// Rung 1: rebuilds the current restriction without first exposing the
+    /// concealed items.
+    private func repulseRestrictionForRecovery() -> Bool {
+        guard let appState, hasDesiredRestriction else { return false }
+        let didChange = backend.pulse(
+            sectionAssignment: backendAssignmentInput(),
+            allItems: appState.itemManager.itemCache.managedItems
+        )
+        noteRecoveryRestrictionChange(didChange)
+        return didChange
+    }
+
+    /// Rung 2: re-locks the current visible-item position keys. This is kept
+    /// separate from `refresh()` so recovery does not replay the full hiding
+    /// pipeline while MenuBarAgent is settling.
+    private func relockVisiblePositionsForRecovery() -> Bool {
+        guard let appState else { return false }
+        let allItems = appState.itemManager.itemCache.managedItems
+        let effectiveAssignment = effectiveAssignmentExcludingTemporarilyRevealed()
+        let positionsBefore = positionStore.readPositions()
+        let existingKeys = Array(positionsBefore.keys)
+        let visibleItemKeys = Set(allItems.compactMap { item -> String? in
+            guard (effectiveAssignment[item.uniqueIdentifier] ?? .visible) == .visible else {
+                return nil
+            }
+            return RuntimePreferenceKeys.resolveKey(
+                for: item,
+                existingKeys: existingKeys,
+                positions: positionsBefore,
+                liveItems: allItems
+            ) ?? RuntimePreferenceKeys.naiveKey(for: item)
+        })
+
+        positionStore.lockVisiblePositions(
+            visibleItemKeys: visibleItemKeys,
+            allItems: allItems
+        )
+        let didChange = positionStore.readPositions() != positionsBefore
+        if didChange {
+            prefsWatcher?.noteSelfWrite()
+        }
+        return didChange
+    }
+
+    /// Rung 3: forces a full restriction rebuild. If the items are already
+    /// visible, skip the reveal half to avoid an unnecessary visible toggle.
+    private func doubleToggleRestrictionForRecovery() -> Bool {
+        guard let appState, hasDesiredRestriction else { return false }
+        let allItems = appState.itemManager.itemCache.managedItems
+
+        var didChange = false
+        if recoverySnapshot().isControlledHidden {
+            didChange = backend.apply(sectionAssignment: [:], allItems: allItems)
+        }
+        didChange = backend.pulse(
+            sectionAssignment: backendAssignmentInput(),
+            allItems: allItems
+        ) || didChange
+        noteRecoveryRestrictionChange(didChange)
+        return didChange
+    }
+
+    private func noteRecoveryRestrictionChange(_ didChange: Bool) {
+        guard didChange, let appState else { return }
+        assessmentStateMonitor?.noteSelfChange()
+        appState.itemManager.noteRestrictionChange()
+        restoreVisibleControlItemAfterRestrictionChange()
     }
 
     /// Re-checks whether the private assertion API is available and updates

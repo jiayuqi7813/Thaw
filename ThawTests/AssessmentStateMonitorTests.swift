@@ -29,27 +29,28 @@ final class AssessmentStateMonitorTests: XCTestCase {
         monitor.stop()
     }
 
-    func testSelfChangeConsumesOnlyOneNotificationFromBurst() async {
-        let expectation = expectation(description: "external reconcile requested")
+    func testSelfChangeSuppressesWholeBurst() async {
+        // A single recovery re-apply posts more than one `stateChanged`. All of
+        // them must be swallowed inside the self-change window — consuming only
+        // the first would let the second re-enter recovery and loop.
+        let reconcile = expectation(description: "reconcile requested")
+        reconcile.isInverted = true
         let center = DistributedNotificationCenter()
         let monitor = AssessmentStateMonitor(center: center) {
-            expectation.fulfill()
+            reconcile.fulfill()
         }
         monitor.start()
 
         monitor.noteSelfChange()
-        center.postNotificationName(
-            AssessmentStateMonitor.stateChangedNotification,
-            object: nil,
-            deliverImmediately: true
-        )
-        center.postNotificationName(
-            AssessmentStateMonitor.stateChangedNotification,
-            object: nil,
-            deliverImmediately: true
-        )
+        for _ in 0 ..< 4 {
+            center.postNotificationName(
+                AssessmentStateMonitor.stateChangedNotification,
+                object: nil,
+                deliverImmediately: true
+            )
+        }
 
-        await fulfillment(of: [expectation], timeout: 1)
+        await fulfillment(of: [reconcile], timeout: 0.8)
         monitor.stop()
     }
 }

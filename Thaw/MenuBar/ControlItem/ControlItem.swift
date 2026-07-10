@@ -784,7 +784,12 @@ final class ControlItem: NSObject {
     /// Updates the status item's visibility without clearing its preferred position.
     private func setIceIconDisplayed(_ shouldShow: Bool) {
         ControlItemDefaults.restoreVisibilityIfNeeded(autosaveName: identifier.rawValue)
-        statusItem.isVisible = true
+        // Avoid the redundant `isVisible = true` scene write when already visible
+        // (see `restoreVisibleIconAfterRestrictionChange`); length is what shows/
+        // hides the icon below.
+        if !isAddedToMenuBar {
+            statusItem.isVisible = true
+        }
         if shouldShow {
             updateStatusItem()
             return
@@ -815,7 +820,15 @@ final class ControlItem: NSObject {
         }
 
         ControlItemDefaults.restoreVisibilityIfNeeded(autosaveName: identifier.rawValue)
-        statusItem.isVisible = true
+        // Only touch `isVisible` when the item is actually hidden. On macOS 27
+        // re-asserting `isVisible = true` on an already-visible status item is a
+        // redundant write that can still re-drive AppKit's variant-view scene
+        // connect (`_wakeStatusItem` → the intermittent SIGABRT); the
+        // length/constraint/image refresh below recovers the visual state after a
+        // MenuBarAgent reflow that did not sleep the scene.
+        if !isAddedToMenuBar {
+            statusItem.isVisible = true
+        }
 
         guard appState?.settings.general.showIceIcon == true else {
             hideIceIconCompletely()

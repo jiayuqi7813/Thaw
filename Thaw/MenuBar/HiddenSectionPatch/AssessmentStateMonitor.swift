@@ -39,11 +39,21 @@ final class AssessmentStateMonitor {
     private let center: DistributedNotificationCenter
     private let diagLog = DiagLog(category: "AssessmentStateMonitor")
     private var observer: NSObjectProtocol?
-    private var ignoreNextNotificationBefore: Date?
+    private var suppressSelfChangesUntil = Date.distantPast
 
-    /// Bounds attribution of one notification to Thaw's own assertion pulse.
-    /// Only one notification is consumed; any second notification in the same
-    /// burst is treated as external and reconciled immediately.
+    /// How long after a self-initiated assertion change to ignore DND/assessment
+    /// notifications.
+    ///
+    /// This must suppress the *whole* burst, not just one notification: a single
+    /// recovery rung mutates the assertion more than once (the double-toggle does
+    /// `apply` then `pulse`, and `pulse` itself invalidates-then-reapplies), and
+    /// because Thaw's concealment assertion lives in the Do-Not-Disturb subsystem,
+    /// each mutation posts its own `stateChanged`. Consuming only the first would
+    /// let the second re-enter recovery — re-applying the assertion, posting again
+    /// — a feedback loop that continuously re-composites the menu bar and
+    /// eventually crashes the status-item scene machinery. A time window swallows
+    /// the entire self-attributed burst; a genuine external teardown that lands
+    /// inside the window is picked up by the next reconcile trigger.
     private static let selfChangeAttributionWindow: TimeInterval = 1.5
 
     /// - Parameters:
@@ -79,25 +89,26 @@ final class AssessmentStateMonitor {
             // main-actor isolation holds even though the closure is not isolated.
             MainActor.assumeIsolated {
                 guard let self else { return }
-                if let deadline = self.ignoreNextNotificationBefore,
-                   Date() < deadline
-                {
-                    self.ignoreNextNotificationBefore = nil
-                    self.diagLog.debug("ignoring one self-attributed DND/assessment state change")
+                // Suppress the entire self-attributed burst, not just the first
+                // notification — otherwise a recovery re-apply's second
+                // `stateChanged` re-enters recovery and loops.
+                if Date() < self.suppressSelfChangesUntil {
+                    self.diagLog.debug("ignoring self-attributed DND/assessment state change")
                     return
                 }
-                self.ignoreNextNotificationBefore = nil
                 self.diagLog.info("DND/assessment state changed; requesting reconcile")
                 self.onStateChanged()
             }
         }
     }
 
-    /// Attributes at most the next prompt distributed notification to Thaw's
-    /// own assertion pulse, preventing that pulse from recursively triggering
-    /// itself without suppressing the rest of the notification burst.
+    /// Opens a window during which DND/assessment notifications are attributed to
+    /// Thaw's own assertion change and ignored. Call immediately after each
+    /// self-initiated assertion mutation; re-arming extends the window so a
+    /// multi-step recovery (which mutates the assertion several times) stays
+    /// covered for its whole duration.
     func noteSelfChange() {
-        ignoreNextNotificationBefore = Date().addingTimeInterval(Self.selfChangeAttributionWindow)
+        suppressSelfChangesUntil = Date().addingTimeInterval(Self.selfChangeAttributionWindow)
     }
 
     /// Stops observing.

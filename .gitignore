@@ -3,6 +3,7 @@
 .claude
 .codex-home
 .cursorrules
+.swiftpm-overrides/
 .DS_Store  
 .idea/
 .lefthook.yml
