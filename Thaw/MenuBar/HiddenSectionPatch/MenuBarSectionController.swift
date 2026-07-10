@@ -8,8 +8,8 @@
 
 @preconcurrency import AXSwift
 import Cocoa
-import PlatformRuntimeKit
 import MenuBarModel
+import PlatformRuntimeKit
 
 /// The subset of ``RuntimeSessionController`` that ``MenuBarSectionController`` calls into.
 /// Exists so tests can substitute a fake and characterize the orchestration in
@@ -206,6 +206,14 @@ final class MenuBarSectionController: ObservableObject {
     private var boundaryReconciliationTask: Task<Void, Never>?
     private var lastRefreshSignature: String?
 
+    /// Watches `MenuBarAgent`'s preferences for external `TrailingItemPreferredPositions`
+    /// changes (macOS 27 only). See ``handleExternalPositionsChange(_:)``.
+    private var prefsWatcher: MenuBarAgentPreferencesWatcher?
+
+    /// Observes DND/Assessment-Mode state changes so a torn-down concealment
+    /// assertion is re-applied (macOS 27 only). See ``handleAssessmentStateChange()``.
+    private var assessmentStateMonitor: AssessmentStateMonitor?
+
     convenience init(appState: AppState) {
         self.init(
             appState: appState,
@@ -257,6 +265,8 @@ final class MenuBarSectionController: ObservableObject {
                 self?.refreshHidingAvailability()
             }
         }
+
+        startRuntimeStateObservers()
     }
 
     isolated deinit {
@@ -268,6 +278,58 @@ final class MenuBarSectionController: ObservableObject {
         if let didBecomeActiveObserver {
             NotificationCenter.default.removeObserver(didBecomeActiveObserver)
         }
+        prefsWatcher?.stop()
+        assessmentStateMonitor?.stop()
+    }
+
+    /// Starts the macOS 27 runtime-state observers: the `MenuBarAgent`
+    /// preferences watcher (external order drift) and the DND/Assessment-Mode
+    /// state monitor (torn-down concealment assertion). No-op on earlier
+    /// systems, where neither the position store nor the assertion exists.
+    private func startRuntimeStateObservers() {
+        guard appState != nil, #available(macOS 27, *) else { return }
+
+        let watcher = MenuBarAgentPreferencesWatcher(
+            readPositions: { [weak self] in self?.positionStore.readPositions() ?? [:] },
+            onExternalChange: { [weak self] positions in
+                self?.handleExternalPositionsChange(positions)
+            }
+        )
+        watcher.start()
+        prefsWatcher = watcher
+
+        let monitor = AssessmentStateMonitor { [weak self] in
+            self?.handleAssessmentStateChange()
+        }
+        monitor.start()
+        assessmentStateMonitor = monitor
+    }
+
+    /// Handles an external change to `TrailingItemPreferredPositions` — one Thaw
+    /// did not make itself (`MenuBarAgent` reflow, another manager, `defaults`,
+    /// MDM). Re-asserts Thaw's concealment state so a system-driven reflow cannot
+    /// leave hidden items on screen.
+    ///
+    /// This intentionally does **not** auto-drive position reordering. The item
+    /// manager's cache / `applySavedLayout` pipeline already owns persisted-order
+    /// recovery, including user-drag detection, move cooldowns, assertion settle
+    /// windows, and failed-move backoff. Dispatching a second reconcile here would
+    /// bypass those guards and can turn MenuBarAgent's own preference rewrites into
+    /// a synthetic-drag loop. This observer only restores concealment immediately;
+    /// the next cache pass remains the single authority for order recovery.
+    private func handleExternalPositionsChange(_ positions: [String: Int]) {
+        diagLog.notice("external MenuBarAgent order change (\(positions.count) key(s)); re-asserting concealment")
+        lastRefreshSignature = nil
+        refresh()
+    }
+
+    /// Handles a DND/Assessment-Mode state change. The system may have torn down
+    /// or superseded Thaw's concealment assertion; re-check availability and
+    /// re-apply the desired concealment so hidden items do not silently reappear.
+    private func handleAssessmentStateChange() {
+        refreshHidingAvailability()
+        lastRefreshSignature = nil
+        refresh(forceRestrictionPulse: true)
     }
 
     /// Re-checks whether the private assertion API is available and updates
@@ -1095,7 +1157,7 @@ final class MenuBarSectionController: ObservableObject {
 
     /// Re-applies the current assignment against the live item cache, and
     /// refreshes the retained snapshots.
-    func refresh() {
+    func refresh(forceRestrictionPulse: Bool = false) {
         guard let appState else { return }
         let experimentalSystemItemHiding = appState.settings.advanced.enableExperimentalSystemItemHiding
         let experimentalWindowHiding = appState.settings.advanced.enableExperimentalWindowHiding
@@ -1171,11 +1233,22 @@ final class MenuBarSectionController: ObservableObject {
         )
 
         logRestrictionProbeSnapshot(reason: "before-apply", items: allItems)
-        let didChangeRestriction = backend.apply(
-            sectionAssignment: backendAssignment,
-            allItems: allItems
-        )
+        let hasConcealedItems = backendAssignment.values.contains {
+            $0 == .hidden || $0 == .alwaysHidden
+        }
+        let didChangeRestriction = if forceRestrictionPulse, hasConcealedItems {
+            backend.pulse(
+                sectionAssignment: backendAssignment,
+                allItems: allItems
+            )
+        } else {
+            backend.apply(
+                sectionAssignment: backendAssignment,
+                allItems: allItems
+            )
+        }
         if didChangeRestriction {
+            assessmentStateMonitor?.noteSelfChange()
             appState.itemManager.noteRestrictionChange()
             restoreVisibleControlItemAfterRestrictionChange()
             diagLog.info("restriction changed; restored visible control item state")
@@ -1283,6 +1356,7 @@ final class MenuBarSectionController: ObservableObject {
 
         guard changed else { return }
         positionStore.writePositions(positions)
+        prefsWatcher?.noteSelfWrite()
         diagLog.info("overflowPrevention: elevated \(overflowBase - 50000) hidden-item weight(s)")
     }
 
@@ -1351,6 +1425,8 @@ final class MenuBarSectionController: ObservableObject {
         allItems: [MenuBarItem],
         backendAssignment: inout [String: MenuBarSection.Name]
     ) {
+        let positionsBeforeMutation = positionStore.readPositions()
+
         // Build the ordered list of surgical hiders to run on this OS version.
         // CGS runs on all versions; AX runs only on macOS < 27 (per plan 012).
         let surgicalHidersToRun: [RuntimeWindowControlling] = {
@@ -1364,6 +1440,9 @@ final class MenuBarSectionController: ObservableObject {
 
         guard enabled else {
             positionStore.restoreAll()
+            if positionStore.readPositions() != positionsBeforeMutation {
+                prefsWatcher?.noteSelfWrite()
+            }
             // Call apply with empty PIDs on each surgical hider so any
             // previously-hidden windows/elements get restored.
             for hider in surgicalHidersToRun {
@@ -1409,6 +1488,9 @@ final class MenuBarSectionController: ObservableObject {
         }
         if !toShow.isEmpty {
             plistHandledKeys.formUnion(positionStore.showItems(toShow, allItems: allItems))
+        }
+        if positionStore.readPositions() != positionsBeforeMutation {
+            prefsWatcher?.noteSelfWrite()
         }
 
         // Strip plist-handled items from the assertion input.
@@ -1460,7 +1542,11 @@ final class MenuBarSectionController: ObservableObject {
                 .filter { (effectiveAssignment[$0.uniqueIdentifier] ?? .visible) == .visible }
                 .map { resolvedPlistKey(for: $0) }
         )
+        let positionsBeforeLock = positionStore.readPositions()
         positionStore.lockVisiblePositions(visibleItemKeys: visibleItemKeys, allItems: allItems)
+        if positionStore.readPositions() != positionsBeforeLock {
+            prefsWatcher?.noteSelfWrite()
+        }
     }
 
     /// Removes from `backendAssignment` every CGS/AX-hideable item whose owning
