@@ -1,5 +1,5 @@
 {
-  "originHash" : "3fa7b7e7c3648a0f0150b12c56c7cd90cc4bd23ab9733af5db9c528656a3d0d3",
+  "originHash" : "e583af9c431ba5fac22305c5ff5c095d872f9ffc140eb3e63c058fd69706a267",
   "pins" : [
     {
       "identity" : "axswift",
@@ -38,11 +38,11 @@
       }
     },
     {
-      "identity" : "platformruntimekit",
+      "identity" : "prk-bin",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/thaw-app/prk-bin",
       "state" : {
-        "revision" : "6cb33b93ff9b94032b408c0d37ec98b59a8e3a90",
+        "revision" : "99053646e0cb5936504f2a58b121c3840c4d148f",
         "version" : "0.0.1"
       }
     },
