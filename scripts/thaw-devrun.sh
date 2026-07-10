@@ -37,6 +37,7 @@ PRK_SOURCE="../PlatformRuntimeKit"
 PRK_OVERRIDE_DIR=".swiftpm-overrides"
 PRK_OVERRIDE="$PRK_OVERRIDE_DIR/prk-bin"
 export MENU_BAR_MODEL_PATH="$PWD/MenuBarModel"
+export MENU_BAR_MODEL_PATH="$PWD/MenuBarModel"
 PACKAGE_RESOLUTION_ARGS=(-onlyUsePackageVersionsFromResolvedFile)
 
 SKIP_PACKAGES=0

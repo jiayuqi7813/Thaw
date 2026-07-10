@@ -8,9 +8,10 @@
 
 import Cocoa
 import Combine
-import PlatformRuntimeKit
-import os.lock
 import MenuBarModel
+import os.lock
+import PlatformRuntimeKit
+import ThawCapture
 
 /// Cache for menu bar item images.
 final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {

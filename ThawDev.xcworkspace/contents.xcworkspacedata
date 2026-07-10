@@ -5,6 +5,15 @@
       location = "group:Thaw.xcodeproj">
    </FileRef>
    <FileRef
+      location = "group:MenuBarModel">
+   </FileRef>
+   <FileRef
+      location = "group:MenuBarHost">
+   </FileRef>
+   <FileRef
+      location = "group:ThawCapture">
+   </FileRef>
+   <FileRef
       location = "group:.swiftpm-overrides/prk-bin">
    </FileRef>
 </Workspace>

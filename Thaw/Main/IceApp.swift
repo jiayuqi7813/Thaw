@@ -7,9 +7,16 @@
 //  Licensed under the GNU GPLv3
 
 import SwiftUI
+import ThawCapture
 
 @main
 struct IceApp: App {
+    init() {
+        ScreenCapture.setProbeLoggingEnabled {
+            Defaults.bool(forKey: .diagnosticAssessmentModeSceneProbes)
+        }
+    }
+
     @NSApplicationDelegateAdaptor var appDelegate: AppDelegate
 
     var body: some Scene {

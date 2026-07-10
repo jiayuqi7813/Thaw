@@ -8,6 +8,7 @@
 
 import Combine
 import SwiftUI
+import ThawCapture
 
 struct SecondsLabel: View {
     let value: Double

@@ -10,6 +10,7 @@
 import Cocoa
 import MenuBarModel
 import PlatformRuntimeKit
+import ThawCapture
 
 /// The subset of ``RuntimeSessionController`` that ``MenuBarSectionController`` calls into.
 /// Exists so tests can substitute a fake and characterize the orchestration in

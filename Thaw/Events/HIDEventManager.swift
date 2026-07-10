@@ -9,8 +9,9 @@
 @preconcurrency import AXSwift
 import Cocoa
 @preconcurrency import Combine
-import os
 import MenuBarModel
+import os
+import ThawCapture
 
 /// Manager that monitors input events and implements the features
 /// that are triggered by them, such as showing hidden items on

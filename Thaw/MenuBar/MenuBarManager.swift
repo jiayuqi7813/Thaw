@@ -7,9 +7,10 @@
 //  Licensed under the GNU GPLv3
 
 import Combine
+import MenuBarModel
 import PlatformRuntimeKit
 import SwiftUI
-import MenuBarModel
+import ThawCapture
 
 /// Manager for the state of the menu bar.
 @MainActor

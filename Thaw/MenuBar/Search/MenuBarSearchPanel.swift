@@ -8,8 +8,9 @@
 
 import Combine
 import Ifrit
-import SwiftUI
 import MenuBarModel
+import SwiftUI
+import ThawCapture
 
 extension EnvironmentValues {
     @Entry var menuBarSearchPanel: MenuBarSearchPanel?

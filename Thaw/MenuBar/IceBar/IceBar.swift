@@ -7,8 +7,9 @@
 //  Licensed under the GNU GPLv3
 
 import Combine
-import SwiftUI
 import MenuBarModel
+import SwiftUI
+import ThawCapture
 
 // MARK: - IceBarPanel
 

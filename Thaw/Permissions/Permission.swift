@@ -9,6 +9,7 @@
 import Cocoa
 import Combine
 import SwiftUI
+import ThawCapture
 
 // MARK: - Permission
 

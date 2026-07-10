@@ -7,6 +7,7 @@
 //  Licensed under the GNU GPLv3
 
 import SwiftUI
+import ThawCapture
 
 struct MenuBarLayoutSettingsPane: View {
     @EnvironmentObject var appState: AppState

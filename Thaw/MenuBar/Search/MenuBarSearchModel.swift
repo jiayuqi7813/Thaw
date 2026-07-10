@@ -10,6 +10,7 @@ import Cocoa
 import Combine
 import Ifrit
 import MenuBarModel
+import ThawCapture
 
 @MainActor
 final class MenuBarSearchModel: ObservableObject {
