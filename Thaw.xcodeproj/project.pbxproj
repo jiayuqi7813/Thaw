@@ -21,6 +21,8 @@
 		E2C0FFEE2F2C000000000002 /* MenuBarHost in Frameworks */ = {isa = PBXBuildFile; productRef = E2C0FFEE2F2C000000000004 /* MenuBarHost */; };
 		E6A2198F9A73488581DC5B97 /* MenuBarHost in Frameworks */ = {isa = PBXBuildFile; productRef = EDF7E8FBA3834C8090E06B59 /* MenuBarHost */; };
 		F3B1A2C4D5E6F7A8B9C0D1E3 /* MenuBarModel in Frameworks */ = {isa = PBXBuildFile; productRef = C2D4E6A8B0C2D4E6A8B0C2D4 /* MenuBarModel */; };
+		F1A2B3C42F50000000000001 /* MenuBarModel in Embed Frameworks */ = {isa = PBXBuildFile; productRef = D578D4A98E514566A18944B0 /* MenuBarModel */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		F1A2B3C42F50000000000002 /* MenuBarModel in Embed Frameworks */ = {isa = PBXBuildFile; productRef = C2D4E6A8B0C2D4E6A8B0C2D4 /* MenuBarModel */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -41,6 +43,28 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		F1A2B3C42F50000000000003 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				F1A2B3C42F50000000000001 /* MenuBarModel in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F1A2B3C42F50000000000004 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				F1A2B3C42F50000000000002 /* MenuBarModel in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		7188A68D2E27F9ED008F131D /* Embed XPC Services */ = {
 			isa = PBXCopyFilesBuildPhase;
 			dstPath = "$(CONTENTS_FOLDER_PATH)/XPCServices";
@@ -166,6 +190,7 @@
 			buildPhases = (
 				716683262A767E6A006ABF84 /* Sources */,
 				716683272A767E6A006ABF84 /* Frameworks */,
+				F1A2B3C42F50000000000003 /* Embed Frameworks */,
 				716683282A767E6A006ABF84 /* Resources */,
 				1720D48F2BB9B60500A7AC63 /* SwiftLint */,
 				7188A68D2E27F9ED008F131D /* Embed XPC Services */,
@@ -201,6 +226,7 @@
 			buildPhases = (
 				7188A67F2E27F9ED008F131D /* Sources */,
 				7188A6802E27F9ED008F131D /* Frameworks */,
+				F1A2B3C42F50000000000004 /* Embed Frameworks */,
 				7188A6812E27F9ED008F131D /* Resources */,
 				170AD05B2BB9B60500A7AC64 /* Stamp Git SHA */,
 			);
@@ -300,7 +326,7 @@
 				170423D72B56DE78004A2549 /* XCRemoteSwiftPackageReference "Sparkle" */,
 				17F71BB32B880B4500905CBA /* XCRemoteSwiftPackageReference "CompactSlider" */,
 				7127A9FB2C4881BC00D99DEF /* XCRemoteSwiftPackageReference "Ifrit" */,
-				D27A00002F40000000000000 /* XCRemoteSwiftPackageReference "PlatformRuntimeKit" */,
+				D27A00002F40000000000000 /* XCLocalSwiftPackageReference "PlatformRuntimeKit" */,
 				A4E38A6A423944089D70B9BB /* XCLocalSwiftPackageReference "MenuBarModel" */,
 				AD2D675A051141C9B42279EC /* XCLocalSwiftPackageReference "MenuBarHost" */,
 			);
@@ -843,17 +869,13 @@
 				minimumVersion = 4.0.0;
 			};
 		};
-		D27A00002F40000000000000 /* XCRemoteSwiftPackageReference "PlatformRuntimeKit" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/thaw-app/prk-bin";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 0.0.1;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCLocalSwiftPackageReference section */
+		D27A00002F40000000000000 /* XCLocalSwiftPackageReference "PlatformRuntimeKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../PlatformRuntimeKit;
+		};
 		A4E38A6A423944089D70B9BB /* XCLocalSwiftPackageReference "MenuBarModel" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = MenuBarModel;
@@ -906,8 +928,8 @@
 			productName = MenuBarModel;
 		};
 		E2C0FFEE2F2C000000000003 /* MenuBarModel */ = {isa = XCSwiftPackageProductDependency; package = A4E38A6A423944089D70B9BB /* XCLocalSwiftPackageReference "MenuBarModel" */; productName = MenuBarModel; };
-		D27A00032F40000000000003 /* PlatformRuntimeKit */ = {isa = XCSwiftPackageProductDependency; package = D27A00002F40000000000000 /* XCRemoteSwiftPackageReference "PlatformRuntimeKit" */; productName = PlatformRuntimeKit; };
-		D27A00042F40000000000004 /* PlatformRuntimeKit */ = {isa = XCSwiftPackageProductDependency; package = D27A00002F40000000000000 /* XCRemoteSwiftPackageReference "PlatformRuntimeKit" */; productName = PlatformRuntimeKit; };
+		D27A00032F40000000000003 /* PlatformRuntimeKit */ = {isa = XCSwiftPackageProductDependency; package = D27A00002F40000000000000 /* XCLocalSwiftPackageReference "PlatformRuntimeKit" */; productName = PlatformRuntimeKit; };
+		D27A00042F40000000000004 /* PlatformRuntimeKit */ = {isa = XCSwiftPackageProductDependency; package = D27A00002F40000000000000 /* XCLocalSwiftPackageReference "PlatformRuntimeKit" */; productName = PlatformRuntimeKit; };
 		E2C0FFEE2F2C000000000004 /* MenuBarHost */ = {isa = XCSwiftPackageProductDependency; package = AD2D675A051141C9B42279EC /* XCLocalSwiftPackageReference "MenuBarHost" */; productName = MenuBarHost; };
 		EDF7E8FBA3834C8090E06B59 /* MenuBarHost */ = {
 			isa = XCSwiftPackageProductDependency;

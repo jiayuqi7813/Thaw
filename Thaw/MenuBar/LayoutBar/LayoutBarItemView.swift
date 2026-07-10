@@ -36,10 +36,15 @@ final class LayoutBarItemView: LayoutBarArrangedView {
     private lazy var tooltipController = CustomTooltipController(text: item.displayName, view: self)
     private var tooltipTrackingArea: NSTrackingArea?
     private let placeholderImage: NSImage?
+    /// Refreshed when the visible-section control item's icon or state changes.
+    private var livePlaceholderImage: NSImage?
 
     /// The image displayed inside the view.
     private var cachedImage: MenuBarItemImageCache.CapturedImage? {
         didSet {
+            cachedDrawImage = cachedImage.map {
+                NSImage(cgImage: $0.cgImage, size: $0.scaledSize)
+            }
             let previousSize = preferredSizeForCurrentDisplayMode(oldValue)
             let newSize = preferredSizeForCurrentDisplayMode(cachedImage)
             setFrameSize(newSize)
@@ -50,6 +55,11 @@ final class LayoutBarItemView: LayoutBarArrangedView {
         }
     }
 
+    /// Stable `NSImage` wrapper for the current capture, rebuilt only when the
+    /// cache entry changes. Avoids allocating a new AppKit image on every
+    /// `draw(_:)` pass.
+    private var cachedDrawImage: NSImage?
+
     override var kind: Kind {
         .item(item)
     }
@@ -59,6 +69,9 @@ final class LayoutBarItemView: LayoutBarArrangedView {
         self.item = item
         self.appState = appState
         self.placeholderImage = Self.makePlaceholderImage(for: item, appState: appState)
+        if item.tag.matchesVisibleControlItem {
+            self.livePlaceholderImage = placeholderImage
+        }
 
         let initialImage = appState.imageCache.image(for: item.tag)
         self.cachedImage = initialImage
@@ -144,6 +157,7 @@ final class LayoutBarItemView: LayoutBarArrangedView {
                     )
                     .receive(on: DispatchQueue.main)
                     .sink { [weak self] _ in
+                        self?.refreshLivePlaceholderImage()
                         self?.needsDisplay = true
                     }
                     .store(in: &c)
@@ -172,7 +186,7 @@ final class LayoutBarItemView: LayoutBarArrangedView {
         if !isDraggingPlaceholder {
             if shouldPreferPlaceholderImage {
                 drawOverflowFallback()
-            } else if let capturedImage = cachedImage?.nsImage {
+            } else if let capturedImage = cachedDrawImage {
                 capturedImage.draw(
                     in: bounds,
                     from: .zero,
@@ -320,7 +334,7 @@ final class LayoutBarItemView: LayoutBarArrangedView {
         backgroundPath.lineWidth = 1
         backgroundPath.stroke()
 
-        guard let image = currentPlaceholderImage() else {
+        guard let image = resolvedPlaceholderImage() else {
             return
         }
 
@@ -341,15 +355,15 @@ final class LayoutBarItemView: LayoutBarArrangedView {
         )
 
         if image.isTemplate {
-            let tinted = image.copy() as? NSImage
-            tinted?.isTemplate = true
+            NSGraphicsContext.saveGraphicsState()
             NSColor.secondaryLabelColor.set()
-            tinted?.draw(
+            image.draw(
                 in: iconRect,
                 from: .zero,
                 operation: .sourceOver,
                 fraction: isEnabled ? 0.8 : 0.5
             )
+            NSGraphicsContext.restoreGraphicsState()
         } else {
             image.draw(
                 in: iconRect,
@@ -360,9 +374,14 @@ final class LayoutBarItemView: LayoutBarArrangedView {
         }
     }
 
-    private func currentPlaceholderImage() -> NSImage? {
-        if item.tag.matchesVisibleControlItem, let appState {
-            return Self.makePlaceholderImage(for: item, appState: appState)
+    private func refreshLivePlaceholderImage() {
+        guard item.tag.matchesVisibleControlItem, let appState else { return }
+        livePlaceholderImage = Self.makePlaceholderImage(for: item, appState: appState)
+    }
+
+    private func resolvedPlaceholderImage() -> NSImage? {
+        if item.tag.matchesVisibleControlItem {
+            return livePlaceholderImage ?? placeholderImage
         }
         return placeholderImage
     }

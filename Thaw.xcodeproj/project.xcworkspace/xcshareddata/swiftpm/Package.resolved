@@ -1,12 +1,12 @@
 {
-  "originHash" : "e583af9c431ba5fac22305c5ff5c095d872f9ffc140eb3e63c058fd69706a267",
+  "originHash" : "ba60413672f11f4f2ba43b0ccabd0601fa7bfb6c14760604c113ac8e6be3c1ea",
   "pins" : [
     {
       "identity" : "axswift",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/stonerl/AXSwift",
       "state" : {
-        "revision" : "467ccb39efa69b6d9e49c9f3dc4482da65194781",
+        "revision" : "81dcc36aced905d6464cc25e35f8d13184bbf21c",
         "version" : "0.3.2"
       }
     },
@@ -35,15 +35,6 @@
       "state" : {
         "revision" : "a04ec1c363be3627734f6dad757d82f5d4fa8fcc",
         "version" : "1.1.0"
-      }
-    },
-    {
-      "identity" : "prk-bin",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/thaw-app/prk-bin",
-      "state" : {
-        "revision" : "99053646e0cb5936504f2a58b121c3840c4d148f",
-        "version" : "0.0.1"
       }
     },
     {

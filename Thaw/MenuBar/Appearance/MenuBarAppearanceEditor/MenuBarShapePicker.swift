@@ -175,11 +175,12 @@ private struct MenuBarFullShapePicker: View, @preconcurrency Equatable {
         // After 90° rotation the symbol is taller than wide — fit into a square canvas
         let side = max(src.width, src.height)
         let image = NSImage(size: CGSize(width: side, height: side), flipped: false) { rect in
-            let t = NSAffineTransform()
-            t.translateX(by: rect.width / 2, yBy: rect.height / 2)
-            t.rotate(byDegrees: degrees)
-            t.translateX(by: -src.width / 2, yBy: -src.height / 2)
-            t.concat()
+            guard let context = NSGraphicsContext.current?.cgContext else {
+                return false
+            }
+            context.translateBy(x: rect.width / 2, y: rect.height / 2)
+            context.rotate(by: degrees * .pi / 180)
+            context.translateBy(x: -src.width / 2, y: -src.height / 2)
             symbol.draw(in: NSRect(origin: .zero, size: src))
             return true
         }
