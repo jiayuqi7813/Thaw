@@ -1,13 +1,13 @@
 //
-//  RuntimeSessionControllerTests.swift
+//  AssessmentModeBackendTests.swift
 //  Project: Thaw
 //
 //  Copyright (Ice) © 2023–2025 Jordan Baird
 //  Copyright (Thaw) © 2026 Toni Förster
 //  Licensed under the GNU GPLv3
 
-@testable import Thaw
 import PlatformRuntimeKit
+@testable import Thaw
 import XCTest
 
 @MainActor
@@ -26,7 +26,8 @@ final class RuntimeSessionControllerTests: XCTestCase {
     func testResolveConcealmentKeepsBundleWhenSiblingVisible() {
         let visible = MenuBarItem.fixture(
             tag: .appItem(bundleID: "com.example.app", title: "Visible"),
-            windowID: 1
+            windowID: 1,
+            sourcePID: nil
         )
 
         let result = RuntimeSessionController.resolveConcealment(

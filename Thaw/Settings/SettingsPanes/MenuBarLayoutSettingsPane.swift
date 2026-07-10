@@ -38,11 +38,8 @@ struct MenuBarLayoutSettingsPane: View {
                 layoutBars
                 if #available(macOS 27, *) {
                     systemItemHidingControls
+                    experimentalWindowHidingControls
                     experimentalOverflowPreventionControl
-                    // Experimental window hiding disabled — plist-based per-item
-                    // hiding does not work on macOS 27 (removing keys from
-                    // TrailingItemPreferredPositions does not hide items).
-                    // experimentalWindowHidingControls
                 }
                 resetControls
             }
@@ -162,6 +159,9 @@ struct MenuBarLayoutSettingsPane: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                SettingsWarningPill(
+                    message: "Changing whether a macOS system item is hidden makes the menu bar flash once. App items can use the flicker-free position-hiding option below."
+                )
             }
         }
     }
@@ -182,9 +182,9 @@ struct MenuBarLayoutSettingsPane: View {
             VStack(alignment: .leading, spacing: 12) {
                 Toggle(isOn: experimentalWindowHidingBinding) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Hide third-party items off-screen (experimental)")
+                        Text("Use flicker-free position hiding for app items")
                             .font(.headline)
-                        Text("Hides app items by moving their windows off-screen instead of using the system restriction, so hiding one item no longer makes dynamic neighbors like iStat Menus flicker or disappear.")
+                        Text("Moves third-party status items beyond the visible menu bar instead of rebuilding the system restriction. Temporary reveal and hover restore their exact positions.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -192,7 +192,7 @@ struct MenuBarLayoutSettingsPane: View {
                 }
 
                 SettingsWarningPill(
-                    message: "This is experimental and uses private window APIs. Hidden items are restored when Thaw quits."
+                    message: "Experimental on macOS 27. App items without a resolvable position key use the assertion fallback, which can flash the bar. Hidden positions are restored when Thaw quits."
                 )
             }
         }
@@ -232,9 +232,10 @@ struct MenuBarLayoutSettingsPane: View {
 
     private var experimentalWindowHidingBinding: Binding<Bool> {
         Binding(
-            get: { appState.settings.advanced.enableExperimentalWindowHiding },
+            get: { appState.settings.advanced.enablePositionHiding },
             set: { newValue in
-                appState.settings.advanced.enableExperimentalWindowHiding = newValue
+                appState.settings.advanced.enablePositionHiding = newValue
+                appState.menuBarManager.sectionController?.refreshHidingAvailability()
                 appState.menuBarManager.sectionController?.refresh()
             }
         )

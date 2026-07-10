@@ -81,6 +81,15 @@ final class AdvancedSettings: ObservableObject {
     /// dynamic neighbors such as iStat. Complements, not replaces, the assertion.
     @Published var enableExperimentalWindowHiding = Defaults.DefaultValue.enableExperimentalWindowHiding
 
+    /// User-facing selector for the macOS 27 third-party hiding backend. The
+    /// stored key retains its preview-build name for settings/profile backward
+    /// compatibility; the mechanism now uses preferred-position weights, not
+    /// per-item windows.
+    var enablePositionHiding: Bool {
+        get { enableExperimentalWindowHiding }
+        set { enableExperimentalWindowHiding = newValue }
+    }
+
     /// Attempts to prevent the macOS 27 native menu bar overflow (the chevron
     /// that collapses items when space runs out) by pushing hidden items'
     /// position weights to extreme values so they are collapsed first, keeping

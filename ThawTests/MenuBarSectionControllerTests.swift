@@ -6,8 +6,8 @@
 //  Copyright (Thaw) © 2026 Toni Förster
 //  Licensed under the GNU GPLv3
 
-@testable import Thaw
 import PlatformRuntimeKit
+@testable import Thaw
 import XCTest
 
 /// Characterizes `MenuBarSectionController`'s instance lifecycle against fakes for its
@@ -187,11 +187,43 @@ final class MenuBarSectionControllerTests: XCTestCase {
         }
     }
 
+    final class FakePositionHideBackend: PositionHideBackending {
+        var hasManagedItems = false
+        var isInDesiredState = true
+        var applyResult = PositionHideBackend.ApplyResult(
+            handledItemIdentifiers: [],
+            didWrite: false
+        )
+        private(set) var applyCallCount = 0
+        private(set) var revealAllCallCount = 0
+        private(set) var reassertCallCount = 0
+
+        func apply(
+            sectionAssignment _: [String: MenuBarSection.Name],
+            allItems _: [MenuBarItem],
+            visibleOrder _: [MenuBarItem]
+        ) -> PositionHideBackend.ApplyResult {
+            applyCallCount += 1
+            return applyResult
+        }
+
+        func revealAll() -> Bool {
+            revealAllCallCount += 1
+            return false
+        }
+
+        func reassert() -> Bool {
+            reassertCallCount += 1
+            return false
+        }
+    }
+
     private var backend = FakeRuntimeSessionController()
     private var ccModuleManager = FakeRuntimeModuleController()
     private var cgsWindowHider = FakeRuntimeWindowController()
     private var axItemHider = FakeAXItemHider()
     private var positionStore = FakeRuntimePreferenceStore()
+    private var positionHideBackend = FakePositionHideBackend()
 
     override func setUp() {
         super.setUp()
@@ -200,6 +232,7 @@ final class MenuBarSectionControllerTests: XCTestCase {
         cgsWindowHider = FakeRuntimeWindowController()
         axItemHider = FakeAXItemHider()
         positionStore = FakeRuntimePreferenceStore()
+        positionHideBackend = FakePositionHideBackend()
     }
 
     private func makeController() -> MenuBarSectionController {
@@ -209,7 +242,8 @@ final class MenuBarSectionControllerTests: XCTestCase {
             ccModuleManager: ccModuleManager,
             cgsWindowHider: cgsWindowHider,
             axItemHider: axItemHider,
-            positionStore: positionStore
+            positionStore: positionStore,
+            positionHideBackend: positionHideBackend
         )
     }
 
@@ -287,6 +321,58 @@ final class MenuBarSectionControllerTests: XCTestCase {
         XCTAssertFalse(after.isControlledHidden)
     }
 
+    func testPositionHidingRemovesThirdPartyItemsFromAssertionInput() {
+        let item = MenuBarItem(
+            tag: .appItem(bundleID: "com.test.App", title: "Item-0"),
+            windowID: 71,
+            ownerPID: 200,
+            sourcePID: 200,
+            bounds: CGRect(x: 100, y: 0, width: 24, height: 22),
+            title: "Item-0",
+            isOnScreen: true
+        )
+        positionHideBackend.applyResult = .init(
+            handledItemIdentifiers: [item.uniqueIdentifier],
+            didWrite: true
+        )
+        let controller = makeController()
+        var assertionAssignment = [item.uniqueIdentifier: MenuBarSection.Name.hidden]
+
+        controller.applyPositionHiding(
+            enabled: true,
+            effectiveAssignment: assertionAssignment,
+            allItems: [item],
+            backendAssignment: &assertionAssignment
+        )
+
+        XCTAssertEqual(positionHideBackend.applyCallCount, 1)
+        XCTAssertNil(assertionAssignment[item.uniqueIdentifier])
+    }
+
+    func testPositionHidingUsesAssertionFallbackWhenKeyIsUnresolved() {
+        let item = MenuBarItem(
+            tag: .appItem(bundleID: "com.test.Unresolved", title: "Item-0"),
+            windowID: 72,
+            ownerPID: 201,
+            sourcePID: 201,
+            bounds: CGRect(x: 130, y: 0, width: 24, height: 22),
+            title: "Item-0",
+            isOnScreen: true
+        )
+        let controller = makeController()
+        var assertionAssignment = [item.uniqueIdentifier: MenuBarSection.Name.hidden]
+
+        controller.applyPositionHiding(
+            enabled: true,
+            effectiveAssignment: assertionAssignment,
+            allItems: [item],
+            backendAssignment: &assertionAssignment
+        )
+
+        XCTAssertTrue(positionHideBackend.applyResult.handledItemIdentifiers.isEmpty)
+        XCTAssertEqual(assertionAssignment[item.uniqueIdentifier], .hidden)
+    }
+
     func testSurgicalHidersRunInOrder_CGSThenAX() {
         // This test characterizes the ordering offlation ordering in
         // `applyExperimentalWindowHiding`: CGS runs first, AX runs second (on
@@ -314,7 +400,8 @@ final class MenuBarSectionControllerTests: XCTestCase {
             ccModuleManager: ccModuleManager,
             cgsWindowHider: cgsHider,
             axItemHider: axHider,
-            positionStore: positionStore
+            positionStore: positionStore,
+            positionHideBackend: FakePositionHideBackend()
         )
 
         // Create test items with known PIDs.
@@ -403,7 +490,8 @@ final class MenuBarSectionControllerTests: XCTestCase {
             ccModuleManager: FakeRuntimeModuleController(),
             cgsWindowHider: FakeRuntimeWindowController(),
             axItemHider: FakeAXItemHider(),
-            positionStore: positionStore
+            positionStore: positionStore,
+            positionHideBackend: FakePositionHideBackend()
         )
 
         var backendAssignment: [String: MenuBarSection.Name] = [

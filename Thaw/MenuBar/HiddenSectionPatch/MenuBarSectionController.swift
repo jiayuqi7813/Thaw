@@ -79,6 +79,25 @@ protocol RuntimePreferenceProviding: AnyObject {
 
 extension RuntimePreferenceStore: RuntimePreferenceProviding {}
 
+/// The subset of ``PositionHideBackend`` used by the app orchestration.
+@MainActor
+protocol PositionHideBackending: AnyObject {
+    var hasManagedItems: Bool { get }
+    var isInDesiredState: Bool { get }
+    @discardableResult
+    func apply(
+        sectionAssignment: [String: MenuBarSection.Name],
+        allItems: [MenuBarItem],
+        visibleOrder: [MenuBarItem]
+    ) -> PositionHideBackend.ApplyResult
+    @discardableResult
+    func revealAll() -> Bool
+    @discardableResult
+    func reassert() -> Bool
+}
+
+extension PositionHideBackend: PositionHideBackending {}
+
 /// macOS 27 section-based hiding, the authority behind the restored
 /// drag-between-sections layout UI.
 ///
@@ -93,11 +112,10 @@ extension RuntimePreferenceStore: RuntimePreferenceProviding {}
 ///   section currently shown from the Thaw icon or hotkeys. This only changes
 ///   the live assertion allowlist; persisted assignments stay untouched.
 ///
-/// The actual hiding is delegated to ``RuntimeSessionController``: the private
-/// visibility-restriction assertion that genuinely removes the icons and reflows
-/// the bar. Its allowlist is recomputed from the assignment map. When the private
-/// API is unavailable the backend is inert (nothing is hidden) and there is no
-/// cosmetic overlay fallback.
+/// Third-party status items can be delegated to ``PositionHideBackend``, which
+/// moves them to stable off-screen preference bands without re-compositing the
+/// bar. System items and unresolved app items remain on
+/// ``RuntimeSessionController`` as the reliable assertion fallback.
 ///
 /// Created only on macOS 27+ (see ``MenuBarManager``), so everything it owns is
 /// implicitly gated to that OS — macOS 26 keeps its native section machinery.
@@ -140,11 +158,9 @@ final class MenuBarSectionController: ObservableObject {
     /// Hidden items; `.alwaysHidden` reveals both Hidden and Always-Hidden items.
     @Published private(set) var revealedSection: MenuBarSection.Name?
 
-    /// Mirrors ``RuntimeSessionController/isHidingAvailable``: whether the private
-    /// Assessment Mode assertion API is present on this system. `false` means
-    /// reordering still works but hiding is inert — surfaced as a settings
-    /// warning. Re-checked on ``NSApplication/didBecomeActiveNotification``
-    /// because an OS update could land while the app is running.
+    /// Whether at least one configured hiding adapter is available. Position
+    /// hiding provides third-party coverage even when the private assertion is
+    /// absent; the assertion remains required for system/unresolved items.
     @Published private(set) var isHidingAvailable: Bool
 
     /// Set once the launch-time unavailability warning has been logged, so a
@@ -203,6 +219,13 @@ final class MenuBarSectionController: ObservableObject {
     /// during reflow, preventing the ghosting.
     private let positionStore: RuntimePreferenceProviding
 
+    /// Primary, flicker-free hiding mechanism for third-party status items.
+    /// System modules and items without a resolvable `status:` preference key
+    /// remain on the assertion fallback.
+    private let positionHideBackend: PositionHideBackending
+    private var positionHandledItemIdentifiers = Set<String>()
+    private var positionAssertionExcludedItemIdentifiers = Set<String>()
+
     private var timer: Timer?
     private var boundaryReconciliationTask: Task<Void, Never>?
     private var lastRefreshSignature: String?
@@ -220,13 +243,15 @@ final class MenuBarSectionController: ObservableObject {
     private var recoveryDriver: MenuBarRecoveryDriver?
 
     convenience init(appState: AppState) {
+        let positionStore = RuntimePreferenceStore()
         self.init(
             appState: appState,
             backend: RuntimeSessionController(),
             ccModuleManager: RuntimeModuleController(),
             cgsWindowHider: RuntimeWindowController(),
             axItemHider: AXItemHider(),
-            positionStore: RuntimePreferenceStore()
+            positionStore: positionStore,
+            positionHideBackend: PositionHideBackend(store: positionStore)
         )
     }
 
@@ -242,7 +267,8 @@ final class MenuBarSectionController: ObservableObject {
         ccModuleManager: RuntimeModuleControlling,
         cgsWindowHider: RuntimeWindowControlling,
         axItemHider: RuntimeWindowControlling,
-        positionStore: RuntimePreferenceProviding
+        positionStore: RuntimePreferenceProviding,
+        positionHideBackend: PositionHideBackending
     ) {
         self.appState = appState
         let order = Self.loadOrder()
@@ -256,9 +282,10 @@ final class MenuBarSectionController: ObservableObject {
         self.cgsWindowHider = cgsWindowHider
         self.axItemHider = axItemHider
         self.positionStore = positionStore
-        self.isHidingAvailable = backend.isHidingAvailable
+        self.positionHideBackend = positionHideBackend
+        self.isHidingAvailable = backend.isHidingAvailable || (appState?.settings.advanced.enablePositionHiding ?? false)
         Bridging.logSystemMenuBarWindows()
-        diagLog.info("hiding backend: AssessmentMode (\(isHidingAvailable ? "available" : "unavailable")); \(sectionAssignment.count) assigned item(s)")
+        diagLog.info("hiding backends: position=\(appState?.settings.advanced.enablePositionHiding ?? false), assertion=\(backend.isHidingAvailable); \(sectionAssignment.count) assigned item(s)")
         logUnavailabilityAtLaunchIfNeeded()
 
         didBecomeActiveObserver = NotificationCenter.default.addObserver(
@@ -350,10 +377,10 @@ final class MenuBarSectionController: ObservableObject {
                     )
                 },
                 desiredHidden: { [weak self] in
-                    self?.hasDesiredRestriction ?? false
+                    self?.hasDesiredConcealment ?? false
                 },
                 isAssertionAlive: { [weak self] in
-                    self?.backend.isHolding ?? false
+                    self?.areConcealmentAuthoritiesHealthy ?? false
                 },
                 repulseAssertion: { [weak self] in
                     self?.repulseRestrictionForRecovery() ?? false
@@ -365,18 +392,30 @@ final class MenuBarSectionController: ObservableObject {
                     self?.doubleToggleRestrictionForRecovery() ?? false
                 },
                 markTornDown: { [weak self] in
-                    self?.backend.markExternallyTornDown()
+                    guard let self,
+                          self.hasDesiredAssertionRestriction,
+                          !self.backend.isHolding
+                    else { return }
+                    self.backend.markExternallyTornDown()
                 }
             )
         )
     }
 
-    /// Whether the current reveal state still asks the runtime assertion to
-    /// conceal at least one item.
-    private var hasDesiredRestriction: Bool {
-        backendAssignmentInput().values.contains {
+    private var hasDesiredConcealment: Bool {
+        hasDesiredAssertionRestriction || positionHideBackend.hasManagedItems
+    }
+
+    private var hasDesiredAssertionRestriction: Bool {
+        assertionAssignmentInput().values.contains {
             $0 == .hidden || $0 == .alwaysHidden
         }
+    }
+
+    private var areConcealmentAuthoritiesHealthy: Bool {
+        let assertionHealthy = !hasDesiredAssertionRestriction || backend.isHolding
+        let positionHealthy = !positionHideBackend.hasManagedItems || positionHideBackend.isInDesiredState
+        return assertionHealthy && positionHealthy
     }
 
     /// Builds a cheap recovery snapshot from the most recent normal AX cache
@@ -393,10 +432,10 @@ final class MenuBarSectionController: ObservableObject {
         }
         let items = appState.itemManager.lastOnScreenMenuBarItems.0
         let controlledIdentifiers = Set(
-            backendAssignmentInput().keys.filter {
+            assertionAssignmentInput().keys.filter {
                 !RuntimeModuleController.isGovernable(itemIdentifier: $0)
             }
-        )
+        ).union(positionHandledItemIdentifiers)
         return Self.makeRecoverySnapshot(
             items: items,
             controlledIdentifiers: controlledIdentifiers,
@@ -434,9 +473,24 @@ final class MenuBarSectionController: ObservableObject {
     /// Rung 1: rebuilds the current restriction without first exposing the
     /// concealed items.
     private func repulseRestrictionForRecovery() -> Bool {
-        guard let appState, hasDesiredRestriction else { return false }
+        if positionHideBackend.hasManagedItems,
+           !positionHideBackend.isInDesiredState
+        {
+            let didChange = positionHideBackend.reassert()
+            if didChange {
+                prefsWatcher?.noteSelfWrite()
+            }
+            return didChange
+        }
+
+        return repulseAssertionForRecovery()
+    }
+
+    private func repulseAssertionForRecovery() -> Bool {
+        guard let appState, hasDesiredAssertionRestriction else { return false }
+        let assignment = assertionAssignmentInput()
         let didChange = backend.pulse(
-            sectionAssignment: backendAssignmentInput(),
+            sectionAssignment: assignment,
             allItems: appState.itemManager.itemCache.managedItems
         )
         noteRecoveryRestrictionChange(didChange)
@@ -448,6 +502,18 @@ final class MenuBarSectionController: ObservableObject {
     /// pipeline while MenuBarAgent is settling.
     private func relockVisiblePositionsForRecovery() -> Bool {
         guard let appState else { return false }
+        if appState.settings.advanced.enablePositionHiding {
+            if positionHideBackend.hasManagedItems,
+               !positionHideBackend.isInDesiredState
+            {
+                let didChange = positionHideBackend.reassert()
+                if didChange {
+                    prefsWatcher?.noteSelfWrite()
+                }
+                return didChange
+            }
+            return repulseAssertionForRecovery()
+        }
         let allItems = appState.itemManager.itemCache.managedItems
         let effectiveAssignment = effectiveAssignmentExcludingTemporarilyRevealed()
         let positionsBefore = positionStore.readPositions()
@@ -478,7 +544,11 @@ final class MenuBarSectionController: ObservableObject {
     /// Rung 3: forces a full restriction rebuild. If the items are already
     /// visible, skip the reveal half to avoid an unnecessary visible toggle.
     private func doubleToggleRestrictionForRecovery() -> Bool {
-        guard let appState, hasDesiredRestriction else { return false }
+        guard let appState else { return false }
+        let assignment = assertionAssignmentInput()
+        guard assignment.values.contains(where: { $0 == .hidden || $0 == .alwaysHidden }) else {
+            return false
+        }
         let allItems = appState.itemManager.itemCache.managedItems
 
         var didChange = false
@@ -486,7 +556,7 @@ final class MenuBarSectionController: ObservableObject {
             didChange = backend.apply(sectionAssignment: [:], allItems: allItems)
         }
         didChange = backend.pulse(
-            sectionAssignment: backendAssignmentInput(),
+            sectionAssignment: assignment,
             allItems: allItems
         ) || didChange
         noteRecoveryRestrictionChange(didChange)
@@ -505,7 +575,7 @@ final class MenuBarSectionController: ObservableObject {
     /// `NSApplication.didBecomeActiveNotification`, since an OS update could
     /// land (or, in principle, be reverted) while the app keeps running.
     func refreshHidingAvailability() {
-        let available = backend.refreshAvailability()
+        let available = backend.refreshAvailability() || (appState?.settings.advanced.enablePositionHiding ?? false)
         guard available != isHidingAvailable else { return }
         isHidingAvailable = available
         diagLog.info("hiding availability changed: \(available ? "available" : "unavailable")")
@@ -1328,7 +1398,7 @@ final class MenuBarSectionController: ObservableObject {
     func refresh(forceRestrictionPulse: Bool = false) {
         guard let appState else { return }
         let experimentalSystemItemHiding = appState.settings.advanced.enableExperimentalSystemItemHiding
-        let experimentalWindowHiding = appState.settings.advanced.enableExperimentalWindowHiding
+        let experimentalWindowHiding = appState.settings.advanced.enablePositionHiding
         let experimentalOverflowPrevention = appState.settings.advanced.enableExperimentalOverflowPrevention
         let allItems = appState.itemManager.itemCache.managedItems
         let invalidAssignmentIDs = Self.invalidAssignmentIdentifiers(
@@ -1351,6 +1421,14 @@ final class MenuBarSectionController: ObservableObject {
             experimentalWindowHiding: experimentalWindowHiding,
             experimentalOverflowPrevention: experimentalOverflowPrevention
         )
+
+        // Low-frequency safety pass for apps that rewrite their own preferred
+        // position about once per second (notably iStat). `reassert()` is
+        // idempotent and writes only when the dictionary has actually drifted;
+        // the preference watcher remains the faster event-driven path.
+        if experimentalWindowHiding, positionHideBackend.reassert() {
+            prefsWatcher?.noteSelfWrite()
+        }
         guard signature != lastRefreshSignature else { return }
         lastRefreshSignature = signature
 
@@ -1385,16 +1463,14 @@ final class MenuBarSectionController: ObservableObject {
         // reveal state (they are handled by their dedicated managers above).
         var backendAssignment = backendAssignmentInput()
 
-        // Experimental: hide third-party items surgically (CGS window move, then
-        // AX hide, then visible-position lock) instead of the assessment-mode
-        // assertion, which re-composites the WHOLE bar and ghosts dynamic
-        // neighbors like iStat. Items a surgical hider took over are stripped
-        // from `backendAssignment` so the assertion leaves them alone. See
-        // ``applyExperimentalWindowHiding`` for the strategy and the off-path
-        // teardown. When the flag is off this is a no-op except for restoring
-        // anything a previous on-state stranded off-screen / AX-hidden / locked.
-        applyExperimentalWindowHiding(
-            enabled: appState.settings.advanced.enableExperimentalWindowHiding,
+        // When selected, move third-party status items to off-screen preference
+        // bands. Resolved items are stripped from `backendAssignment`, leaving
+        // the assertion responsible only for system and unresolved items. The
+        // older plist → CGS → AX → position-lock experiment remains isolated in
+        // `applyExperimentalWindowHiding`; its load-bearing pass order is not
+        // reused or altered by this independent position backend.
+        applyPositionHiding(
+            enabled: appState.settings.advanced.enablePositionHiding,
             effectiveAssignment: effectiveAssignment,
             allItems: allItems,
             backendAssignment: &backendAssignment
@@ -1421,6 +1497,10 @@ final class MenuBarSectionController: ObservableObject {
             restoreVisibleControlItemAfterRestrictionChange()
             diagLog.info("restriction changed; restored visible control item state")
             runPostRestrictionSceneProbes()
+            if positionHideBackend.reassert() {
+                prefsWatcher?.noteSelfWrite()
+                diagLog.info("re-applied third-party position weights after system assertion reflow")
+            }
             // Experimental overflow prevention: push hidden items' position
             // weights to extreme values so the native macOS 27 menu bar
             // overflow (notched displays) collapses them before visible items.
@@ -1534,14 +1614,14 @@ final class MenuBarSectionController: ObservableObject {
     @discardableResult
     func pulseRestrictionAfterReflow(liveItems: [MenuBarItem]) -> Bool {
         guard RuntimeSessionController.isAvailable else { return false }
-        guard sectionAssignment.values.contains(where: { $0 == .hidden || $0 == .alwaysHidden }) else {
+        let assignment = assertionAssignmentInput()
+        guard assignment.values.contains(where: { $0 == .hidden || $0 == .alwaysHidden }) else {
             return false
         }
 
-        let backendAssignment = backendAssignmentInput()
         logRestrictionProbeSnapshot(reason: "before-pulse", items: liveItems)
         let didPulse = backend.pulse(
-            sectionAssignment: backendAssignment,
+            sectionAssignment: assignment,
             allItems: liveItems
         )
         if didPulse {
@@ -1559,6 +1639,61 @@ final class MenuBarSectionController: ObservableObject {
             backendAssignment.removeValue(forKey: identifier)
         }
         return backendAssignment
+    }
+
+    private func assertionAssignmentInput() -> [String: MenuBarSection.Name] {
+        var assignment = backendAssignmentInput()
+        for identifier in positionAssertionExcludedItemIdentifiers {
+            assignment.removeValue(forKey: identifier)
+        }
+        return assignment
+    }
+
+    /// Drives third-party hiding through off-screen position weights. Every
+    /// third-party assignment is removed from the assertion input so that
+    /// position mode never causes a whole-bar re-composite. Items without a
+    /// resolvable `status:` key remain visible.
+    func applyPositionHiding(
+        enabled: Bool,
+        effectiveAssignment: [String: MenuBarSection.Name],
+        allItems: [MenuBarItem],
+        backendAssignment: inout [String: MenuBarSection.Name]
+    ) {
+        guard enabled else {
+            positionHandledItemIdentifiers.removeAll()
+            positionAssertionExcludedItemIdentifiers.removeAll()
+            if positionHideBackend.revealAll() {
+                prefsWatcher?.noteSelfWrite()
+            }
+            return
+        }
+
+        var items = allItems
+        let liveIdentifiers = Set(allItems.map(\.uniqueIdentifier))
+        items.append(contentsOf: snapshots.values.filter {
+            !liveIdentifiers.contains($0.uniqueIdentifier)
+        })
+        let visibleOrder = Self.liveVisualOrder(
+            items.filter { (effectiveAssignment[$0.uniqueIdentifier] ?? .visible) == .visible }
+        )
+        let result = positionHideBackend.apply(
+            sectionAssignment: effectiveAssignment,
+            allItems: items,
+            visibleOrder: visibleOrder
+        )
+        positionHandledItemIdentifiers = result.handledItemIdentifiers
+        // Only a successfully resolved `status:` key is safe to remove from
+        // the assertion input. `isCGSWindowHideable` describes the abandoned
+        // per-window experiment, not whether the position store can actually
+        // manage this particular item (dynamic keys and newly launched apps may
+        // be unresolved). Those items keep the assertion fallback.
+        positionAssertionExcludedItemIdentifiers = result.handledItemIdentifiers
+        for identifier in positionAssertionExcludedItemIdentifiers {
+            backendAssignment.removeValue(forKey: identifier)
+        }
+        if result.didWrite {
+            prefsWatcher?.noteSelfWrite()
+        }
     }
 
     /// Assignment applied to hiding backends after removing single-item reveals.
