@@ -1,3 +1,4 @@
+.build
 .build-benchmark
 .cursor
 .claude
@@ -8,6 +9,7 @@
 .idea/
 .lefthook.yml
 .vscode/
+**/.build/**
 *.dSYM
 *.ipa
 build/  

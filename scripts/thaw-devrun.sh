@@ -136,5 +136,7 @@ say "Installing to ${DEST}…"
 mv "$APP" "$DEST"
 
 say "Launching…"
+# Match the Thaw scheme's LaunchAction env so malloc stack traces work outside Xcode.
+# open --env MallocStackLogging=1 "$DEST"
 open "$DEST"
 say "Running 'Thaw Debug'. First launch: grant Accessibility + Screen Recording."
