@@ -2077,9 +2077,12 @@ final class MenuBarSectionController: ObservableObject {
 
     @available(macOS 27, *)
     private func resolvedAXIdentifier(for element: UIElement) -> String? {
+        // NOT `.lazy`: lazy `compactMap` evaluates the transform twice for the
+        // first match (filter then force-unwrap), and this transform is a live
+        // AX query that can return a different value between the two calls,
+        // trapping on the `$0!`. Eager runs each query once; child lists are tiny.
         AXHelpers.identifier(for: element)?.nonEmpty
             ?? AXHelpers.children(for: element)
-            .lazy
             .compactMap { AXHelpers.identifier(for: $0)?.nonEmpty }
             .first
             ?? AXHelpers.title(for: element)?.nonEmpty

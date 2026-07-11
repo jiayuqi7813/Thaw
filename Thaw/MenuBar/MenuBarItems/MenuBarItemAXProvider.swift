@@ -109,14 +109,19 @@ enum MenuBarItemAXProvider {
                 // Keep stable identity metadata separate from the live display
                 // title. Scan one level deeper because some apps publish these
                 // attributes on the status-bar button rather than its container.
+                // NOT `.lazy`: lazy `compactMap` is `map(transform).filter { $0
+                // != nil }.map { $0! }`, so it evaluates the transform twice for
+                // the first match — once to test non-nil, once to force-unwrap.
+                // The transform is a live AX query that can return a different
+                // value between the two calls (the item may change or vanish,
+                // especially with concurrent enumerations), and the `$0!` then
+                // traps. Eager runs each query exactly once; child lists are tiny.
                 let identifier = AXHelpers.identifier(for: child)?.nonEmpty
                     ?? AXHelpers.children(for: child)
-                    .lazy
                     .compactMap { AXHelpers.identifier(for: $0)?.nonEmpty }
                     .first
                 let accessibilityDescription = AXHelpers.description(for: child)?.nonEmpty
                     ?? AXHelpers.children(for: child)
-                    .lazy
                     .compactMap { AXHelpers.description(for: $0)?.nonEmpty }
                     .first
                 let axTitle = AXHelpers.title(for: child)?.nonEmpty
