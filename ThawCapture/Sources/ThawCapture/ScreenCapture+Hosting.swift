@@ -15,10 +15,10 @@ public extension ScreenCapture {
     // MARK: - ScreenCaptureKit Implementation
 
     /// The result of capturing `MenuBarAgent`'s menu bar hosting window.
+    /// `@unchecked Sendable`: the only reference-type member is `CGImage`, which
+    /// is immutable and safe to read from any thread. Marking it lets the warm
+    /// hosting-window stream return a buffered frame across the actor boundary.
     @available(macOS 27, *)
-    // `@unchecked Sendable`: the only reference-type member is `CGImage`, which
-    // is immutable and safe to read from any thread. Marking it lets the warm
-    // hosting-window stream return a buffered frame across the actor boundary.
     struct MenuBarHostingCapture: @unchecked Sendable {
         /// The captured image of the whole menu bar (every status item
         /// composited on a transparent background, at `scale`).
@@ -143,12 +143,12 @@ public extension ScreenCapture {
     static func captureMenuBarHostingWindowAsync(
         displayID: CGDirectDisplayID
     ) async -> MenuBarHostingCapture? {
-        // Fast path: while the live-refresh loop keeps a warm hosting-window
-        // stream running, its most-recently delivered frame is the current
-        // truth (SCStream only emits a frame when the window's content changes),
-        // so it can be returned without a fresh capture + GPU readback. When no
-        // stream is warm — one-shot callers, or none has delivered a first frame
-        // yet — this returns nil and we fall through to the one-shot screenshot.
+        // Fast path: when the caller has opted into continuous capture and kept
+        // a warm hosting-window stream running, its most-recently delivered
+        // frame is the current truth (SCStream only emits on content change),
+        // so it can be returned without a fresh capture + GPU readback. Returns
+        // nil — falling through to the one-shot screenshot — whenever no stream
+        // is warm (the default) or none has delivered a first frame yet.
         if let warm = await MenuBarHostingWindowStreamer.shared.warmCapture(displayID: displayID) {
             return warm
         }

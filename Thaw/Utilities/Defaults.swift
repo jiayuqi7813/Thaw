@@ -185,6 +185,7 @@ extension Defaults {
         static let enableExperimentalSystemItemHiding = false
         static let enableExperimentalWindowHiding = false
         static let enableExperimentalOverflowPrevention = false
+        static let useContinuousMenuBarCapture = false
 
         // MARK: Search
 
@@ -264,6 +265,7 @@ extension Defaults {
         case enableExperimentalSystemItemHiding = "EnableExperimentalSystemItemHiding"
         case enableExperimentalWindowHiding = "EnableExperimentalWindowHiding"
         case enableExperimentalOverflowPrevention = "EnableExperimentalOverflowPrevention"
+        case useContinuousMenuBarCapture = "UseContinuousMenuBarCapture"
         case diagnosticAssessmentModeSceneProbes = "Thaw.diagnosticAssessmentModeSceneProbes"
         case diagnosticAssessmentModeProbeHiddenTriggerPress = "Thaw.diagnosticAssessmentModeProbeHiddenTriggerPress"
 

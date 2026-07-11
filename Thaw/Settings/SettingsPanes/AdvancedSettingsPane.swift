@@ -94,6 +94,9 @@ struct AdvancedSettingsPane: View {
                 showIceBarAtMouseLocationOnHotkey
                 showOnHoverDelay
                 iconRefreshInterval
+                if #available(macOS 27, *) {
+                    useContinuousMenuBarCapture
+                }
             }
             IceSection("Permissions") {
                 allPermissions
@@ -409,6 +412,15 @@ struct AdvancedSettingsPane: View {
                 }
         }
         .annotation("How often animated menu bar icons are refreshed in panels. Higher values are smoother but use more CPU.")
+    }
+
+    @available(macOS 27, *)
+    private var useContinuousMenuBarCapture: some View {
+        Toggle(
+            "Use continuous capture for menu bar icons",
+            isOn: $settings.useContinuousMenuBarCapture
+        )
+        .annotation("Keeps a ScreenCaptureKit stream running while a capture surface is open. This can be smoother on some setups, but keeps the screen-recording indicator visible and may reflow the menu bar. One-shot capture is used by default.")
     }
 
     private var tooltipDelay: some View {
