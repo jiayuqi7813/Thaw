@@ -237,6 +237,10 @@ struct MenuBarLayoutSettingsPane: View {
                     .disabled(isResettingLayout || areControlItemsDisabledBySystem)
                 }
 
+                if isConfirmingReset {
+                    resetConfirmationControls
+                }
+
                 if let resetStatus {
                     Text(resetStatus.message)
                         .font(.footnote)
@@ -245,17 +249,25 @@ struct MenuBarLayoutSettingsPane: View {
                 }
             }
         }
-        .confirmationDialog("Reset to…", isPresented: $isConfirmingReset) {
-            Button("Reset to Visible") { resetMenuBarLayout(to: .visible) }
-            Button("Reset to Hidden") { resetMenuBarLayout(to: .hidden) }
-            if appState.settings.advanced.enableAlwaysHiddenSection {
-                Button("Reset to Always Hidden") { resetMenuBarLayout(to: .alwaysHidden) }
+    }
+
+    private var resetConfirmationControls: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Choose where to move the menu bar items:")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 8) {
+                Button("Visible") { resetMenuBarLayout(to: .visible) }
+                Button("Hidden") { resetMenuBarLayout(to: .hidden) }
+                if appState.settings.advanced.enableAlwaysHiddenSection {
+                    Button("Always Hidden") { resetMenuBarLayout(to: .alwaysHidden) }
+                }
+                Button("Cancel", role: .cancel) {
+                    isConfirmingReset = false
+                }
             }
-            Button("Cancel", role: .cancel) {
-                isConfirmingReset = false
-            }
-        } message: {
-            Text("Moves every movable item except the \(Constants.displayName) icon to the chosen section.")
+            .buttonStyle(.bordered)
         }
     }
 
@@ -310,6 +322,7 @@ struct MenuBarLayoutSettingsPane: View {
     }
 
     private func resetMenuBarLayout(to target: ResetTarget) {
+        isConfirmingReset = false
         isResettingLayout = true
         resetStatus = nil
 
