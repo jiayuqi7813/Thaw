@@ -333,6 +333,7 @@ final class MenuBarSectionControllerTests: XCTestCase {
         )
         positionHideBackend.applyResult = .init(
             handledItemIdentifiers: [item.uniqueIdentifier],
+            thirdPartyItemIdentifiers: [item.uniqueIdentifier],
             didWrite: true
         )
         let controller = makeController()
@@ -349,7 +350,13 @@ final class MenuBarSectionControllerTests: XCTestCase {
         XCTAssertNil(assertionAssignment[item.uniqueIdentifier])
     }
 
-    func testPositionHidingUsesAssertionFallbackWhenKeyIsUnresolved() {
+    func testPositionHidingStripsUnresolvedThirdPartyItemFromAssertionInput() {
+        // A third-party item that never resolved to a `status:` key
+        // (`handledItemIdentifiers` empty) must STILL be removed from the
+        // assertion input as long as the backend reported it as third-party.
+        // Leaving it in would let the concealed set flip on every reveal,
+        // re-applying the assertion and re-compositing the whole bar. The item
+        // simply stays visible instead of falling back to the assertion.
         let item = MenuBarItem(
             tag: .appItem(bundleID: "com.test.Unresolved", title: "Item-0"),
             windowID: 72,
@@ -358,6 +365,11 @@ final class MenuBarSectionControllerTests: XCTestCase {
             bounds: CGRect(x: 130, y: 0, width: 24, height: 22),
             title: "Item-0",
             isOnScreen: true
+        )
+        positionHideBackend.applyResult = .init(
+            handledItemIdentifiers: [],
+            thirdPartyItemIdentifiers: [item.uniqueIdentifier],
+            didWrite: false
         )
         let controller = makeController()
         var assertionAssignment = [item.uniqueIdentifier: MenuBarSection.Name.hidden]
@@ -370,7 +382,7 @@ final class MenuBarSectionControllerTests: XCTestCase {
         )
 
         XCTAssertTrue(positionHideBackend.applyResult.handledItemIdentifiers.isEmpty)
-        XCTAssertEqual(assertionAssignment[item.uniqueIdentifier], .hidden)
+        XCTAssertNil(assertionAssignment[item.uniqueIdentifier])
     }
 
     func testSurgicalHidersRunInOrder_CGSThenAX() {

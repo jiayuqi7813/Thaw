@@ -10,9 +10,9 @@
 import Cocoa
 @preconcurrency import Combine
 @preconcurrency import CoreGraphics
-import PlatformRuntimeKit
-import os.lock
 import MenuBarModel
+import os.lock
+import PlatformRuntimeKit
 
 /// Simple actor-based semaphore to prevent overlapping operations
 actor SimpleSemaphore {
@@ -4099,6 +4099,16 @@ extension MenuBarItemManager {
             }
         }
 
+        // macOS 27 reordering is position-only. A move the preferred-position
+        // path cannot express is left unchanged instead of falling through to
+        // the cursor-hiding, pointer-warping synthetic Command-drag.
+        if #available(macOS 27, *) {
+            MenuBarItemManager.diagLog.info(
+                "Position-only reorder: skipping synthetic Command-drag for \(item.logString) \(destination.logString)"
+            )
+            return
+        }
+
         // Capture the original cursor position once so the cursor is warped
         // back to it a single time after all attempts, rather than after each
         // individual attempt (which caused the cursor to oscillate many times
@@ -4538,13 +4548,9 @@ extension MenuBarItemManager {
         }
     }
 
-    /// Waits for MenuBarAgent to relaunch and re-read the layout after a
-    /// preferred-position write, returning the latest geometry. MenuBarAgent is a
-    /// managed launch agent that relaunches within ~1-2 s, so both the batch and
-    /// single-move paths poll the live order until it settles rather than
-    /// guessing a fixed delay. Stops as soon as `isSatisfied` holds (converged)
-    /// or the poll budget elapses (current enough for the caller to mop up any
-    /// residual).
+    /// Waits for MenuBarAgent to observe a synchronized preferred-position write
+    /// and re-sort, returning the latest geometry. Stops as soon as `isSatisfied`
+    /// holds or the poll budget elapses.
     @available(macOS 27, *)
     private func waitForMenuBarAgentLayout(
         maxAttempts: Int = Constants.MenuBarTuning.menuBarAgentResortMaxPolls,
@@ -4563,7 +4569,7 @@ extension MenuBarItemManager {
         return liveItems
     }
 
-    /// Waits for MenuBarAgent to relaunch and re-sort after a batch
+    /// Waits for MenuBarAgent to re-sort after a batch
     /// ``RuntimePositionStore/applyOrder(desiredOrder:liveItems:environment:)``
     /// write, returning the latest geometry. Polls until `section` satisfies
     /// `desiredOrder` (nothing left to move) or a short budget elapses, so the
@@ -4620,9 +4626,7 @@ extension MenuBarItemManager {
             return false
         }
 
-        // MenuBarAgent is SIGTERM'd to re-read the layout and relaunches within
-        // ~1-2 s. Poll the live order until it settles rather than guessing a
-        // fixed delay.
+        // Poll the live order until MenuBarAgent observes the synchronized write.
         let destinationSatisfied: ([MenuBarItem]) -> Bool = { items in
             RuntimeLayoutCoordinator.liveOrderSatisfiesDestination(
                 items: items,
@@ -4638,6 +4642,35 @@ extension MenuBarItemManager {
                 "Preferred-position move verified for \(item.logString) \(destination.logString)"
             )
             return true
+        }
+
+        // A single live icon can have both a stale AX-title preference key and
+        // the internal key MenuBarAgent actually sorts. The first write changes
+        // the stale candidate enough for positional resolution to identify the
+        // active alternate. Retry once from refreshed geometry so one UI drag
+        // completes that self-correction without synthetic input or restarting
+        // the compositor.
+        if let refreshedItem = updated.first(where: {
+            $0.tag.matchesIgnoringWindowID(item.tag)
+        }),
+            RuntimePositionStore.move(
+                item: refreshedItem,
+                to: destination,
+                liveItems: updated,
+                experimentalSystemItemHiding: experimentalSystemItemHiding
+            )
+        {
+            MenuBarItemManager.diagLog.debug(
+                "Retrying preferred-position move after refreshed key resolution for \(item.logString)"
+            )
+            let retried = await waitForMenuBarAgentLayout(isSatisfied: destinationSatisfied)
+            if destinationSatisfied(retried) {
+                lastMoveOperationTimestamp = .now
+                MenuBarItemManager.diagLog.info(
+                    "Preferred-position move verified after key-resolution retry for \(item.logString) \(destination.logString)"
+                )
+                return true
+            }
         }
 
         MenuBarItemManager.diagLog.warning(

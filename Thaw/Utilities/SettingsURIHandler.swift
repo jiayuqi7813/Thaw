@@ -8,8 +8,8 @@
 
 import AppKit
 import Foundation
-import Security
 import MenuBarModel
+import Security
 
 /// Handles settings manipulation via thaw:// URLs with whitelist-based security.
 @MainActor

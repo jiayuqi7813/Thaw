@@ -1,13 +1,13 @@
 //
-//  RuntimePositionStoreTests.swift
+//  MenuBarAgentPositionStoreTests.swift
 //  Project: Thaw
 //
 //  Copyright (Ice) © 2023–2025 Jordan Baird
 //  Copyright (Thaw) © 2026 Toni Förster
 //  Licensed under the GNU GPLv3
 
-@testable import Thaw
 import PlatformRuntimeKit
+@testable import Thaw
 import XCTest
 
 @available(macOS 27, *)
@@ -69,7 +69,7 @@ final class RuntimePositionStoreTests: XCTestCase {
 
     // MARK: - move orchestration
 
-    func testMoveWritesMidpointAndNudges() {
+    func testMovePermutesAcceptedWeightsAndNudges() {
         let a = item("A", x: 0)
         let target = item("T", x: 30)
         let c = item("C", x: 60)
@@ -91,20 +91,20 @@ final class RuntimePositionStoreTests: XCTestCase {
 
         XCTAssertTrue(applied)
         XCTAssertTrue(nudged)
-        // A is placed between T (100) and C (200).
-        XCTAssertEqual(written?["status:A::A"], 150)
-        // Other weights are untouched.
-        XCTAssertEqual(written?["status:A::T"], 100)
+        XCTAssertEqual(written?["status:A::A"], 100)
+        XCTAssertEqual(written?["status:A::T"], 50)
         XCTAssertEqual(written?["status:A::C"], 200)
     }
 
-    func testMoveDefersWhenKeyUnresolved() {
+    func testMoveSeedsUnweightedMovableItem() {
         let a = item("A", x: 0)
         let target = item("T", x: 30)
+        var written: [String: Int]?
+        var nudged = false
         let env = RuntimePositionStore.Environment(
             readPositions: { ["status:A::T": 100] }, // no key for A
-            writePositions: { _ in XCTFail("should not write") },
-            nudgeAgent: { XCTFail("should not nudge") }
+            writePositions: { written = $0 },
+            nudgeAgent: { nudged = true }
         )
         XCTAssertFalse(
             RuntimePositionStore.move(
@@ -114,18 +114,22 @@ final class RuntimePositionStoreTests: XCTestCase {
                 environment: env
             )
         )
+        XCTAssertEqual(written?["status:A::T"], 100)
+        XCTAssertEqual(written?["status:com.test.A::A"], 200)
+        XCTAssertTrue(nudged)
     }
 
-    func testMoveDefersWhenNoGap() {
+    func testMovePermutesWeightsWhenNoGapExists() {
         let a = item("A", x: 0)
         let target = item("T", x: 30)
         let c = item("C", x: 60)
+        var written: [String: Int]?
         let env = RuntimePositionStore.Environment(
             readPositions: { ["status:A::A": 50, "status:A::T": 100, "status:A::C": 101] },
-            writePositions: { _ in XCTFail("should not write") },
-            nudgeAgent: { XCTFail("should not nudge") }
+            writePositions: { written = $0 },
+            nudgeAgent: {}
         )
-        XCTAssertFalse(
+        XCTAssertTrue(
             RuntimePositionStore.move(
                 item: a,
                 to: .rightOfItem(target),
@@ -133,9 +137,12 @@ final class RuntimePositionStoreTests: XCTestCase {
                 environment: env
             )
         )
+        XCTAssertEqual(written?["status:A::T"], 50)
+        XCTAssertEqual(written?["status:A::A"], 100)
+        XCTAssertEqual(written?["status:A::C"], 101)
     }
 
-    func testExperimentalMoveCanTargetAnchoredSystemItem() {
+    func testExperimentalMoveCanTargetMenuBarAgentSystemItem() {
         let a = item("A", x: 0)
         let clock = MenuBarItem.fixture(
             tag: .clock,
@@ -157,7 +164,7 @@ final class RuntimePositionStoreTests: XCTestCase {
             nudgeAgent: {}
         )
 
-        XCTAssertFalse(
+        XCTAssertTrue(
             RuntimePositionStore.move(
                 item: a,
                 to: .rightOfItem(clock),
@@ -165,6 +172,7 @@ final class RuntimePositionStoreTests: XCTestCase {
                 environment: env
             )
         )
+        XCTAssertNil(written)
 
         XCTAssertTrue(
             RuntimePositionStore.move(
@@ -175,7 +183,8 @@ final class RuntimePositionStoreTests: XCTestCase {
                 environment: env
             )
         )
-        XCTAssertEqual(written?["status:com.test.A::A"], 150)
+        XCTAssertEqual(written?["module:Clock"], 50)
+        XCTAssertEqual(written?["status:com.test.A::A"], 100)
     }
 
     func testExperimentalMoveDoesNotTargetSystemUIServerItem() {

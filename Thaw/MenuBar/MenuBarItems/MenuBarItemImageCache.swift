@@ -1081,6 +1081,21 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                     result.excluded.append(item)
                     continue
                 }
+                // Position-hidden items are parked off-screen (a large
+                // `TrailingItemPreferredPositions` weight), so their glyph region
+                // in the hosting-window composite is empty and crops to blank.
+                // That is expected, not a capture failure: recording it would
+                // blacklist the item for 30 s and leave a grey box in the layout
+                // bar. Keep the last good image captured while it was on-screen
+                // (the section controller's snapshot) and recover on reveal.
+                if !item.isOnScreen {
+                    MenuBarItemImageCache.diagLog.debug(
+                        "axBoundsCapture: blank image for off-screen \(item.logString); " +
+                            "keeping prior image (position-hidden)"
+                    )
+                    result.excluded.append(item)
+                    continue
+                }
                 MenuBarItemImageCache.diagLog.debug(
                     "axBoundsCapture: blank image for \(item.logString)"
                 )
@@ -1100,7 +1115,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         of items: [MenuBarItem],
         scale: CGFloat,
         appState: AppState,
-        freshBounds: Bool = false
+        freshBounds _: Bool = false
     ) async -> CaptureResult {
         // Thaw's section-divider control items capture as transparent via
         // CGWindowListCreateImage on macOS <=26, so skip them there. On macOS
@@ -1127,55 +1142,35 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                 NSScreen.screens.first { $0.displayID == displayID }?.frame
             }
 
-            // Crop against FRESH live AX bounds, not the cached `item.bounds`.
-            // A just-revealed Hidden item still carries its stale snapshot
-            // position in the cache, so cropping with it grabs a neighbor's
-            // pixels from the live screenshot (e.g. BetterDisplay shows the Sound
-            // icon). Only the Hidden/Always-Hidden sections need this; the Visible
-            // section's cache bounds are already fresh and it is captured far too
-            // often to pay for an extra all-apps AX walk each time.
-            var liveBoundsByID: [String: CGRect] = [:]
-            if freshBounds {
-                let liveItems = await MenuBarItem.getMenuBarItems(option: [.onScreen, .activeSpace])
-                liveBoundsByID = Dictionary(
-                    liveItems.map { ($0.uniqueIdentifier, $0.bounds) },
-                    uniquingKeysWith: { first, _ in first }
-                )
-            }
+            // Crop against FRESH live AX bounds, not cached `item.bounds`.
+            // A reflowing MenuBarAgent item can keep stale snapshot bounds
+            // long enough to crop across neighboring glyphs, which poisons
+            // the cache with "half of two icons" thumbnails.
+            let liveItems = await MenuBarItem.getMenuBarItems(option: [.onScreen, .activeSpace])
+            let liveBoundsByID = Dictionary(
+                liveItems.map { ($0.uniqueIdentifier, $0.bounds) },
+                uniquingKeysWith: { first, _ in first }
+            )
 
             var axItems: [(item: MenuBarItem, bounds: CGRect)] = []
             for item in capturable {
-                let bounds: CGRect
-                if freshBounds {
-                    // freshBounds means the cached `item.bounds` are explicitly
-                    // distrusted (the item may have shifted in a reflow). If the
-                    // live AX walk didn't return THIS item — its identity drifted
-                    // (iStat rewrites its title), or it briefly fell out of the
-                    // enumeration during a conceal/reflow — we must NOT fall back
-                    // to the stale cached bounds: after a leftward reflow those
-                    // bounds now overlap a *neighbor*, so cropping there stamps the
-                    // neighbor's glyph onto this item's tag (e.g. CodexBar's icon
-                    // showing up on an iStat slot). Skip instead, keeping the
-                    // item's last-good image until a clean live bound is available.
-                    guard let liveBounds = liveBoundsByID[item.uniqueIdentifier] else {
-                        MenuBarItemImageCache.diagLog.debug(
-                            "captureImages: no live bounds for \(item.logString); " +
-                                "keeping prior image (skipping stale-bounds crop)"
-                        )
-                        continue
-                    }
-                    bounds = liveBounds
-                } else {
-                    bounds = item.bounds
+                guard let bounds = liveBoundsByID[item.uniqueIdentifier] else {
+                    MenuBarItemImageCache.diagLog.debug(
+                        "captureImages: no live bounds for \(item.logString); " +
+                            "keeping prior image (skipping stale-bounds crop)"
+                    )
+                    continue
                 }
                 guard !bounds.isEmpty else { continue }
+
                 // items.bounds is in global screen coords (Y-down); NSScreen.frame
-                // is in AppKit coords (Y-up) — but both share the same X axis and
-                // ranges overlap for on-screen items, so intersects() works as a
+                // is in AppKit coords (Y-up) — but both share the same X axis
+                // ranges for on-screen items, so intersects() works as a
                 // coarse off-screen filter (negative-X hidden items are excluded).
                 if let screenFrame, !screenFrame.intersects(bounds) {
                     continue
                 }
+
                 axItems.append((item: item, bounds: bounds))
             }
 
@@ -1372,6 +1367,23 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
             if updatedCount > 0 {
                 MenuBarItemImageCache.diagLog.debug("refreshImages: ✓ updated \(updatedCount)/\(newImages.count) items (visually changed)")
             }
+
+            _ = validateAndCleanupInvalidEntries()
+            if images.count > Self.maxCacheSize {
+                let protectedTags = Set(appState?.itemManager.itemCache.managedItems.map(\.tag) ?? [])
+                let excessCount = images.count - Self.maxCacheSize
+                let tagsToRemove = leastRecentlyUsedTags(count: excessCount, excluding: protectedTags)
+                for tag in tagsToRemove {
+                    images.removeValue(forKey: tag)
+                    accessTimestamps.removeValue(forKey: tag)
+                }
+                if !tagsToRemove.isEmpty {
+                    MenuBarItemImageCache.diagLog.info(
+                        "refreshImages: evicted \(tagsToRemove.count) least recently used images (\(protectedTags.count) protected)"
+                    )
+                }
+            }
+            accessTimestamps = accessTimestamps.filter { images.keys.contains($0.key) }
         }
     }
 

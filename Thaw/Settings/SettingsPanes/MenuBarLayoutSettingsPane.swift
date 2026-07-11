@@ -39,7 +39,6 @@ struct MenuBarLayoutSettingsPane: View {
                 layoutBars
                 if #available(macOS 27, *) {
                     systemItemHidingControls
-                    experimentalWindowHidingControls
                     experimentalOverflowPreventionControl
                 }
                 resetControls
@@ -178,28 +177,6 @@ struct MenuBarLayoutSettingsPane: View {
     }
 
     @available(macOS 27, *)
-    private var experimentalWindowHidingControls: some View {
-        IceSection {
-            VStack(alignment: .leading, spacing: 12) {
-                Toggle(isOn: experimentalWindowHidingBinding) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Use flicker-free position hiding for app items")
-                            .font(.headline)
-                        Text("Moves third-party status items beyond the visible menu bar instead of rebuilding the system restriction. Temporary reveal and hover restore their exact positions.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-
-                SettingsWarningPill(
-                    message: "Experimental on macOS 27. App items without a resolvable position key use the assertion fallback, which can flash the bar. Hidden positions are restored when Thaw quits."
-                )
-            }
-        }
-    }
-
-    @available(macOS 27, *)
     private var experimentalOverflowPreventionControl: some View {
         IceSection {
             VStack(alignment: .leading, spacing: 12) {
@@ -226,17 +203,6 @@ struct MenuBarLayoutSettingsPane: View {
             get: { appState.settings.advanced.enableExperimentalOverflowPrevention },
             set: { newValue in
                 appState.settings.advanced.enableExperimentalOverflowPrevention = newValue
-                appState.menuBarManager.sectionController?.refresh()
-            }
-        )
-    }
-
-    private var experimentalWindowHidingBinding: Binding<Bool> {
-        Binding(
-            get: { appState.settings.advanced.enablePositionHiding },
-            set: { newValue in
-                appState.settings.advanced.enablePositionHiding = newValue
-                appState.menuBarManager.sectionController?.refreshHidingAvailability()
                 appState.menuBarManager.sectionController?.refresh()
             }
         )

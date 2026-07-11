@@ -223,7 +223,7 @@ final class LayoutBarItemView: LayoutBarArrangedView {
         return OverflowFallbackIcon.shouldPreferAppIcon(
             for: section,
             appState: appState,
-            cachedImage: cachedImage?.nsImage
+            cachedImage: cachedDrawImage
         )
     }
 
