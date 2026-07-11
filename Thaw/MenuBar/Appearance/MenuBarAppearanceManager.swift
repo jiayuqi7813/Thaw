@@ -34,6 +34,20 @@ final class MenuBarAppearanceManager: ObservableObject {
     /// The currently managed menu bar overlay panels.
     private(set) var overlayPanels = Set<MenuBarOverlayPanel>()
 
+    /// The screen layout (displayID → frame) the current overlay panels were
+    /// built for. `didChangeScreenParametersNotification` fires for many events
+    /// that do not change this (brightness, HDR/EDR, colorspace, the
+    /// virtual-display provoker, Thaw's own relaunch waves); comparing against
+    /// this lets the handler skip a destructive panel rebuild — which blinks the
+    /// overlay out and strands each `NSGlassEffectView`'s composite appearance —
+    /// unless the layout genuinely changed.
+    private var lastConfiguredScreenLayout: [CGDirectDisplayID: CGRect] = [:]
+
+    /// The current managed-screen layout signature (displayID → frame).
+    private static func currentScreenLayout() -> [CGDirectDisplayID: CGRect] {
+        Dictionary(NSScreen.managedScreens.map { ($0.displayID, $0.frame) }) { first, _ in first }
+    }
+
     /// The amount to inset the menu bar if called for by the configuration.
     let menuBarInsetAmount: CGFloat = 3.5
 
@@ -64,6 +78,18 @@ final class MenuBarAppearanceManager: ObservableObject {
             .debounce(for: 0.1, scheduler: DispatchQueue.main)
             .sink { [weak self] _ in
                 guard let self else {
+                    return
+                }
+                // Skip the destructive close-and-rebuild when the screen layout
+                // is unchanged. Most notifications here are benign (brightness,
+                // HDR/EDR, colorspace, the virtual-display provoker — which
+                // managedScreens already excludes — and self-inflicted relaunch
+                // waves); rebuilding on them blinks the overlay out and leaks an
+                // NSGlassEffectView composite appearance each time. The existing
+                // panels remain correct, so there is nothing to do.
+                if !overlayPanels.isEmpty,
+                   Self.currentScreenLayout() == lastConfiguredScreenLayout
+                {
                     return
                 }
                 while let panel = overlayPanels.popFirst() {
@@ -165,6 +191,7 @@ final class MenuBarAppearanceManager: ObservableObject {
             let appState,
             force || needsOverlayPanels(for: configuration)
         else {
+            lastConfiguredScreenLayout = [:]
             return
         }
 
@@ -176,5 +203,6 @@ final class MenuBarAppearanceManager: ObservableObject {
         }
 
         self.overlayPanels = overlayPanels
+        lastConfiguredScreenLayout = Self.currentScreenLayout()
     }
 }
