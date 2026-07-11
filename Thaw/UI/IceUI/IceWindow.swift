@@ -12,9 +12,6 @@ import SwiftUI
 
 /// A custom scene representing one of Ice's windows.
 struct IceWindow<Content: View>: Scene {
-    @Environment(\.openWindow) private var openWindow
-    @Environment(\.dismissWindow) private var dismissWindow
-
     /// The window's identifier.
     let id: IceWindowIdentifier
 
@@ -32,16 +29,7 @@ struct IceWindow<Content: View>: Scene {
     }
 
     var body: some Scene {
-        windowScene.once {
-            // SwiftUI waits to create the underlying NSWindow until the scene
-            // is first presented. We may need a valid window reference before
-            // that point, so we open the window and immediately dismiss it.
-            //
-            // - Note: Both actions are called during the same run loop cycle,
-            //   so the window isn't actually opened.
-            openWindow(id: id)
-            dismissWindow(id: id)
-        }
+        windowScene
     }
 
     private var windowContentView: some View {
@@ -55,6 +43,28 @@ struct IceWindow<Content: View>: Scene {
             windowContentView
         }
         .defaultLaunchBehavior(.suppressed)
+    }
+}
+
+// MARK: - WindowActionBridge
+
+/// Captures live SwiftUI window actions without eagerly creating any windows.
+///
+/// A non-inserted `MenuBarExtra` is instantiated with the app's scenes, so its
+/// environment can open the lazy Settings and Permissions `Window` scenes.
+struct WindowActionBridge: Scene {
+    @Environment(\.openWindow) private var openWindow
+    @Environment(\.dismissWindow) private var dismissWindow
+
+    let registerWindowActions: (OpenWindowAction, DismissWindowAction) -> Void
+
+    var body: some Scene {
+        MenuBarExtra("", isInserted: .constant(false)) {
+            EmptyView()
+        }
+        .once {
+            registerWindowActions(openWindow, dismissWindow)
+        }
     }
 }
 

@@ -20,6 +20,7 @@ struct IceApp: App {
     @NSApplicationDelegateAdaptor var appDelegate: AppDelegate
 
     var body: some Scene {
+        WindowActionBridge(registerWindowActions: appDelegate.appState.registerWindowActions)
         SettingsWindow(appState: appDelegate.appState)
         PermissionsWindow(appState: appDelegate.appState)
     }

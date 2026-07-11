@@ -8,8 +8,8 @@
 
 import Combine
 import CoreGraphics
-import SwiftUI
 import MenuBarModel
+import SwiftUI
 
 /// The model for app-wide state.
 @MainActor
@@ -72,6 +72,13 @@ final class AppState: ObservableObject {
 
     /// Track open windows to prevent duplicates
     private var openWindows = Set<IceWindowIdentifier>()
+
+    /// Scene-bound presentation actions. A freshly-created `EnvironmentValues`
+    /// instance has inert window actions, so SwiftUI scenes register the real
+    /// values during setup without eagerly creating their windows.
+    private var openWindowAction: OpenWindowAction?
+    private var dismissWindowAction: DismissWindowAction?
+    private var pendingOpenWindows = Set<IceWindowIdentifier>()
 
     /// Track last known screen count to detect disconnects.
     private var lastKnownScreenCount = NSScreen.managedScreens.count
@@ -163,8 +170,9 @@ final class AppState: ObservableObject {
         Task { @MainActor [weak self] in
             guard let self else { return }
             self.openWindows.remove(id)
+            self.pendingOpenWindows.remove(id)
             self.diagLog.debug("Dismissing window with id: \(id)")
-            EnvironmentValues().dismissWindow(id: id)
+            self.dismissWindowAction?(id: id)
         }
     }
 
@@ -442,6 +450,20 @@ final class AppState: ObservableObject {
             }
     }
 
+    /// Stores window actions from a live SwiftUI scene and fulfills any open
+    /// request that arrived during application launch before scene setup.
+    func registerWindowActions(openWindow: OpenWindowAction, dismissWindow: DismissWindowAction) {
+        openWindowAction = openWindow
+        dismissWindowAction = dismissWindow
+
+        let pending = pendingOpenWindows
+        pendingOpenWindows.removeAll()
+        for id in pending {
+            diagLog.debug("Fulfilling pending window request for id: \(id)")
+            openWindow(id: id)
+        }
+    }
+
     func openWindow(_ id: IceWindowIdentifier) {
         Task { @MainActor [weak self] in
             guard let self else { return }
@@ -454,7 +476,12 @@ final class AppState: ObservableObject {
 
             self.openWindows.insert(id)
             self.diagLog.debug("Opening window with id: \(id)")
-            EnvironmentValues().openWindow(id: id)
+            guard let openWindowAction = self.openWindowAction else {
+                self.pendingOpenWindows.insert(id)
+                self.diagLog.debug("Deferring window request until SwiftUI scene setup: \(id)")
+                return
+            }
+            openWindowAction(id: id)
 
             try? await Task.sleep(for: .milliseconds(100))
             self.activate(withPolicy: .regular)
