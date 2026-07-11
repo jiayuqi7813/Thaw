@@ -875,6 +875,43 @@ extension NSScreen {
     }
 }
 
+// MARK: - NSMenuItem
+
+extension NSMenuItem {
+    /// Menu-item symbol image visibility preference for macOS 27+.
+    ///
+    /// Maps to `NSMenuItem.ImageVisibility`. On earlier systems the preference
+    /// is ignored and the symbol image is shown as on macOS 26.
+    enum PreferredSymbolImageVisibility {
+        /// Follow AppKit policy (hides symbol images on macOS 27 by default).
+        case automatic
+        /// Prefer showing the image; AppKit may still hide it in some contexts.
+        case visible
+        /// Prefer hiding the image.
+        case hidden
+    }
+
+    /// Assigns an SF Symbol image and opts into macOS 27's menu-image visibility policy.
+    ///
+    /// On macOS 27, `.automatic` hides symbol images unless AppKit treats the
+    /// item as a common system action (Settings, Share, Print, …). Pass
+    /// `.visible` only for actions that should keep an icon on Golden Gate.
+    func setSymbolImage(
+        systemName: String,
+        accessibilityDescription: String?,
+        preferredVisibility: PreferredSymbolImageVisibility = .automatic
+    ) {
+        image = NSImage(systemSymbolName: systemName, accessibilityDescription: accessibilityDescription)
+        if #available(macOS 27, *) {
+            preferredImageVisibility = switch preferredVisibility {
+            case .automatic: .automatic
+            case .visible: .visible
+            case .hidden: .hidden
+            }
+        }
+    }
+}
+
 // MARK: - NSStatusItem
 
 extension NSStatusItem {

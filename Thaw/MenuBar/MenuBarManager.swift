@@ -679,7 +679,7 @@ final class MenuBarManager: ObservableObject {
             action: #selector(showAppearanceEditorPanel),
             keyEquivalent: ""
         )
-        editAppearanceItem.image = NSImage(systemSymbolName: "swatchpalette", accessibilityDescription: "Edit Appearance")
+        editAppearanceItem.setSymbolImage(systemName: "swatchpalette", accessibilityDescription: "Edit Appearance")
         editAppearanceItem.target = self
         menu.addItem(editAppearanceItem)
 
@@ -688,7 +688,10 @@ final class MenuBarManager: ObservableObject {
             action: #selector(showMenuBarLayoutSettings),
             keyEquivalent: ""
         )
-        editLayoutItem.image = NSImage(systemSymbolName: "rectangle.topthird.inset.filled", accessibilityDescription: "Edit Layout")
+        editLayoutItem.setSymbolImage(
+            systemName: "rectangle.topthird.inset.filled",
+            accessibilityDescription: "Edit Layout"
+        )
         editLayoutItem.target = self
         menu.addItem(editLayoutItem)
 
@@ -701,8 +704,8 @@ final class MenuBarManager: ObservableObject {
                 action: nil,
                 keyEquivalent: ""
             )
-            profilesItem.image = NSImage(
-                systemSymbolName: "person.crop.rectangle.stack",
+            profilesItem.setSymbolImage(
+                systemName: "person.crop.rectangle.stack",
                 accessibilityDescription: "Profiles"
             )
             let profilesMenu = NSMenu()
@@ -730,7 +733,7 @@ final class MenuBarManager: ObservableObject {
             action: #selector(AppDelegate.openSettingsWindow),
             keyEquivalent: ","
         )
-        settingsItem.image = NSImage(systemSymbolName: "gear", accessibilityDescription: "Settings")
+        settingsItem.setSymbolImage(systemName: "gear", accessibilityDescription: "Settings")
         menu.addItem(settingsItem)
 
         if appState?.settings.advanced.enableSecondaryContextMenuQuit == true {
@@ -743,7 +746,7 @@ final class MenuBarManager: ObservableObject {
             )
             quitItem.keyEquivalentModifierMask = .command
             quitItem.target = self
-            quitItem.image = NSImage(systemSymbolName: "power", accessibilityDescription: "Quit")
+            quitItem.setSymbolImage(systemName: "power", accessibilityDescription: "Quit")
             menu.addItem(quitItem)
 
             let restartItem = NSMenuItem(
@@ -754,7 +757,7 @@ final class MenuBarManager: ObservableObject {
             restartItem.keyEquivalentModifierMask = [.command, .option]
             restartItem.isAlternate = true
             restartItem.target = self
-            restartItem.image = NSImage(systemSymbolName: "arrow.counterclockwise", accessibilityDescription: "Restart")
+            restartItem.setSymbolImage(systemName: "arrow.counterclockwise", accessibilityDescription: "Restart")
             menu.addItem(restartItem)
         }
 

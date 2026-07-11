@@ -1095,7 +1095,7 @@ final class ControlItem: NSObject {
             keyEquivalent: ","
         )
         settingsItem.keyEquivalentModifierMask = .command
-        settingsItem.image = NSImage(systemSymbolName: "gear", accessibilityDescription: "Settings")
+        settingsItem.setSymbolImage(systemName: "gear", accessibilityDescription: "Settings")
         menu.addItem(settingsItem)
 
         menu.addItem(.separator())
@@ -1105,7 +1105,7 @@ final class ControlItem: NSObject {
             action: #selector(showSearchPanel),
             keyEquivalent: ""
         )
-        searchItem.image = NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: "Search")
+        searchItem.setSymbolImage(systemName: "magnifyingglass", accessibilityDescription: "Search")
         if
             let hotkey = hotkey(withAction: .searchMenuBarItems),
             let keyCombination = hotkey.keyCombination
@@ -1150,7 +1150,7 @@ final class ControlItem: NSObject {
                 action: #selector(toggleMenuBarSection),
                 keyEquivalent: ""
             )
-            item.image = NSImage(systemSymbolName: iconName, accessibilityDescription: sectionTitle)
+            item.setSymbolImage(systemName: iconName, accessibilityDescription: sectionTitle)
             if
                 let hotkey = section.hotkey,
                 let keyCombination = hotkey.keyCombination
@@ -1173,8 +1173,8 @@ final class ControlItem: NSObject {
                 action: nil,
                 keyEquivalent: ""
             )
-            profilesItem.image = NSImage(
-                systemSymbolName: "person.crop.rectangle.stack",
+            profilesItem.setSymbolImage(
+                systemName: "person.crop.rectangle.stack",
                 accessibilityDescription: "Profiles"
             )
             let profilesMenu = NSMenu()
@@ -1203,7 +1203,10 @@ final class ControlItem: NSObject {
                 action: #selector(checkForUpdates),
                 keyEquivalent: ""
             )
-            checkForUpdatesItem.image = NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: "Check for Updates")
+            checkForUpdatesItem.setSymbolImage(
+                systemName: "arrow.triangle.2.circlepath",
+                accessibilityDescription: "Check for Updates"
+            )
             checkForUpdatesItem.target = self
             menu.addItem(checkForUpdatesItem)
         }
@@ -1213,7 +1216,7 @@ final class ControlItem: NSObject {
             action: #selector(openDonateURL),
             keyEquivalent: ""
         )
-        supportItem.image = NSImage(systemSymbolName: "heart.circle.fill", accessibilityDescription: "Support")
+        supportItem.setSymbolImage(systemName: "heart.circle.fill", accessibilityDescription: "Support")
         supportItem.target = self
         menu.addItem(supportItem)
 
@@ -1226,7 +1229,7 @@ final class ControlItem: NSObject {
         )
         quitItem.keyEquivalentModifierMask = .command
         quitItem.target = self
-        quitItem.image = NSImage(systemSymbolName: "power", accessibilityDescription: "Quit")
+        quitItem.setSymbolImage(systemName: "power", accessibilityDescription: "Quit")
         menu.addItem(quitItem)
 
         let restartItem = NSMenuItem(
@@ -1237,7 +1240,7 @@ final class ControlItem: NSObject {
         restartItem.keyEquivalentModifierMask = [.command, .option]
         restartItem.isAlternate = true
         restartItem.target = self
-        restartItem.image = NSImage(systemSymbolName: "arrow.counterclockwise", accessibilityDescription: "Restart")
+        restartItem.setSymbolImage(systemName: "arrow.counterclockwise", accessibilityDescription: "Restart")
         menu.addItem(restartItem)
 
         return menu
