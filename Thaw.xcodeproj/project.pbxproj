@@ -12,6 +12,7 @@
 		1787C4272B16890B002F50DF /* AXSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 1787C4262B16890B002F50DF /* AXSwift */; };
 		17F71BB52B880B4500905CBA /* CompactSlider in Frameworks */ = {isa = PBXBuildFile; productRef = 17F71BB42B880B4500905CBA /* CompactSlider */; };
 		7127A9FF2C4886D100D99DEF /* IfritStatic in Frameworks */ = {isa = PBXBuildFile; productRef = 7127A9FE2C4886D100D99DEF /* IfritStatic */; };
+		9570E4A96CDEC0BEBAA5573F /* AsyncAlgorithms in Frameworks */ = {isa = PBXBuildFile; productRef = 43C5F05D006747974015EBD9 /* AsyncAlgorithms */; };
 		7168EE532E281CBC00FF9830 /* AXSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 7168EE522E281CBC00FF9830 /* AXSwift */; };
 		7188A68C2E27F9ED008F131D /* MenuBarItemService.xpc in Embed XPC Services */ = {isa = PBXBuildFile; fileRef = 7188A6832E27F9ED008F131D /* MenuBarItemService.xpc */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		D27A00012F40000000000001 /* PlatformRuntimeKit in Frameworks */ = {isa = PBXBuildFile; productRef = D27A00032F40000000000003 /* PlatformRuntimeKit */; };
@@ -132,6 +133,7 @@
 			files = (
 				170423D92B56DE78004A2549 /* Sparkle in Frameworks */,
 				7127A9FF2C4886D100D99DEF /* IfritStatic in Frameworks */,
+				9570E4A96CDEC0BEBAA5573F /* AsyncAlgorithms in Frameworks */,
 				175061912B1543DD003144CD /* LaunchAtLogin in Frameworks */,
 				1787C4272B16890B002F50DF /* AXSwift in Frameworks */,
 				17F71BB52B880B4500905CBA /* CompactSlider in Frameworks */,
@@ -212,6 +214,7 @@
 				170423D82B56DE78004A2549 /* Sparkle */,
 				17F71BB42B880B4500905CBA /* CompactSlider */,
 				7127A9FE2C4886D100D99DEF /* IfritStatic */,
+				43C5F05D006747974015EBD9 /* AsyncAlgorithms */,
 				D578D4A98E514566A18944B0 /* MenuBarModel */,
 				EDF7E8FBA3834C8090E06B59 /* MenuBarHost */,
 				A7C4F0032F60000000000003 /* ThawCapture */,
@@ -328,6 +331,7 @@
 				170423D72B56DE78004A2549 /* XCRemoteSwiftPackageReference "Sparkle" */,
 				17F71BB32B880B4500905CBA /* XCRemoteSwiftPackageReference "CompactSlider" */,
 				7127A9FB2C4881BC00D99DEF /* XCRemoteSwiftPackageReference "Ifrit" */,
+				1ADDA61D49BE1BA7CA5EA059 /* XCRemoteSwiftPackageReference "swift-async-algorithms" */,
 				D27A00002F40000000000000 /* XCRemoteSwiftPackageReference "prk-bin" */,
 				A4E38A6A423944089D70B9BB /* XCLocalSwiftPackageReference "MenuBarModel" */,
 				AD2D675A051141C9B42279EC /* XCLocalSwiftPackageReference "MenuBarHost" */,
@@ -887,6 +891,14 @@
 				minimumVersion = 4.0.0;
 			};
 		};
+		1ADDA61D49BE1BA7CA5EA059 /* XCRemoteSwiftPackageReference "swift-async-algorithms" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-async-algorithms";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.0;
+			};
+		};
 		D27A00002F40000000000000 /* XCRemoteSwiftPackageReference "prk-bin" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/thaw-app/prk-bin";
@@ -922,6 +934,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 7127A9FB2C4881BC00D99DEF /* XCRemoteSwiftPackageReference "Ifrit" */;
 			productName = IfritStatic;
+		};
+		43C5F05D006747974015EBD9 /* AsyncAlgorithms */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1ADDA61D49BE1BA7CA5EA059 /* XCRemoteSwiftPackageReference "swift-async-algorithms" */;
+			productName = AsyncAlgorithms;
 		};
 		7168EE522E281CBC00FF9830 /* AXSwift */ = {
 			isa = XCSwiftPackageProductDependency;
