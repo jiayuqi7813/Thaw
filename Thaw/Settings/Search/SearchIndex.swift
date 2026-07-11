@@ -79,6 +79,17 @@ enum SearchIndex {
             keywords: ["overflow", "native", "chevron", "notch", "experimental", "prevent"],
             property: .advanced("enableExperimentalOverflowPrevention")
         ),
+        SearchEntry(
+            id: "advanced.useContinuousMenuBarCapture",
+            titleKey: "Use continuous capture for menu bar icons",
+            titleText: "Use continuous capture for menu bar icons",
+            descriptionText: "Keeps a ScreenCaptureKit stream running while a capture surface is open for smoother periodic icon refreshes.",
+            pane: .advanced,
+            sectionKey: "Other",
+            sectionText: "Other",
+            keywords: ["capture", "continuous", "menu bar icons", "screen recording", "refresh", "stream"],
+            property: .advanced("useContinuousMenuBarCapture")
+        ),
     ]
 
     /// All searchable settings entries, in pane order.
@@ -104,6 +115,7 @@ enum SearchIndex {
         .advanced("enableExperimentalWindowHiding"),
         .advanced("enableExperimentalSystemItemHiding"),
         .advanced("enableExperimentalOverflowPrevention"),
+        .advanced("useContinuousMenuBarCapture"),
     ]
 
     static var nonSearchableProperties: Set<SettingsProperty> {
@@ -572,7 +584,7 @@ enum SearchIndex {
             id: "advanced.iconRefreshInterval",
             titleKey: "Icon refresh rate",
             titleText: "Icon refresh rate",
-            descriptionText: "How often animated menu bar icons are refreshed in panels. Higher values are smoother but use more CPU.",
+            descriptionText: "How often animated menu bar icons are refreshed in panels. On macOS 27, periodic refresh requires continuous capture; one-shot mode refreshes when a capture surface opens or the layout changes.",
             pane: .advanced,
             sectionKey: "Other",
             sectionText: "Other",

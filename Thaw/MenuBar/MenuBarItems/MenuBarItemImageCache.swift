@@ -652,6 +652,13 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         // macOS screen-recording indicator lit, which reflows the bar and skews
         // captures. Tracked locally so it is torn down on any loop exit.
         var streamingActive = false
+        // One-shot mode must not become a stream factory: SCScreenshotManager
+        // creates and destroys a transient SCStream for every screenshot, and
+        // the macOS 27 implementation leaks framework state per invocation.
+        // Allow a small, bounded retry window when the consumer opens because
+        // MenuBarAgent can still be reflowing on the first frame. Explicit
+        // layout/reset/reorder paths request their own refreshes afterward.
+        var remainingOneShotAttempts = 3
         defer {
             if streamingActive, #available(macOS 27, *) {
                 Task { await ScreenCapture.endMenuBarHostingStreaming() }
@@ -666,6 +673,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                     await ScreenCapture.endMenuBarHostingStreaming()
                     streamingActive = false
                 }
+                remainingOneShotAttempts = 3
                 try? await Task.sleep(for: .seconds(1))
                 continue
             }
@@ -680,6 +688,9 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                         await ScreenCapture.endMenuBarHostingStreaming()
                     }
                     streamingActive = wantStreaming
+                    if !wantStreaming {
+                        remainingOneShotAttempts = 3
+                    }
                 }
 
                 // Each macOS 27 refresh is a full MenuBarAgent hosting-window
@@ -747,7 +758,13 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
             // updateCacheWithoutChecks already routes to (axBoundsCapture). Use it
             // here so the periodic refresh actually refreshes on 27.
             if #available(macOS 27, *) {
+                if !streamingActive, remainingOneShotAttempts == 0 {
+                    continue
+                }
                 await updateCacheWithoutChecks(sections: sections)
+                if !streamingActive {
+                    remainingOneShotAttempts -= 1
+                }
                 continue
             }
 

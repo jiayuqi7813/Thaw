@@ -120,29 +120,31 @@ struct AdvancedSettingsPane: View {
     private var resetSettings: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(String(localized: "Reset all settings"))
-                Text(String(localized: "Reset all settings to their default values. This action cannot be undone."))
+                Text("Reset all settings")
+                Text("Reset all settings to their default values. This action cannot be undone.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
 
             Spacer()
 
-            Button(String(localized: "Reset \(Constants.displayName)", comment: "A button that resets all settings to defaults")) {
+            Button {
                 isConfirmingReset = true
+            } label: {
+                Text("Reset \(Constants.displayName)", comment: "A button that resets all settings to defaults")
             }
             .buttonStyle(.bordered)
             .tint(.red)
         }
-        .alert(String(localized: "Reset all settings?"), isPresented: $isConfirmingReset) {
-            Button(String(localized: "Reset"), role: .destructive) {
+        .alert("Reset all settings?", isPresented: $isConfirmingReset) {
+            Button("Reset", role: .destructive) {
                 appState.settings.resetAllSettingsToDefaults()
             }
-            Button(String(localized: "Cancel"), role: .cancel) {
+            Button("Cancel", role: .cancel) {
                 isConfirmingReset = false
             }
         } message: {
-            Text(String(localized: "This will reset all settings to their default values. This action cannot be undone."))
+            Text("This will reset all settings to their default values. This action cannot be undone.")
         }
     }
 
@@ -411,7 +413,7 @@ struct AdvancedSettingsPane: View {
                     maxSliderLabelWidth = max(maxSliderLabelWidth, frame.width)
                 }
         }
-        .annotation("How often animated menu bar icons are refreshed in panels. Higher values are smoother but use more CPU.")
+        .annotation("How often animated menu bar icons are refreshed in panels. On macOS 27, periodic refresh requires continuous capture; one-shot mode refreshes when a capture surface opens or the layout changes.")
     }
 
     @available(macOS 27, *)

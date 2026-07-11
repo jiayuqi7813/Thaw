@@ -7005,8 +7005,11 @@ extension MenuBarItemManager {
             suppressNextNewLeftmostItemRelocation = false
         }
 
+        // Preserve last-good thumbnails while MenuBarAgent reflows the newly
+        // visible items. Some assigned-visible items are temporarily absent
+        // from the live AX tree (or overflowed), so clearing first leaves no
+        // image to retain when the fresh-bounds capture correctly skips them.
         await MainActor.run {
-            appState.imageCache.clearAll()
             appState.imageCache.performCacheCleanup()
         }
 
