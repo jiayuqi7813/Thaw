@@ -16,7 +16,10 @@ public extension ScreenCapture {
 
     /// The result of capturing `MenuBarAgent`'s menu bar hosting window.
     @available(macOS 27, *)
-    struct MenuBarHostingCapture {
+    // `@unchecked Sendable`: the only reference-type member is `CGImage`, which
+    // is immutable and safe to read from any thread. Marking it lets the warm
+    // hosting-window stream return a buffered frame across the actor boundary.
+    struct MenuBarHostingCapture: @unchecked Sendable {
         /// The captured image of the whole menu bar (every status item
         /// composited on a transparent background, at `scale`).
         public let image: CGImage
@@ -29,7 +32,7 @@ public extension ScreenCapture {
     }
 
     @available(macOS 27, *)
-    private static func menuBarHostingWindowCandidates(
+    static func menuBarHostingWindowCandidates(
         in content: SCShareableContent,
         displayFrame: CGRect
     ) -> [SCWindow] {
@@ -60,6 +63,8 @@ public extension ScreenCapture {
 
         let configuration = SCStreamConfiguration()
         configuration.showsCursor = false
+        configuration.pixelFormat = kCVPixelFormatType_32BGRA
+        configuration.captureDynamicRange = .SDR
         configuration.width = Int((stripFrame.width * scale).rounded())
         configuration.height = Int((stripFrame.height * scale).rounded())
         configuration.sourceRect = CGRect(
@@ -138,6 +143,16 @@ public extension ScreenCapture {
     static func captureMenuBarHostingWindowAsync(
         displayID: CGDirectDisplayID
     ) async -> MenuBarHostingCapture? {
+        // Fast path: while the live-refresh loop keeps a warm hosting-window
+        // stream running, its most-recently delivered frame is the current
+        // truth (SCStream only emits a frame when the window's content changes),
+        // so it can be returned without a fresh capture + GPU readback. When no
+        // stream is warm — one-shot callers, or none has delivered a first frame
+        // yet — this returns nil and we fall through to the one-shot screenshot.
+        if let warm = await MenuBarHostingWindowStreamer.shared.warmCapture(displayID: displayID) {
+            return warm
+        }
+
         let content: SCShareableContent
         do {
             content = try await getShareableContent()
@@ -174,6 +189,8 @@ public extension ScreenCapture {
         let configuration = SCStreamConfiguration()
         configuration.showsCursor = false
         configuration.ignoreShadowsSingleWindow = true
+        configuration.pixelFormat = kCVPixelFormatType_32BGRA
+        configuration.captureDynamicRange = .SDR
         configuration.width = Int((window.frame.width * scale).rounded())
         configuration.height = Int((window.frame.height * scale).rounded())
 

@@ -646,6 +646,19 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
     private func runLiveRefreshLoop() async {
         MenuBarItemImageCache.diagLog.debug("Live refresh loop started")
 
+        // macOS 27 captures each tick from the MenuBarAgent hosting window.
+        // Keep a warm SCStream alive for the duration of the loop so ticks read
+        // its buffered frame instead of paying a fresh one-shot capture; it is
+        // torn down when the loop stops.
+        if #available(macOS 27, *) {
+            await ScreenCapture.beginMenuBarHostingStreaming()
+        }
+        defer {
+            if #available(macOS 27, *) {
+                Task { await ScreenCapture.endMenuBarHostingStreaming() }
+            }
+        }
+
         while !Task.isCancelled {
             guard let appState = self.appState else { break }
             var interval = appState.settings.advanced.iconRefreshInterval

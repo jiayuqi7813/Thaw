@@ -61,6 +61,14 @@ extension ScreenCapture {
         let configuration = SCStreamConfiguration()
         // captureResolution is not used here; explicit width/height below take precedence.
         configuration.showsCursor = false
+        // Pin the pixel format so the buffer is deterministic across SDR/EDR
+        // displays. Left unset, an HDR display can hand back a 10-bit buffer that
+        // the CIImage → CGImage conversion renders subtly differently, an
+        // intermittent display-dependent color glitch. 32BGRA is the historical
+        // default and what the crop/compare path expects. Do NOT set
+        // `colorSpaceName` — it triggers an internal CoreGraphics tone-mapping
+        // pass that destructively clips color (learned from BetterCapture).
+        configuration.pixelFormat = kCVPixelFormatType_32BGRA
         configuration.width = Int((screenBounds.width * scale).rounded())
         configuration.height = Int((screenBounds.height * scale).rounded())
         configuration.sourceRect = localSourceRect
@@ -151,8 +159,13 @@ final class FrameCaptor: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked 
     /// Shared serial queue for all SCStream sample buffer handlers.
     static let sampleHandlerQueue = DispatchQueue(label: "com.stonerl.Thaw.screencapture")
 
-    /// Reused across frames to avoid repeated GPU/Metal setup costs.
-    private let ciContext = CIContext()
+    /// Process-wide `CIContext`, shared across every capture. A `CIContext`
+    /// allocates a Metal device and command queue; `FrameCaptor` is created per
+    /// capture, so a per-instance context paid that GPU/Metal setup on every
+    /// single capture. One shared context amortizes it across the whole app.
+    static let sharedCIContext = CIContext()
+
+    private var ciContext: CIContext { FrameCaptor.sharedCIContext }
 
     private let lock = OSAllocatedUnfairLock<(continuation: CheckedContinuation<CGImage?, Never>?, bufferedImage: CGImage?)>(initialState: (nil, nil))
 
