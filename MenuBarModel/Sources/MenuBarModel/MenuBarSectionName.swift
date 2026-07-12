@@ -5,7 +5,7 @@
 //  Copyright (Thaw) © 2026 Toni Förster
 //  Licensed under the GNU GPLv3
 
-import SwiftUI
+import Foundation
 
 /// The name of a menu bar section.
 ///
@@ -32,15 +32,6 @@ public enum MenuBarSectionName: String, CaseIterable, Codable, Sendable {
         case .visible: "visible section"
         case .hidden: "hidden section"
         case .alwaysHidden: "always-hidden section"
-        }
-    }
-
-    /// Localized string key representation.
-    public var localized: LocalizedStringKey {
-        switch self {
-        case .visible: LocalizedStringKey("Visible")
-        case .hidden: LocalizedStringKey("Hidden")
-        case .alwaysHidden: LocalizedStringKey("Always-Hidden")
         }
     }
 }
