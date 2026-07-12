@@ -896,19 +896,32 @@ extension NSMenuItem {
     /// On macOS 27, `.automatic` hides symbol images unless AppKit treats the
     /// item as a common system action (Settings, Share, Print, …). Pass
     /// `.visible` only for actions that should keep an icon on Golden Gate.
+    ///
+    /// Important: on macOS 27 we only assign a symbol image when visibility is
+    /// `.visible`. Assigning a symbol under `.automatic` / `.hidden` still runs
+    /// AppKit's `_NSSimpleImageView updateLayer` path (then hides the image) and
+    /// leaks tiny `NSMutableDictionary` + `NSAffineTransform` pairs per item on
+    /// each `popUp`. Common system actions keep any system-provided icons.
     func setSymbolImage(
         systemName: String,
         accessibilityDescription: String?,
         preferredVisibility: PreferredSymbolImageVisibility = .automatic
     ) {
-        image = NSImage(systemSymbolName: systemName, accessibilityDescription: accessibilityDescription)
         if #available(macOS 27, *) {
             preferredImageVisibility = switch preferredVisibility {
             case .automatic: .automatic
             case .visible: .visible
             case .hidden: .hidden
             }
+            switch preferredVisibility {
+            case .visible:
+                image = NSImage(systemSymbolName: systemName, accessibilityDescription: accessibilityDescription)
+            case .automatic, .hidden:
+                image = nil
+            }
+            return
         }
+        image = NSImage(systemSymbolName: systemName, accessibilityDescription: accessibilityDescription)
     }
 }
 
