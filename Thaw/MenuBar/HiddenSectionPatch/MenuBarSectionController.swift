@@ -563,6 +563,7 @@ final class MenuBarSectionController: ObservableObject {
         }
         let allItems = appState.itemManager.itemCache.managedItems
 
+        assessmentStateMonitor?.noteSelfChange()
         var didChange = false
         if recoverySnapshot().isControlledHidden {
             didChange = backend.apply(sectionAssignment: [:], allItems: allItems)
@@ -577,7 +578,6 @@ final class MenuBarSectionController: ObservableObject {
 
     private func noteRecoveryRestrictionChange(_ didChange: Bool) {
         guard didChange, let appState else { return }
-        assessmentStateMonitor?.noteSelfChange()
         appState.itemManager.noteRestrictionChange()
         restoreVisibleControlItemAfterRestrictionChange()
     }
@@ -1492,6 +1492,7 @@ final class MenuBarSectionController: ObservableObject {
         let hasConcealedItems = backendAssignment.values.contains {
             $0 == .hidden || $0 == .alwaysHidden
         }
+        assessmentStateMonitor?.noteSelfChange()
         let didChangeRestriction = if forceRestrictionPulse, hasConcealedItems {
             backend.pulse(
                 sectionAssignment: backendAssignment,
@@ -1504,7 +1505,6 @@ final class MenuBarSectionController: ObservableObject {
             )
         }
         if didChangeRestriction {
-            assessmentStateMonitor?.noteSelfChange()
             appState.itemManager.noteRestrictionChange()
             restoreVisibleControlItemAfterRestrictionChange()
             diagLog.info("restriction changed; restored visible control item state")

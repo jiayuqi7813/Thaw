@@ -103,7 +103,7 @@ final class AssessmentStateMonitor {
     }
 
     /// Opens a window during which DND/assessment notifications are attributed to
-    /// Thaw's own assertion change and ignored. Call immediately after each
+    /// Thaw's own assertion change and ignored. Call immediately before each
     /// self-initiated assertion mutation; re-arming extends the window so a
     /// multi-step recovery (which mutates the assertion several times) stays
     /// covered for its whole duration.

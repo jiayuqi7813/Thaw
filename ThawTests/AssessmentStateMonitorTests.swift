@@ -53,4 +53,24 @@ final class AssessmentStateMonitorTests: XCTestCase {
         await fulfillment(of: [reconcile], timeout: 0.8)
         monitor.stop()
     }
+
+    func testSelfChangeArmedBeforeMutationSuppressesImmediateNotification() async {
+        let reconcile = expectation(description: "reconcile requested")
+        reconcile.isInverted = true
+        let center = DistributedNotificationCenter()
+        let monitor = AssessmentStateMonitor(center: center) {
+            reconcile.fulfill()
+        }
+        monitor.start()
+
+        monitor.noteSelfChange()
+        center.postNotificationName(
+            AssessmentStateMonitor.stateChangedNotification,
+            object: nil,
+            deliverImmediately: true
+        )
+
+        await fulfillment(of: [reconcile], timeout: 0.8)
+        monitor.stop()
+    }
 }
