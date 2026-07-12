@@ -16,6 +16,13 @@ import ThawCapture
 /// Cache for menu bar item images.
 final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
     private static nonisolated let diagLog = DiagLog(category: "MenuBarItemImageCache")
+    /// Seam over WindowServer reads; tests substitute a fake.
+    private let windowServer: any WindowServerReading
+
+    init(windowServer: any WindowServerReading = LiveWindowServerReader()) {
+        self.windowServer = windowServer
+    }
+
     /// A representation of a captured menu bar item image.
     struct CapturedImage: Hashable {
         /// The base image.
@@ -169,6 +176,21 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         mainDisplayID: CGDirectDisplayID
     ) -> CGDirectDisplayID {
         itemCacheDisplayID ?? activeMenuBarDisplayID ?? mainDisplayID
+    }
+
+    nonisolated func captureDisplayID(
+        itemCacheDisplayID: CGDirectDisplayID?,
+        mainDisplayID: CGDirectDisplayID
+    ) -> CGDirectDisplayID {
+        Self.captureDisplayID(
+            itemCacheDisplayID: itemCacheDisplayID,
+            activeMenuBarDisplayID: windowServer.activeMenuBarDisplayID(),
+            mainDisplayID: mainDisplayID
+        )
+    }
+
+    nonisolated func liveWindowBounds(for windowID: CGWindowID) -> CGRect? {
+        windowServer.windowBounds(for: windowID)
     }
 
     static nonisolated func shouldUseFreshBounds(
@@ -725,7 +747,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
 
             // Determine display
             let displayID = appState.itemManager.itemCache.displayID
-                ?? Bridging.getActiveMenuBarDisplayID()
+                ?? windowServer.activeMenuBarDisplayID()
                 ?? CGMainDisplayID()
             guard let screen = NSScreen.screens.first(where: { $0.displayID == displayID }) else {
                 continue
@@ -1198,7 +1220,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
             let displayID = await MainActor.run {
                 Self.captureDisplayID(
                     itemCacheDisplayID: appState.itemManager.itemCache.displayID,
-                    activeMenuBarDisplayID: Bridging.getActiveMenuBarDisplayID(),
+                    activeMenuBarDisplayID: windowServer.activeMenuBarDisplayID(),
                     mainDisplayID: CGMainDisplayID()
                 )
             }
@@ -1255,7 +1277,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         //
         // Note: isWindowOnScreen() cannot be used for this — macOS incorrectly
         // reports hidden menu bar items as on-screen (known macOS behaviour).
-        let displayID = Bridging.getActiveMenuBarDisplayID() ?? CGMainDisplayID()
+        let displayID = windowServer.activeMenuBarDisplayID() ?? CGMainDisplayID()
         let screenFrame = await MainActor.run {
             NSScreen.screens.first { $0.displayID == displayID }?.frame
         }
@@ -1269,7 +1291,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         var nilBoundsCount = 0
 
         for item in capturable {
-            guard let bounds = Bridging.getWindowBounds(for: item.windowID) else {
+            guard let bounds = windowServer.windowBounds(for: item.windowID) else {
                 // Window bounds unavailable — skip; neither composite nor
                 // individual capture can succeed without position info.
                 nilBoundsCount += 1
@@ -1340,7 +1362,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         var boundsUnion = CGRect.null
 
         for item in items {
-            guard let bounds = Bridging.getWindowBounds(for: item.windowID) else {
+            guard let bounds = windowServer.windowBounds(for: item.windowID) else {
                 continue
             }
             windowIDs.append(item.windowID)
@@ -2092,7 +2114,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                     // neighbor (e.g. iStat Menus) doesn't flicker or vanish
                     // while this item's real glyph is being captured.
                     let displayID = appState.itemManager.itemCache.displayID
-                        ?? Bridging.getActiveMenuBarDisplayID()
+                        ?? windowServer.activeMenuBarDisplayID()
                         ?? CGMainDisplayID()
                     let scale = NSScreen.screens.first { $0.displayID == displayID }?.backingScaleFactor
                         ?? NSScreen.main?.backingScaleFactor
