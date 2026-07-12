@@ -12,6 +12,7 @@
 **/.build/**
 *.dSYM
 *.ipa
+*.profraw
 build/  
 !.github/actions/build/  
 !.github/actions/build/** 
