@@ -1297,14 +1297,19 @@ extension HIDEventManager {
         appState: AppState,
         clickLocation: CGPoint
     ) -> Bool {
+        guard #available(macOS 27, *) else {
+            return false
+        }
+        guard let controlItem = appState.menuBarManager.section(withName: .visible)?.controlItem else {
+            return false
+        }
+        let candidateFrame = controlItem.window?.frame
+            ?? controlItem.frame
+            ?? controlItem.onScreenFrame
         guard
-            #available(macOS 27, *),
-            let controlItem = appState.menuBarManager.section(withName: .visible)?.controlItem,
             Self.shouldShowControlItemContextMenu(
                 usesMenuBarAgent: true,
-                controlItemFrame: controlItem.window?.frame
-                    ?? controlItem.frame
-                    ?? controlItem.onScreenFrame,
+                controlItemFrame: candidateFrame,
                 clickLocation: clickLocation
             )
         else {
@@ -1332,14 +1337,18 @@ extension HIDEventManager {
                 Self.diagLog.debug("handleSecondaryContextMenu: suppressing, no menu bar items on-screen for active space")
                 return
             }
+            guard appState.settings.advanced.enableSecondaryContextMenu else {
+                return
+            }
             guard
-                appState.settings.advanced.enableSecondaryContextMenu,
                 isMouseInsideEmptyMenuBarSpace(
                     appState: appState,
                     screen: screen
-                ),
-                let mouseLocation = MouseHelpers.locationAppKit
+                )
             else {
+                return
+            }
+            guard let mouseLocation = MouseHelpers.locationAppKit else {
                 return
             }
             // Delay prevents the menu from immediately closing and gives any
