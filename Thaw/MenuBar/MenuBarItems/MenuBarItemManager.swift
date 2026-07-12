@@ -1426,7 +1426,7 @@ final class MenuBarItemManager: ObservableObject {
     /// Whether menu bar host modules (MenuBarAgent / BentoBox on macOS 27,
     /// Control Center on earlier releases) have appeared in the cache.
     private func menuBarHostItemsReady(in cache: ItemCache) -> Bool {
-        if #available(macOS 27, *) {
+        if MenuBarBackendProvider.current.usesAssertionHiding {
             return cache.managedItems.contains {
                 $0.tag.namespace == .menuBarAgent || $0.tag.isBentoBox
             }
@@ -2816,7 +2816,7 @@ extension MenuBarItemManager {
         // macOS 27: synthetic window IDs always fail cgsGetScreenRectForWindow
         // (error 1000) and spam the log; skip straight to the AX enumeration,
         // which is the only source of truth for item frames on this OS.
-        if #available(macOS 27, *) {
+        if MenuBarBackendProvider.current.usesAssertionHiding {
             let refreshed = await MenuBarItem.getMenuBarItems(option: .onScreen)
             if let refreshedItem = refreshed.first(where: { $0.windowID == item.windowID && $0.tag == item.tag }) ??
                 refreshed.first(where: { $0.tag.matchesIgnoringWindowID(item.tag) && !$0.isSystemClone }) ??
@@ -3889,10 +3889,10 @@ extension MenuBarItemManager {
             }
         }
 
-        // macOS 27 reordering is position-only. A move the preferred-position
-        // path cannot express is left unchanged instead of falling through to
+        // The preferred-position move path is position-only. A move that path
+        // cannot express is left unchanged instead of falling through to
         // the cursor-hiding, pointer-warping synthetic Command-drag.
-        if #available(macOS 27, *) {
+        if backend.preferredMovePath == .preferredPositionsThenCommandDrag {
             MenuBarItemManager.diagLog.info(
                 "Position-only reorder: skipping synthetic Command-drag for \(item.logString) \(destination.logString)"
             )
@@ -3917,25 +3917,6 @@ extension MenuBarItemManager {
         defer {
             MouseHelpers.warpCursor(to: mouseLocation)
             MouseHelpers.showCursor()
-        }
-
-        // macOS 27: status items are hosted inside MenuBarAgent and have no
-        // individual CGWindowIDs, so the windowID-addressed move events below
-        // are inert. The system still honors a location-based ⌘-drag to reorder
-        // items (verified by reverse-engineering), so delegate to that gesture.
-        // The cursor hide/warp-back defer registered above wraps this call.
-        if backend.preferredMovePath == .preferredPositionsThenCommandDrag {
-            if #available(macOS 27, *) {
-                try await MoveInputSuppression.withUserMouseInputSuppressed {
-                    try await moveItemViaCommandDrag(
-                        item: item,
-                        to: destination,
-                        on: resolvedDisplayID,
-                        experimentalSystemItemHiding: experimentalSystemItemHiding
-                    )
-                }
-                return
-            }
         }
 
         // Tracks whether any postMoveEvents attempt produced observable
@@ -6598,7 +6579,7 @@ extension MenuBarItemManager {
         }
 
         // Reset persisted state so macOS treats section dividers like new.
-        if #available(macOS 27, *) {
+        if MenuBarBackendProvider.current.usesAssertionHiding {
             ControlItemDefaults.restoreVisibilityIfNeeded(autosaveName: ControlItem.Identifier.visible.rawValue)
         } else {
             ControlItemDefaults[.preferredPosition, ControlItem.Identifier.visible.rawValue] = 0
@@ -8509,7 +8490,7 @@ extension MenuBarItemManager {
         // off-screen, so none can ever be stuck "blocked" at x=-1. Skip the AX
         // enumeration and move attempts entirely so quitting is instant instead
         // of stalling on this teardown work (and its termination timeout).
-        if #available(macOS 27, *) {
+        if !MenuBarBackendProvider.current.supportsLegacySectionHiding {
             return 0
         }
 

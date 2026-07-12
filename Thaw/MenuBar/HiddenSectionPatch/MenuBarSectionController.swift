@@ -596,7 +596,10 @@ final class MenuBarSectionController: ObservableObject {
     /// macOS 27+. Subsequent activation rechecks update ``isHidingAvailable``
     /// silently (see ``refreshHidingAvailability()``) without repeating this.
     private func logUnavailabilityAtLaunchIfNeeded() {
-        guard #available(macOS 27, *), !isHidingAvailable, !hasLoggedUnavailableAtLaunch else { return }
+        guard MenuBarBackendProvider.current.usesAssertionHiding,
+              !isHidingAvailable,
+              !hasLoggedUnavailableAtLaunch
+        else { return }
         hasLoggedUnavailableAtLaunch = true
         diagLog.error("Assessment Mode hiding is unavailable on this macOS build; reordering still works, hiding does not")
     }
