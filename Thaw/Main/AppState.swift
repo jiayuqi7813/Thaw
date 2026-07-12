@@ -73,6 +73,18 @@ final class AppState: ObservableObject {
     /// Track open windows to prevent duplicates
     private var openWindows = Set<IceWindowIdentifier>()
 
+    /// The live NSWindow instances backing each ``IceWindow`` scene, keyed by
+    /// identifier.
+    ///
+    /// - Note: Populated directly from `onWindowChange`, since
+    ///   `NSApp.publisher(for: \.windows)` never emits in practice (its KVO
+    ///   notifications are unreliable), which otherwise leaves
+    ///   ``openWindows`` stuck after the first close.
+    @Published private var trackedWindows = [IceWindowIdentifier: NSWindow]()
+
+    /// Per-window visibility observers, keyed by identifier.
+    private var windowVisibilityCancellables = [IceWindowIdentifier: AnyCancellable]()
+
     /// Scene-bound presentation actions. A freshly-created `EnvironmentValues`
     /// instance has inert window actions, so SwiftUI scenes register the real
     /// values during setup without eagerly creating their windows.
@@ -247,38 +259,6 @@ final class AppState: ObservableObject {
             }
             .store(in: &c)
 
-        publisherForWindow(.settings)
-            .removeNil()
-            .map { $0.publisher(for: \.isVisible) }
-            .switchToLatest()
-            .replaceEmpty(with: false)
-            .throttle(for: 0.1, scheduler: DispatchQueue.main, latest: true)
-            .removeDuplicates()
-            .sink { [weak self] isPresented in
-                guard let self else { return }
-                self.navigationState.isSettingsPresented = isPresented
-
-                // Update openWindows tracking based on actual window visibility
-                if isPresented {
-                    self.openWindows.insert(.settings)
-                    // Start Sparkle consent flow the first time settings is shown.
-                    if Constants.supportsSparkleUpdates,
-                       !Defaults.bool(forKey: .hasSeenUpdateConsent)
-                    {
-                        self.isUpdateConsentPresented = true
-                    } else {
-                        if Constants.supportsSparkleUpdates {
-                            self.updatesManager.startUpdaterIfNeeded()
-                        }
-                        self.presentOnboardingIfNeeded()
-                    }
-                } else {
-                    self.openWindows.remove(.settings)
-                    self.deactivate(withPolicy: .accessory)
-                }
-            }
-            .store(in: &c)
-
         hidEventManager.$isDraggingMenuBarItem
             .removeDuplicates()
             .sink { [weak self] isDragging in
@@ -444,10 +424,60 @@ final class AppState: ObservableObject {
 
     /// Returns a publisher for the window with the given identifier.
     func publisherForWindow(_ id: IceWindowIdentifier) -> some Publisher<NSWindow?, Never> {
-        NSApp.publisher(for: \.windows)
-            .map { windows in
-                windows.first { $0.identifier?.rawValue == id.rawValue }
+        $trackedWindows.map { $0[id] }
+    }
+
+    /// Records the live NSWindow instance backing an ``IceWindow`` scene and
+    /// mirrors its visibility into ``openWindows``.
+    ///
+    /// Called from `onWindowChange` with the window's current instance, or
+    /// `nil` once the window has closed and its view has been torn down.
+    func windowVisibilityChanged(id: IceWindowIdentifier, window: NSWindow?) {
+        guard let window else {
+            trackedWindows[id] = nil
+            windowVisibilityCancellables[id] = nil
+            openWindows.remove(id)
+            if id == .settings {
+                navigationState.isSettingsPresented = false
             }
+            return
+        }
+
+        trackedWindows[id] = window
+        openWindows.insert(id)
+        windowVisibilityCancellables[id] = window.publisher(for: \.isVisible)
+            .removeDuplicates()
+            .sink { [weak self] isVisible in
+                self?.handleWindowVisibilityChanged(id: id, isVisible: isVisible)
+            }
+    }
+
+    /// Applies the side effects of a tracked window's visibility changing.
+    private func handleWindowVisibilityChanged(id: IceWindowIdentifier, isVisible: Bool) {
+        if isVisible {
+            openWindows.insert(id)
+        } else {
+            openWindows.remove(id)
+        }
+
+        guard id == .settings else { return }
+        navigationState.isSettingsPresented = isVisible
+
+        if isVisible {
+            // Start Sparkle consent flow the first time settings is shown.
+            if Constants.supportsSparkleUpdates,
+               !Defaults.bool(forKey: .hasSeenUpdateConsent)
+            {
+                isUpdateConsentPresented = true
+            } else {
+                if Constants.supportsSparkleUpdates {
+                    updatesManager.startUpdaterIfNeeded()
+                }
+                presentOnboardingIfNeeded()
+            }
+        } else {
+            deactivate(withPolicy: .accessory)
+        }
     }
 
     /// Stores window actions from a live SwiftUI scene and fulfills any open
@@ -469,10 +499,11 @@ final class AppState: ObservableObject {
             guard let self else { return }
 
             if self.openWindows.contains(id) {
-                self.diagLog.debug("Window \(id) already open, activating existing window")
+                self.diagLog.debug("Window \(id) already open (openWindows=\(self.openWindows)), activating existing window")
                 self.activate(withPolicy: .regular)
                 return
             }
+            self.diagLog.debug("openWindow(\(id)) proceeding, openWindows=\(self.openWindows)")
 
             self.openWindows.insert(id)
             self.diagLog.debug("Opening window with id: \(id)")

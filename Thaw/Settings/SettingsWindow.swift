@@ -14,7 +14,7 @@ struct SettingsWindow: Scene {
     @ObservedObject var appState: AppState
 
     var body: some Scene {
-        IceWindow(id: .settings) {
+        IceWindow(id: .settings, appState: appState) {
             SettingsView(appState: appState, navigationState: appState.navigationState)
                 .sheet(isPresented: $appState.isUpdateConsentPresented) {
                     UpdateConsentSheet { autoDownload in

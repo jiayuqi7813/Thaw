@@ -57,7 +57,7 @@ struct PermissionsWindow: Scene {
     @ObservedObject var appState: AppState
 
     var body: some Scene {
-        IceWindow(id: .permissions) {
+        IceWindow(id: .permissions, appState: appState) {
             PermissionsFlowView()
                 .onWindowChange { window in
                     guard let window else {

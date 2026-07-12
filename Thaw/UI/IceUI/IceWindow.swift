@@ -15,6 +15,9 @@ struct IceWindow<Content: View>: Scene {
     /// The window's identifier.
     let id: IceWindowIdentifier
 
+    /// The app state used to track the window's live instance and visibility.
+    let appState: AppState
+
     /// The window's content view.
     let content: Content
 
@@ -22,9 +25,12 @@ struct IceWindow<Content: View>: Scene {
     ///
     /// - Parameters:
     ///   - id: A custom identifier constant.
+    ///   - appState: The app state used to track the window's live instance
+    ///     and visibility.
     ///   - content: The content view to display in the window.
-    init(id: IceWindowIdentifier, @ViewBuilder content: () -> Content) {
+    init(id: IceWindowIdentifier, appState: AppState, @ViewBuilder content: () -> Content) {
         self.id = id
+        self.appState = appState
         self.content = content()
     }
 
@@ -35,6 +41,7 @@ struct IceWindow<Content: View>: Scene {
     private var windowContentView: some View {
         content.onWindowChange { window in
             window?.collectionBehavior.insert(.moveToActiveSpace)
+            appState.windowVisibilityChanged(id: id, window: window)
         }
     }
 
