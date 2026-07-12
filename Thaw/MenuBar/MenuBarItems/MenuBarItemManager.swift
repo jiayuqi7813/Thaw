@@ -6677,7 +6677,8 @@ extension MenuBarItemManager {
     /// macOS 27 layout reset: sweeps every movable, hideable item (except the
     /// Thaw control item) into the Hidden section via the ``MenuBarSectionController``
     /// assignment model — the 27 equivalent of the legacy control-item move
-    /// reset. Items that can't be hidden (Clock, Control Center, …) stay visible.
+    /// reset. Items that can't be hidden (Clock, Control Center, …) stay visible
+    /// unless experimental system-item hiding is enabled.
     ///
     /// - Returns: Always 0 — there are no physical moves that can "fail" on 27.
     private func resetLayoutMacOS27(to target: MenuBarSection.Name = .hidden) async -> Int {
@@ -6692,6 +6693,10 @@ extension MenuBarItemManager {
         // Drop any stale legacy persisted order so the two models never fight.
         savedSectionOrder.removeAll()
         persistSavedSectionOrder()
+
+        // Fresh inventory before the sweep so layout-anchored system items are
+        // present in the cache when experimental system-item hiding is on.
+        await cacheItemsRegardless(skipRecentMoveCheck: true)
 
         // Build the "fresh install" assignment from the items currently in the
         // cache (the set the layout bars show): everything hideable → Hidden.
@@ -6723,6 +6728,37 @@ extension MenuBarItemManager {
 
         // Rebuild the cache so the layout bars reflect the new assignment now.
         await cacheItemsRegardless(skipRecentMoveCheck: true)
+
+        // Clock / Control Center / Siri only leave the bar after an assertion
+        // teardown→reactivate cycle. The first apply above can leave them
+        // assigned-but-still-visible; a forced pulse matches the manual
+        // second Reset that users were needing.
+        if experimentalSystemItemHiding,
+           assignment.contains(where: { identifier, _ in
+               itemCache.managedItems.contains {
+                   $0.uniqueIdentifier == identifier && $0.tag.isLayoutAnchoredSystemItem
+               }
+                   || controller.snapshot(for: identifier)?.tag.isLayoutAnchoredSystemItem == true
+           })
+        {
+            MenuBarItemManager.diagLog.info("macOS 27 reset: pulsing restriction for layout-anchored system items")
+            controller.refresh(forceRestrictionPulse: true)
+            await cacheItemsRegardless(skipRecentMoveCheck: true)
+        }
+
+        await MainActor.run {
+            appState.imageCache.performCacheCleanup()
+        }
+        if itemCache.displayID != nil {
+            await appState.imageCache.updateCacheWithoutChecks(sections: MenuBarSection.Name.allCases)
+        } else {
+            try? await Task.sleep(for: .milliseconds(350))
+            await appState.imageCache.updateCacheWithoutChecks(sections: MenuBarSection.Name.allCases)
+        }
+        await MainActor.run {
+            appState.objectWillChange.send()
+        }
+
         return 0
     }
 

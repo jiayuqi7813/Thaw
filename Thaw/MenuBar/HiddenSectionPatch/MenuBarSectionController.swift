@@ -667,18 +667,21 @@ final class MenuBarSectionController: ObservableObject {
         let protectedAssignedIDs = Set(
             liveItems
                 .filter {
-                    sectionAssignment[$0.uniqueIdentifier] != nil
-                        && (Self.isProtectedAssignmentItem(
+                    let identifier = MenuBarItemTag.canonicalPersistentIdentifier($0.uniqueIdentifier)
+                    guard let assignedSection = sectionAssignment[identifier] else {
+                        return false
+                    }
+                    return Self.isProtectedAssignmentItem(
+                        $0,
+                        experimentalSystemItemHiding: experimentalSystemItemHiding
+                    )
+                        || !Self.canAssign(
                             $0,
+                            to: assignedSection,
                             experimentalSystemItemHiding: experimentalSystemItemHiding
                         )
-                            || !Self.canAssign(
-                                $0,
-                                to: sectionAssignment[$0.uniqueIdentifier] ?? .visible,
-                                experimentalSystemItemHiding: experimentalSystemItemHiding
-                            ))
                 }
-                .map(\.uniqueIdentifier)
+                .map { MenuBarItemTag.canonicalPersistentIdentifier($0.uniqueIdentifier) }
         )
 
         return assignedControlItemIDs
@@ -1141,11 +1144,15 @@ final class MenuBarSectionController: ObservableObject {
 
     /// The section for a live item. System anchors and any item Thaw can't
     /// conceal are always visible even if stale defaults say otherwise.
+    /// When experimental system-item hiding is on, layout-anchored items
+    /// (Clock, Control Center, Siri) follow their assignment like any other
+    /// hideable item.
     func section(for item: MenuBarItem) -> MenuBarSection.Name {
         let experimentalSystemItemHiding = appState?.settings.advanced.enableExperimentalSystemItemHiding ?? false
-        if (item.sectionManagementPolicy.isForcedVisible && !experimentalSystemItemHiding) ||
-            Self.isOwnAppItem(item)
-        {
+        let policy = item.sectionManagementPolicy(
+            experimentalSystemItemHiding: experimentalSystemItemHiding
+        )
+        if policy.isForcedVisible || Self.isOwnAppItem(item) {
             return .visible
         }
         return section(for: item.uniqueIdentifier)
@@ -1441,7 +1448,13 @@ final class MenuBarSectionController: ObservableObject {
         if experimentalWindowHiding, positionHideBackend.reassert() {
             prefsWatcher?.noteSelfWrite()
         }
-        guard signature != lastRefreshSignature else { return }
+        // A forced pulse must still run when the assignment signature is
+        // unchanged: system-item allowlist changes only re-composite after an
+        // assertion teardown (see RuntimeSessionController.pulse), which is
+        // exactly what Reset-to-Hidden needs for Clock/Control Center/Siri.
+        if !forceRestrictionPulse {
+            guard signature != lastRefreshSignature else { return }
+        }
         lastRefreshSignature = signature
 
         // Snapshot every assigned item while it's still live, so it can keep

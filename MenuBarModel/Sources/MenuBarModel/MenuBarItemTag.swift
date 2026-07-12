@@ -450,8 +450,10 @@ extension MenuBarItemTag {
         "Clock",
         "ControlCenter",
         "BentoBox-0",
+        "Siri",
         "com.apple.menuextra.clock",
         "com.apple.menuextra.controlcenter",
+        "com.apple.menuextra.siri",
     ]
 
     /// Separate Apple/system agents that Thaw should display but not move.
