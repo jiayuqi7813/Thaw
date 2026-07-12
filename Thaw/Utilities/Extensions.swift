@@ -902,17 +902,16 @@ extension NSMenuItem {
     /// AppKit's `_NSSimpleImageView updateLayer` path (then hides the image) and
     /// leaks tiny `NSMutableDictionary` + `NSAffineTransform` pairs per item on
     /// each `popUp`. Common system actions keep any system-provided icons.
+    ///
+    /// `preferredImageVisibility` is applied via KVC so this file compiles
+    /// against the macOS 26 SDK used by CI (Xcode 26.6 → MacOSX26.5.sdk).
     func setSymbolImage(
         systemName: String,
         accessibilityDescription: String?,
         preferredVisibility: PreferredSymbolImageVisibility = .automatic
     ) {
         if #available(macOS 27, *) {
-            preferredImageVisibility = switch preferredVisibility {
-            case .automatic: .automatic
-            case .visible: .visible
-            case .hidden: .hidden
-            }
+            applyPreferredImageVisibility(preferredVisibility)
             switch preferredVisibility {
             case .visible:
                 image = NSImage(systemSymbolName: systemName, accessibilityDescription: accessibilityDescription)
@@ -922,6 +921,19 @@ extension NSMenuItem {
             return
         }
         image = NSImage(systemSymbolName: systemName, accessibilityDescription: accessibilityDescription)
+    }
+
+    /// Soft-sets AppKit's macOS 27 `preferredImageVisibility` without requiring
+    /// the 27 SDK at compile time. Raw values match `NSMenuItemImageVisibility`.
+    private func applyPreferredImageVisibility(_ preferredVisibility: PreferredSymbolImageVisibility) {
+        let setter = NSSelectorFromString("setPreferredImageVisibility:")
+        guard responds(to: setter) else { return }
+        let rawValue: Int = switch preferredVisibility {
+        case .automatic: 0 // NSMenuItemImageVisibilityAutomatic
+        case .visible: 1 // NSMenuItemImageVisibilityVisible
+        case .hidden: 2 // NSMenuItemImageVisibilityHidden
+        }
+        setValue(rawValue, forKey: "preferredImageVisibility")
     }
 }
 
