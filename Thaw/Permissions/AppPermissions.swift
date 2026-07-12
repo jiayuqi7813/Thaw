@@ -8,6 +8,7 @@
 
 import Combine
 import Foundation
+import MenuBarModel
 
 /// A type that manages the permissions of the app.
 @MainActor

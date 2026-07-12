@@ -7,6 +7,7 @@
 //  Licensed under the GNU GPLv3
 
 import Foundation
+import MenuBarModel
 
 /// Watches `com.apple.MenuBarAgent`'s preferences file for **external** changes
 /// to `TrailingItemPreferredPositions` and reports them so the section layout

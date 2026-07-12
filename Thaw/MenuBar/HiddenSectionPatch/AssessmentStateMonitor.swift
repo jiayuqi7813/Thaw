@@ -7,6 +7,7 @@
 //  Licensed under the GNU GPLv3
 
 import Foundation
+import MenuBarModel
 
 /// Observes the system Do-Not-Disturb / Assessment-Mode state so Thaw can
 /// recover when its menu-bar concealment assertion is torn down or changed out

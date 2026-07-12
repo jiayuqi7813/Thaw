@@ -8,6 +8,7 @@
 
 import AppKit
 import Foundation
+import MenuBarModel
 
 /// A type that handles importing settings from Ice.
 @MainActor

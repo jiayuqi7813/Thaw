@@ -7,6 +7,7 @@
 //  Licensed under the GNU GPLv3
 
 import Foundation
+import MenuBarModel
 import Subprocess
 #if canImport(System)
 import System

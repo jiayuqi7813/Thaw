@@ -7,6 +7,7 @@
 //  Licensed under the GNU GPLv3
 
 import Cocoa
+import MenuBarModel
 import Subprocess
 #if canImport(System)
 import System

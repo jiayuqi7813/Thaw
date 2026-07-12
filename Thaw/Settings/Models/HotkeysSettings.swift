@@ -8,6 +8,7 @@
 
 import Combine
 import Foundation
+import MenuBarModel
 
 /// Model for the app's Hotkeys settings.
 @MainActor

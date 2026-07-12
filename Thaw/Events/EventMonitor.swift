@@ -8,6 +8,7 @@
 
 import Cocoa
 import Combine
+import MenuBarModel
 import os.lock
 
 struct EventMonitor {

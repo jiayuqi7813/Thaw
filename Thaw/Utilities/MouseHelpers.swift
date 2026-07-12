@@ -8,6 +8,7 @@
 
 import CoreGraphics
 import Foundation
+import MenuBarModel
 
 /// A namespace for mouse helper operations.
 enum MouseHelpers {

@@ -39,7 +39,7 @@ public final class DiagnosticLogger: @unchecked Sendable {
     }
 
     /// The directory where log files are stored.
-    var logDirectory: URL {
+    public var logDirectory: URL {
         let home = FileManager.default.homeDirectoryForCurrentUser
         return home
             .appendingPathComponent("Library", isDirectory: true)
@@ -48,12 +48,12 @@ public final class DiagnosticLogger: @unchecked Sendable {
     }
 
     /// Returns whether any log files exist in the log directory.
-    var hasLogFiles: Bool {
+    public var hasLogFiles: Bool {
         latestLogFile != nil
     }
 
     /// Returns the most recent log file in the log directory, if any.
-    var latestLogFile: URL? {
+    public var latestLogFile: URL? {
         guard let contents = try? FileManager.default.contentsOfDirectory(
             at: logDirectory,
             includingPropertiesForKeys: [.creationDateKey],
@@ -74,7 +74,7 @@ public final class DiagnosticLogger: @unchecked Sendable {
     /// The current log file URL, if logging is active.
     private let currentLogFileLock = OSAllocatedUnfairLock<URL?>(initialState: nil)
 
-    var currentLogFile: URL? {
+    public var currentLogFile: URL? {
         currentLogFileLock.withLock { $0 }
     }
 
@@ -123,7 +123,7 @@ public final class DiagnosticLogger: @unchecked Sendable {
     /// straddle a one-second boundary at startup and produce two
     /// separate files). Safe to call repeatedly; the existing handle
     /// is closed before the new one is opened.
-    func attachToFile(at fileURL: URL) {
+    public func attachToFile(at fileURL: URL) {
         let wasEnabled = isEnabledLock.withLock { current -> Bool in
             let was = current
             current = true
@@ -270,7 +270,7 @@ public final class DiagnosticLogger: @unchecked Sendable {
     // MARK: - Logging
 
     /// Log levels matching OSLog conventions.
-    enum Level: String {
+    public enum Level: String {
         case debug = "DEBUG"
         case info = "INFO"
         case notice = "NOTICE"

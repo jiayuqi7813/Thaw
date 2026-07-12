@@ -7,6 +7,7 @@
 //  Licensed under the GNU GPLv3
 
 import Cocoa
+import MenuBarModel
 
 // FIXME: Migration has gotten extremely messy. It should really just be completely redone at this point.
 // TODO: Decide what needs to stay in the new implementation, and what has been around long enough that it can be removed.

@@ -8,6 +8,7 @@
 
 import Carbon.HIToolbox
 import Cocoa
+import MenuBarModel
 
 struct KeyCombination: Hashable {
     fileprivate static let diagLog = DiagLog(category: "KeyCombination")

@@ -9,6 +9,7 @@
 import Carbon.HIToolbox
 import Cocoa
 import Combine
+import MenuBarModel
 
 /// An object that manages the registration, storage, and unregistration of hotkeys.
 final class HotkeyRegistry {

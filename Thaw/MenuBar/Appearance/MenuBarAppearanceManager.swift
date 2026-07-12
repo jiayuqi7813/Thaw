@@ -8,6 +8,7 @@
 
 import Cocoa
 import Combine
+import MenuBarModel
 
 /// A manager for the appearance of the menu bar.
 @MainActor

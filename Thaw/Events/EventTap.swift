@@ -7,6 +7,7 @@
 //  Licensed under the GNU GPLv3
 
 import Cocoa
+import MenuBarModel
 
 /// An object that receives events from a defined point in
 /// the event stream.

@@ -8,6 +8,7 @@
 
 import Cocoa
 import Combine
+import MenuBarModel
 import PlatformRuntimeKit
 
 /// A Cocoa view that manages the menu bar layout interface.

@@ -8,6 +8,7 @@
 
 @preconcurrency import AXSwift
 import Cocoa
+import MenuBarModel
 import PlatformRuntimeKit
 
 /// Hides menu-bar items by setting `AXHidden` on their AX elements.

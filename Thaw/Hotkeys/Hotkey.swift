@@ -7,6 +7,7 @@
 //  Licensed under the GNU GPLv3
 
 import Combine
+import MenuBarModel
 
 // MARK: - Hotkey
 

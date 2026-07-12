@@ -7,6 +7,7 @@
 //  Licensed under the GNU GPLv3
 
 import Cocoa
+import MenuBarModel
 import PlatformRuntimeKit
 
 /// Executes MenuBarAgent reorders through a synthetic Command-drag.
