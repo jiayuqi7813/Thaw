@@ -5,7 +5,6 @@
 //  Copyright (Ice) © 2023–2025 Jordan Baird
 //  Copyright (Thaw) © 2026 Toni Förster
 //  Licensed under the GNU GPLv3
-//
 
 import CoreGraphics
 import CoreImage
@@ -81,10 +80,17 @@ final class LatestFrameSink: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
 @available(macOS 27, *)
 actor MenuBarHostingWindowStreamer {
     static let shared = MenuBarHostingWindowStreamer()
+    static let targetFrameRate: Int32 = 8
+    static let defaultReresolveInterval: TimeInterval = 5
 
-    /// Whether the caller wants a warm stream maintained. Kept `false` for
-    /// one-shot callers so they never spin up (or leak) a persistent stream.
-    private var active = false
+    /// Active consumers of the warm stream. Leases make teardown safe when an
+    /// old refresh loop overlaps a newly-started loop: releasing the old lease
+    /// cannot tear down a stream that the new loop still needs.
+    private var activeLeaseIDs = Set<UUID>()
+
+    var activeLeaseCount: Int {
+        activeLeaseIDs.count
+    }
 
     private var stream: SCStream?
     private var sink: LatestFrameSink?
@@ -99,20 +105,24 @@ actor MenuBarHostingWindowStreamer {
     /// so serving the buffered frame with the last-known frame stays correct in
     /// between.
     private var lastResolve: Date = .distantPast
-    private let reresolveInterval: TimeInterval = 1.0
+    private let reresolveInterval = MenuBarHostingWindowStreamer.defaultReresolveInterval
 
     /// Marks the stream as wanted. The stream itself is created lazily on the
     /// first ``warmCapture(displayID:)`` so no capture starts until a frame is
     /// actually requested.
-    func begin() {
-        active = true
+    func begin() -> ScreenCapture.MenuBarHostingStreamLease {
+        let lease = ScreenCapture.MenuBarHostingStreamLease(id: UUID())
+        activeLeaseIDs.insert(lease.id)
+        return lease
     }
 
     /// Stops and releases the stream. Call when the live-refresh loop ends so
     /// the screen-recording indicator clears and resources are freed.
-    func end() async {
-        active = false
-        await teardown()
+    func end(_ lease: ScreenCapture.MenuBarHostingStreamLease) async {
+        activeLeaseIDs.remove(lease.id)
+        if activeLeaseIDs.isEmpty {
+            await teardown()
+        }
     }
 
     /// Returns the latest buffered frame if a warm stream is bound to the
@@ -121,17 +131,21 @@ actor MenuBarHostingWindowStreamer {
     /// when the display changed, when the stream stopped, or on the re-resolve
     /// interval.
     func warmCapture(displayID: CGDirectDisplayID) async -> ScreenCapture.MenuBarHostingCapture? {
-        guard active else {
+        guard !activeLeaseIDs.isEmpty else {
             if stream != nil {
                 await teardown()
             }
             return nil
         }
 
-        let needsBind = stream == nil
-            || boundDisplayID != displayID
-            || (sink?.isStopped ?? true)
-            || Date().timeIntervalSince(lastResolve) > reresolveInterval
+        let needsBind = Self.shouldRebind(
+            hasStream: stream != nil,
+            boundDisplayID: boundDisplayID,
+            requestedDisplayID: displayID,
+            sinkStopped: sink?.isStopped ?? true,
+            timeSinceLastResolve: Date().timeIntervalSince(lastResolve),
+            reresolveInterval: reresolveInterval
+        )
         if needsBind {
             await bind(displayID: displayID)
         }
@@ -144,6 +158,20 @@ actor MenuBarHostingWindowStreamer {
             windowFrame: boundWindowFrame,
             scale: boundScale
         )
+    }
+
+    static nonisolated func shouldRebind(
+        hasStream: Bool,
+        boundDisplayID: CGDirectDisplayID?,
+        requestedDisplayID: CGDirectDisplayID,
+        sinkStopped: Bool,
+        timeSinceLastResolve: TimeInterval,
+        reresolveInterval: TimeInterval
+    ) -> Bool {
+        !hasStream
+            || boundDisplayID != requestedDisplayID
+            || sinkStopped
+            || timeSinceLastResolve > reresolveInterval
     }
 
     // MARK: Private
@@ -195,7 +223,7 @@ actor MenuBarHostingWindowStreamer {
         // handful of updates per second, and a lower ceiling is exactly the CPU
         // saving this path exists for. Animated glyphs still update; they just
         // do not flood.
-        configuration.minimumFrameInterval = CMTime(value: 1, timescale: 30)
+        configuration.minimumFrameInterval = CMTime(value: 1, timescale: Self.targetFrameRate)
 
         let sink = LatestFrameSink()
         let stream = SCStream(filter: filter, configuration: configuration, delegate: sink)
@@ -233,19 +261,25 @@ actor MenuBarHostingWindowStreamer {
     }
 }
 
+public extension ScreenCapture {
+    struct MenuBarHostingStreamLease: Sendable, Hashable {
+        fileprivate let id: UUID
+    }
+}
+
 @available(macOS 27, *)
 public extension ScreenCapture {
     /// Begins maintaining a warm hosting-window stream. Call when the
     /// live-refresh loop starts so subsequent
     /// ``captureMenuBarHostingWindowAsync(displayID:)`` calls can return
     /// buffered frames instead of full one-shot captures.
-    static func beginMenuBarHostingStreaming() async {
+    static func beginMenuBarHostingStreaming() async -> MenuBarHostingStreamLease {
         await MenuBarHostingWindowStreamer.shared.begin()
     }
 
     /// Stops the warm hosting-window stream. Call when the live-refresh loop
     /// ends so the stream, and its screen-recording indicator, are released.
-    static func endMenuBarHostingStreaming() async {
-        await MenuBarHostingWindowStreamer.shared.end()
+    static func endMenuBarHostingStreaming(_ lease: MenuBarHostingStreamLease) async {
+        await MenuBarHostingWindowStreamer.shared.end(lease)
     }
 }

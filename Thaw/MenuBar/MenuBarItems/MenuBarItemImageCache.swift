@@ -185,6 +185,28 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         }
     }
 
+    static nonisolated func captureBounds(
+        for items: [MenuBarItem],
+        freshBounds: Bool,
+        liveBoundsByID: [String: CGRect],
+        screenFrame: CGRect?
+    ) -> [(item: MenuBarItem, bounds: CGRect)] {
+        items.compactMap { item in
+            // `NSScreen.frame` is AppKit Y-up while AX item bounds are CG Y-down.
+            // The selected displayID already identifies the target display, so
+            // use the shared X axis only to reject genuinely off-display items.
+            guard let bounds = freshBounds ? liveBoundsByID[item.uniqueIdentifier] : item.bounds,
+                  !bounds.isEmpty,
+                  screenFrame.map({ screen in
+                      screen.minX < bounds.maxX && bounds.minX < screen.maxX
+                  }) != false
+            else {
+                return nil
+            }
+            return (item, bounds)
+        }
+    }
+
     @MainActor
     func performSetup(with appState: AppState) {
         self.appState = appState
@@ -651,7 +673,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         // of a one-shot capture. Off by default: a persistent stream keeps the
         // macOS screen-recording indicator lit, which reflows the bar and skews
         // captures. Tracked locally so it is torn down on any loop exit.
-        var streamingActive = false
+        var streamingLease: ScreenCapture.MenuBarHostingStreamLease?
         // One-shot mode must not become a stream factory: SCScreenshotManager
         // creates and destroys a transient SCStream for every screenshot, and
         // the macOS 27 implementation leaks framework state per invocation.
@@ -659,20 +681,14 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         // MenuBarAgent can still be reflowing on the first frame. Explicit
         // layout/reset/reorder paths request their own refreshes afterward.
         var remainingOneShotAttempts = 3
-        defer {
-            if streamingActive, #available(macOS 27, *) {
-                Task { await ScreenCapture.endMenuBarHostingStreaming() }
-            }
-        }
-
         while !Task.isCancelled {
             guard let appState = self.appState else { break }
             var interval = appState.settings.advanced.iconRefreshInterval
             guard interval > 0 else {
-                if streamingActive, #available(macOS 27, *) {
-                    await ScreenCapture.endMenuBarHostingStreaming()
-                    streamingActive = false
+                if let streamingLease, #available(macOS 27, *) {
+                    await ScreenCapture.endMenuBarHostingStreaming(streamingLease)
                 }
+                streamingLease = nil
                 remainingOneShotAttempts = 3
                 try? await Task.sleep(for: .seconds(1))
                 continue
@@ -681,13 +697,13 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                 // Sync the warm stream to the setting so toggling it takes effect
                 // within a tick rather than needing the loop to restart.
                 let wantStreaming = appState.settings.advanced.useContinuousMenuBarCapture
-                if wantStreaming != streamingActive {
+                if wantStreaming != (streamingLease != nil) {
                     if wantStreaming {
-                        await ScreenCapture.beginMenuBarHostingStreaming()
-                    } else {
-                        await ScreenCapture.endMenuBarHostingStreaming()
+                        streamingLease = await ScreenCapture.beginMenuBarHostingStreaming()
+                    } else if let lease = streamingLease {
+                        await ScreenCapture.endMenuBarHostingStreaming(lease)
+                        streamingLease = nil
                     }
-                    streamingActive = wantStreaming
                     if !wantStreaming {
                         remainingOneShotAttempts = 3
                     }
@@ -758,11 +774,11 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
             // updateCacheWithoutChecks already routes to (axBoundsCapture). Use it
             // here so the periodic refresh actually refreshes on 27.
             if #available(macOS 27, *) {
-                if !streamingActive, remainingOneShotAttempts == 0 {
+                if streamingLease == nil, remainingOneShotAttempts == 0 {
                     continue
                 }
                 await updateCacheWithoutChecks(sections: sections)
-                if !streamingActive {
+                if streamingLease == nil {
                     remainingOneShotAttempts -= 1
                 }
                 continue
@@ -794,6 +810,9 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
             }
         }
 
+        if let streamingLease, #available(macOS 27, *) {
+            await ScreenCapture.endMenuBarHostingStreaming(streamingLease)
+        }
         MenuBarItemImageCache.diagLog.debug("Live refresh loop stopped")
     }
 
@@ -1160,7 +1179,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         of items: [MenuBarItem],
         scale: CGFloat,
         appState: AppState,
-        freshBounds _: Bool = false
+        freshBounds: Bool = false
     ) async -> CaptureResult {
         // Thaw's section-divider control items capture as transparent via
         // CGWindowListCreateImage on macOS <=26, so skip them there. On macOS
@@ -1187,37 +1206,26 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                 NSScreen.screens.first { $0.displayID == displayID }?.frame
             }
 
-            // Crop against FRESH live AX bounds, not cached `item.bounds`.
-            // A reflowing MenuBarAgent item can keep stale snapshot bounds
-            // long enough to crop across neighboring glyphs, which poisons
-            // the cache with "half of two icons" thumbnails.
-            let liveItems = await MenuBarItem.getMenuBarItems(option: [.onScreen, .activeSpace])
-            let liveBoundsByID = Dictionary(
-                liveItems.map { ($0.uniqueIdentifier, $0.bounds) },
-                uniquingKeysWith: { first, _ in first }
-            )
-
-            var axItems: [(item: MenuBarItem, bounds: CGRect)] = []
-            for item in capturable {
-                guard let bounds = liveBoundsByID[item.uniqueIdentifier] else {
-                    MenuBarItemImageCache.diagLog.debug(
-                        "captureImages: no live bounds for \(item.logString); " +
-                            "keeping prior image (skipping stale-bounds crop)"
-                    )
-                    continue
-                }
-                guard !bounds.isEmpty else { continue }
-
-                // items.bounds is in global screen coords (Y-down); NSScreen.frame
-                // is in AppKit coords (Y-up) — but both share the same X axis
-                // ranges for on-screen items, so intersects() works as a
-                // coarse off-screen filter (negative-X hidden items are excluded).
-                if let screenFrame, !screenFrame.intersects(bounds) {
-                    continue
-                }
-
-                axItems.append((item: item, bounds: bounds))
+            let liveBoundsByID: [String: CGRect]
+            if freshBounds {
+                // A reflowing concealed item can keep stale snapshot bounds long
+                // enough to crop across neighboring glyphs. Visible items use
+                // their cache-cycle bounds to avoid mismatching dynamic items.
+                let liveItems = await MenuBarItem.getMenuBarItems(option: [.onScreen, .activeSpace])
+                liveBoundsByID = Dictionary(
+                    liveItems.map { ($0.uniqueIdentifier, $0.bounds) },
+                    uniquingKeysWith: { first, _ in first }
+                )
+            } else {
+                liveBoundsByID = [:]
             }
+
+            let axItems = Self.captureBounds(
+                for: capturable,
+                freshBounds: freshBounds,
+                liveBoundsByID: liveBoundsByID,
+                screenFrame: screenFrame
+            )
 
             guard !axItems.isEmpty else {
                 MenuBarItemImageCache.diagLog.debug(

@@ -74,4 +74,67 @@ final class ThawCaptureTests: XCTestCase {
     func testProbeLoggingDefaultsToDisabled() {
         XCTAssertFalse(ScreenCapture.isProbeLoggingEnabled())
     }
+
+    @available(macOS 27, *)
+    func testHostingStreamRebindsWithoutAStream() {
+        XCTAssertTrue(shouldRebind(hasStream: false))
+    }
+
+    @available(macOS 27, *)
+    func testHostingStreamRebindsForADifferentDisplay() {
+        XCTAssertTrue(shouldRebind(boundDisplayID: 2))
+    }
+
+    @available(macOS 27, *)
+    func testHostingStreamRebindsWhenSinkStopped() {
+        XCTAssertTrue(shouldRebind(sinkStopped: true))
+    }
+
+    @available(macOS 27, *)
+    func testHostingStreamRebindsAfterResolveInterval() {
+        XCTAssertTrue(shouldRebind(timeSinceLastResolve: 1.1))
+    }
+
+    @available(macOS 27, *)
+    func testHostingStreamKeepsHealthyCurrentBinding() {
+        XCTAssertFalse(shouldRebind())
+    }
+
+    @available(macOS 27, *)
+    func testHostingStreamUsesLowFrameRateAndAmortizedResolution() {
+        XCTAssertEqual(MenuBarHostingWindowStreamer.targetFrameRate, 8)
+        XCTAssertEqual(MenuBarHostingWindowStreamer.defaultReresolveInterval, 5)
+    }
+
+    @available(macOS 27, *)
+    func testReleasingOldLeaseDoesNotDeactivateNewConsumer() async {
+        let streamer = MenuBarHostingWindowStreamer()
+        let oldLease = await streamer.begin()
+        let newLease = await streamer.begin()
+
+        await streamer.end(oldLease)
+        let countAfterOldConsumerEnds = await streamer.activeLeaseCount
+        XCTAssertEqual(countAfterOldConsumerEnds, 1)
+
+        await streamer.end(newLease)
+        let finalCount = await streamer.activeLeaseCount
+        XCTAssertEqual(finalCount, 0)
+    }
+
+    @available(macOS 27, *)
+    private func shouldRebind(
+        hasStream: Bool = true,
+        boundDisplayID: CGDirectDisplayID? = 1,
+        sinkStopped: Bool = false,
+        timeSinceLastResolve: TimeInterval = 0.9
+    ) -> Bool {
+        MenuBarHostingWindowStreamer.shouldRebind(
+            hasStream: hasStream,
+            boundDisplayID: boundDisplayID,
+            requestedDisplayID: 1,
+            sinkStopped: sinkStopped,
+            timeSinceLastResolve: timeSinceLastResolve,
+            reresolveInterval: 1
+        )
+    }
 }
