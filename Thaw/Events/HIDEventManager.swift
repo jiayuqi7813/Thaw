@@ -472,7 +472,7 @@ final class HIDEventManager: ObservableObject {
     /// Maximum menu-bar mid-Y for bounds included in show-on / tooltip
     /// hit-testing. macOS 27 concealed items can retain phantom AX frames
     /// far below the menu bar; exclude those from empty-space detection.
-    static nonisolated let maxMenuBarItemMidY: CGFloat = 80
+    static nonisolated let maxMenuBarItemMidY: CGFloat = MenuBarItemGeometry.maxOnBarMidY
 
     /// Returns whether `location` lies inside any cached menu bar item bounds
     /// entry. On macOS 27, synthetic status-item window IDs have no live CG

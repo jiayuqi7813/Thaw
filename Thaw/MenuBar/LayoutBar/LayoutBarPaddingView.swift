@@ -517,7 +517,7 @@ final class LayoutBarPaddingView: NSView {
             }
             do {
                 let recoveringStrandedVisibleControl = item.tag.matchesVisibleControlItem
-                    && (item.bounds.origin.x == -1 || item.bounds.midY > 80)
+                    && (item.bounds.origin.x == MenuBarItemGeometry.transientSentinelX || item.bounds.midY > MenuBarItemGeometry.maxOnBarMidY)
                 try await appState.itemManager.move(
                     item: item,
                     to: destination,
@@ -789,7 +789,7 @@ final class LayoutBarPaddingView: NSView {
             try? await Task.sleep(for: .milliseconds(120))
             do {
                 let recoveringStrandedVisibleControl = item.tag.matchesVisibleControlItem
-                    && (item.bounds.origin.x == -1 || item.bounds.midY > 80)
+                    && (item.bounds.origin.x == MenuBarItemGeometry.transientSentinelX || item.bounds.midY > MenuBarItemGeometry.maxOnBarMidY)
                 try await appState.itemManager.move(
                     item: item,
                     to: destination,
