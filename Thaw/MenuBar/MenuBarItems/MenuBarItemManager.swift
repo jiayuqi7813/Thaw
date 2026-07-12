@@ -8,109 +8,11 @@
 
 @preconcurrency import AXSwift
 import Cocoa
-import Collections
 @preconcurrency import Combine
 @preconcurrency import CoreGraphics
 import MenuBarModel
 import os.lock
 import PlatformRuntimeKit
-
-/// Simple actor-based semaphore to prevent overlapping operations
-actor SimpleSemaphore {
-    private struct Waiter {
-        let id: UUID
-        let continuation: CheckedContinuation<Void, Error>
-    }
-
-    private var value: Int
-    private var waiters: Deque<Waiter> = [] // FIFO
-
-    init(value: Int) {
-        precondition(value >= 0, "SimpleSemaphore requires a non-negative value")
-        self.value = value
-    }
-
-    /// Waits for, or decrements, the semaphore, throwing on cancellation.
-    func wait() async throws {
-        if Task.isCancelled {
-            throw CancellationError()
-        }
-
-        value -= 1
-        if value >= 0 {
-            return
-        }
-
-        let id = UUID()
-
-        try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { continuation in
-                waiters.append(Waiter(id: id, continuation: continuation))
-            }
-        } onCancel: { [weak self] in
-            Task.detached { await self?.cancelWaiter(withID: id) }
-        }
-    }
-
-    private func cancelWaiter(withID id: UUID) {
-        guard let index = waiters.firstIndex(where: { $0.id == id }) else {
-            // The waiter was already consumed by signal(); don't touch the value.
-            return
-        }
-        value += 1
-        let waiter = waiters.remove(at: index)
-        waiter.continuation.resume(throwing: CancellationError())
-    }
-
-    /// An error that indicates the semaphore wait timed out.
-    struct TimeoutError: Error {}
-
-    /// Waits for, or decrements, the semaphore with a timeout.
-    /// Throws ``CancellationError`` on cancellation or
-    /// ``TimeoutError`` on timeout.
-    func wait(timeout: Duration) async throws {
-        try await withThrowingTaskGroup(of: Void.self) { group in
-            group.addTask {
-                try await self.wait()
-            }
-            group.addTask {
-                try await Task.sleep(for: timeout)
-                throw TimeoutError()
-            }
-            // The first task to finish (or throw) wins.
-            _ = try await group.next()
-            group.cancelAll()
-        }
-    }
-
-    /// Signals the semaphore, resuming the next waiter if present.
-    ///
-    /// Standard counting-semaphore semantics: always increment value,
-    /// then wake a queued waiter only when the post-increment value is
-    /// still non-positive (meaning waiters remain). The previous
-    /// implementation skipped the increment when waking a waiter, which
-    /// caused value to drift negative when concurrent callers queued
-    /// up during a long-running holder; every subsequent caller would
-    /// then see value < 0 in wait and suspend forever even after all
-    /// prior holders had released.
-    func signal() {
-        value += 1
-        if value <= 0, let waiter = waiters.first {
-            waiters.removeFirst()
-            waiter.continuation.resume(returning: ())
-        }
-    }
-
-    /// Resets the semaphore to a given value, cancelling all pending waiters.
-    /// Use ONLY as a last resort when the semaphore is suspected to be leaked.
-    func reset(to value: Int = 1) {
-        for waiter in waiters {
-            waiter.continuation.resume(throwing: CancellationError())
-        }
-        waiters.removeAll()
-        self.value = value
-    }
-}
 
 /// Manager for menu bar items.
 @MainActor
@@ -155,7 +57,7 @@ final class MenuBarItemManager: ObservableObject {
     @Published private(set) var areControlItemsMissing = false
 
     /// Diagnostic logger for the menu bar item manager.
-    fileprivate static nonisolated let diagLog = DiagLog(category: "MenuBarItemManager")
+    static nonisolated let diagLog = DiagLog(category: "MenuBarItemManager")
 
     /// Semaphore to prevent overlapping event operations.
     private let eventSemaphore = SimpleSemaphore(value: 1)
@@ -275,7 +177,7 @@ final class MenuBarItemManager: ObservableObject {
     private nonisolated(unsafe) var cacheTickCancellable: AnyCancellable?
 
     /// Persisted identifiers of menu bar items we've already seen.
-    private var knownItemIdentifiers = Set<String>()
+    var knownItemIdentifiers = Set<String>()
     /// Suppresses the next automatic relocation of newly seen leftmost items.
     private var suppressNextNewLeftmostItemRelocation = false
 
@@ -396,9 +298,9 @@ final class MenuBarItemManager: ObservableObject {
 
     private var settlingKind: SettlingKind?
     /// Persisted bundle identifiers explicitly placed in hidden section.
-    private var pinnedHiddenBundleIDs = Set<String>()
+    var pinnedHiddenBundleIDs = Set<String>()
     /// Persisted bundle identifiers explicitly placed in always-hidden section.
-    private var pinnedAlwaysHiddenBundleIDs = Set<String>()
+    var pinnedAlwaysHiddenBundleIDs = Set<String>()
 
     /// Cached layout parameters from the last profile apply, used to re-sort
     /// when profile-listed items appear after the initial apply. Read access
@@ -441,47 +343,10 @@ final class MenuBarItemManager: ObservableObject {
 
     /// Persisted per-section item order. Maps section key to an ordered list of
     /// `uniqueIdentifier` strings (right-to-left, matching cache array order).
-    private var savedSectionOrder = [String: [String]]()
+    var savedSectionOrder = [String: [String]]()
 
     /// Placement preference for newly detected menu bar items.
-    @Published private(set) var newItemsPlacement = NewItemsPlacement.defaultValue
-
-    /// Loads persisted known item identifiers.
-    private func loadKnownItemIdentifiers() {
-        let key = "MenuBarItemManager.knownItemIdentifiers"
-        let defaults = UserDefaults.standard
-        if let stored = defaults.array(forKey: key) as? [String] {
-            knownItemIdentifiers = Set(stored.map(MenuBarItemTag.canonicalPersistentIdentifier))
-        }
-    }
-
-    /// Persists known item identifiers.
-    private func persistKnownItemIdentifiers() {
-        let key = "MenuBarItemManager.knownItemIdentifiers"
-        let defaults = UserDefaults.standard
-        defaults.set(
-            Array(Set(knownItemIdentifiers.map(MenuBarItemTag.canonicalPersistentIdentifier))),
-            forKey: key
-        )
-    }
-
-    /// Loads persisted pinned bundle identifiers.
-    private func loadPinnedBundleIDs() {
-        let defaults = UserDefaults.standard
-        if let hidden = defaults.array(forKey: "MenuBarItemManager.pinnedHiddenBundleIDs") as? [String] {
-            pinnedHiddenBundleIDs = Set(hidden)
-        }
-        if let alwaysHidden = defaults.array(forKey: "MenuBarItemManager.pinnedAlwaysHiddenBundleIDs") as? [String] {
-            pinnedAlwaysHiddenBundleIDs = Set(alwaysHidden)
-        }
-    }
-
-    /// Persists pinned bundle identifiers.
-    private func persistPinnedBundleIDs() {
-        let defaults = UserDefaults.standard
-        defaults.set(Array(pinnedHiddenBundleIDs), forKey: "MenuBarItemManager.pinnedHiddenBundleIDs")
-        defaults.set(Array(pinnedAlwaysHiddenBundleIDs), forKey: "MenuBarItemManager.pinnedAlwaysHiddenBundleIDs")
-    }
+    @Published var newItemsPlacement = NewItemsPlacement.defaultValue
 
     /// Loads persisted pending relocations for temporarily shown items
     /// whose apps quit before they could be rehidden.
@@ -502,82 +367,6 @@ final class MenuBarItemManager: ObservableObject {
         UserDefaults.standard.set(pendingRelocations, forKey: key)
         let destKey = "MenuBarItemManager.pendingReturnDestinations"
         UserDefaults.standard.set(pendingReturnDestinations, forKey: destKey)
-    }
-
-    /// Loads persisted section order.
-    private func loadSavedSectionOrder() {
-        let key = "MenuBarItemManager.savedSectionOrder"
-        if let stored = UserDefaults.standard.dictionary(forKey: key) as? [String: [String]] {
-            savedSectionOrder = Self.canonicalizedSectionOrder(stored)
-        }
-    }
-
-    struct NewItemsPlacement: Codable, Equatable {
-        enum Relation: String, Codable {
-            case leftOfAnchor
-            case rightOfAnchor
-            case sectionDefault
-        }
-
-        let sectionKey: String
-        let anchorIdentifier: String?
-        let relation: Relation
-
-        static let defaultValue = NewItemsPlacement(
-            sectionKey: Defaults.DefaultValue.newItemsSection,
-            anchorIdentifier: nil,
-            relation: .sectionDefault
-        )
-    }
-
-    /// Loads the persisted placement preference for newly detected menu bar items.
-    private func loadNewItemsPlacementPreference() {
-        if let data = Defaults.data(forKey: .newItemsPlacementData),
-           let stored = try? JSONDecoder().decode(NewItemsPlacement.self, from: data)
-        {
-            newItemsPlacement = NewItemsPlacement(
-                sectionKey: stored.sectionKey,
-                anchorIdentifier: stored.anchorIdentifier.map(MenuBarItemTag.canonicalPersistentIdentifier),
-                relation: stored.relation
-            )
-            return
-        }
-
-        let storedSection = Defaults.string(forKey: .newItemsSection) ?? Defaults.DefaultValue.newItemsSection
-        let resolvedSection = sectionName(for: storedSection) ?? .hidden
-        newItemsPlacement = NewItemsPlacement(
-            sectionKey: sectionKey(for: resolvedSection),
-            anchorIdentifier: nil,
-            relation: .sectionDefault
-        )
-    }
-
-    /// Persists the placement preference for newly detected menu bar items.
-    private func persistNewItemsPlacementPreference() {
-        Defaults.set(newItemsPlacement.sectionKey, forKey: .newItemsSection)
-        let placement = NewItemsPlacement(
-            sectionKey: newItemsPlacement.sectionKey,
-            anchorIdentifier: newItemsPlacement.anchorIdentifier.map(MenuBarItemTag.canonicalPersistentIdentifier),
-            relation: newItemsPlacement.relation
-        )
-        if let data = try? JSONEncoder().encode(placement) {
-            Defaults.set(data, forKey: .newItemsPlacementData)
-        } else {
-            Defaults.removeObject(forKey: .newItemsPlacementData)
-        }
-    }
-
-    /// Persists the current saved section order.
-    private func persistSavedSectionOrder() {
-        let key = "MenuBarItemManager.savedSectionOrder"
-        savedSectionOrder = Self.canonicalizedSectionOrder(savedSectionOrder)
-        UserDefaults.standard.set(savedSectionOrder, forKey: key)
-    }
-
-    private static func canonicalizedSectionOrder(
-        _ order: [String: [String]]
-    ) -> [String: [String]] {
-        order.mapValues(MenuBarItemTag.canonicalPersistentIdentifiers)
     }
 
     /// Records that the assessment-mode assertion was torn down and rebuilt.
@@ -935,13 +724,13 @@ final class MenuBarItemManager: ObservableObject {
 
     /// Returns a persistable string key for the given section name (its raw
     /// value).
-    private func sectionKey(for section: MenuBarSection.Name) -> String {
+    func sectionKey(for section: MenuBarSection.Name) -> String {
         section.rawValue
     }
 
     /// Returns the section name for the given persisted key, if valid. The
     /// persisted key is the enum's raw value.
-    private func sectionName(for key: String) -> MenuBarSection.Name? {
+    func sectionName(for key: String) -> MenuBarSection.Name? {
         MenuBarSection.Name(rawValue: key)
     }
 
@@ -6524,7 +6313,7 @@ extension MenuBarItemManager {
 // MARK: - MenuBarItemEventType
 
 /// Event types for menu bar item events.
-private enum MenuBarItemEventType {
+enum MenuBarItemEventType {
     /// The event type for moving a menu bar item.
     case move(MoveSubtype)
     /// The event type for clicking a menu bar item.
@@ -8795,250 +8584,5 @@ extension MenuBarItemManager {
         try? await Task.sleep(for: .milliseconds(200))
 
         return failedMoves
-    }
-}
-
-// MARK: - CGEventField Helpers
-
-private extension CGEventField {
-    /// Key to access a field that contains the event's window identifier.
-    static let windowID = CGEventField(rawValue: 0x33)! // swiftlint:disable:this force_unwrapping
-
-    /// Fields that can be used to compare menu bar item events.
-    static let menuBarItemEventFields: [CGEventField] = [
-        .eventSourceUserData,
-        .mouseEventWindowUnderMousePointer,
-        .mouseEventWindowUnderMousePointerThatCanHandleThisEvent,
-        .windowID,
-    ]
-}
-
-// MARK: - MoveInputSuppression
-
-enum MoveInputSuppression {
-    private static let syntheticMoveUserData: Int64 = 0x5468_6177_4D6F_7665
-
-    static let suppressedMouseEventTypes: [CGEventType] = [
-        .leftMouseDown,
-        .leftMouseUp,
-        .rightMouseDown,
-        .rightMouseUp,
-        .mouseMoved,
-        .leftMouseDragged,
-        .rightMouseDragged,
-        .scrollWheel,
-        .otherMouseDown,
-        .otherMouseUp,
-        .otherMouseDragged,
-    ]
-
-    static func markSyntheticMoveEvent(_ event: CGEvent) {
-        event.setIntegerValueField(.eventSourceUserData, value: syntheticMoveUserData)
-    }
-
-    static func shouldSuppress(_ event: CGEvent) -> Bool {
-        guard suppressedMouseEventTypes.contains(event.type) else {
-            return false
-        }
-
-        let userData = event.getIntegerValueField(.eventSourceUserData)
-        return userData == 0
-    }
-
-    @MainActor
-    static func withUserMouseInputSuppressed<T>(
-        _ operation: () async throws -> T
-    ) async throws -> T {
-        let tap = EventTap(
-            label: "Move input suppression",
-            types: suppressedMouseEventTypes,
-            location: .hidEventTap,
-            placement: .headInsertEventTap,
-            option: .defaultTap
-        ) { _, event in
-            shouldSuppress(event) ? nil : event
-        }
-
-        if tap.isValid {
-            tap.enable()
-        } else {
-            MenuBarItemManager.diagLog.warning("Move input suppression tap could not be created")
-        }
-
-        defer {
-            tap.invalidate()
-        }
-
-        return try await operation()
-    }
-}
-
-// MARK: - CGEventFilterMask Helpers
-
-private extension CGEventFilterMask {
-    /// Specifies that all events should be permitted during event suppression states.
-    static let permitAllEvents: CGEventFilterMask = [
-        .permitLocalMouseEvents,
-        .permitLocalKeyboardEvents,
-        .permitSystemDefinedEvents,
-    ]
-}
-
-// MARK: - CGEventType Helpers
-
-private extension CGEventType {
-    /// A string to use for logging purposes.
-    var logString: String {
-        switch self {
-        case .null: "null event"
-        case .leftMouseDown: "leftMouseDown event"
-        case .leftMouseUp: "leftMouseUp event"
-        case .rightMouseDown: "rightMouseDown event"
-        case .rightMouseUp: "rightMouseUp event"
-        case .mouseMoved: "mouseMoved event"
-        case .leftMouseDragged: "leftMouseDragged event"
-        case .rightMouseDragged: "rightMouseDragged event"
-        case .keyDown: "keyDown event"
-        case .keyUp: "keyUp event"
-        case .flagsChanged: "flagsChanged event"
-        case .scrollWheel: "scrollWheel event"
-        case .tabletPointer: "tabletPointer event"
-        case .tabletProximity: "tabletProximity event"
-        case .otherMouseDown: "otherMouseDown event"
-        case .otherMouseUp: "otherMouseUp event"
-        case .otherMouseDragged: "otherMouseDragged event"
-        case .tapDisabledByTimeout: "tapDisabledByTimeout event"
-        case .tapDisabledByUserInput: "tapDisabledByUserInput event"
-        @unknown default: "unknown event"
-        }
-    }
-}
-
-// MARK: - CGMouseButton Helpers
-
-private extension CGMouseButton {
-    /// A string to use for logging purposes.
-    var logString: String {
-        switch self {
-        case .left: "left mouse button"
-        case .right: "right mouse button"
-        case .center: "center mouse button"
-        @unknown default: "unknown mouse button"
-        }
-    }
-}
-
-// MARK: - Duration Helpers
-
-private extension Duration {
-    /// Returns the duration in milliseconds as a Double.
-    var milliseconds: Double {
-        let (seconds, attoseconds) = components
-        return Double(seconds) * 1000 + Double(attoseconds) / 1_000_000_000_000_000
-    }
-}
-
-// MARK: - CGEvent Helpers
-
-private extension CGEvent {
-    /// Returns an event that can be sent to a menu bar item.
-    ///
-    /// - Parameters:
-    ///   - item: The event's target item.
-    ///   - source: The event's source.
-    ///   - type: The event's specialized type.
-    ///   - location: The event's location. Does not need to be
-    ///     within the bounds of the item.
-    static func menuBarItemEvent(
-        item: MenuBarItem,
-        source: CGEventSource,
-        type: MenuBarItemEventType,
-        location: CGPoint
-    ) -> CGEvent? {
-        guard let event = CGEvent(
-            mouseEventSource: source,
-            mouseType: type.cgEventType,
-            mouseCursorPosition: location,
-            mouseButton: type.cgMouseButton
-        ) else {
-            return nil
-        }
-        event.setFlags(for: type)
-        event.setUserData(ObjectIdentifier(event))
-        event.setWindowID(item.windowID, for: type)
-        event.setClickState(for: type)
-        return event
-    }
-
-    /// Returns a null event with unique user data.
-    static func uniqueNullEvent() -> CGEvent? {
-        guard let event = CGEvent(source: nil) else {
-            return nil
-        }
-        event.setUserData(ObjectIdentifier(event))
-        return event
-    }
-
-    /// Posts the event to the given event tap location.
-    ///
-    /// - Parameter location: The event tap location to post the event to.
-    func post(to location: EventTap.Location) {
-        let type = self.type
-        MenuBarItemManager.diagLog.debug(
-            """
-            Posting \(type.logString) \
-            to \(location.logString)
-            """
-        )
-        switch location {
-        case .hidEventTap: post(tap: .cghidEventTap)
-        case .sessionEventTap: post(tap: .cgSessionEventTap)
-        case .annotatedSessionEventTap: post(tap: .cgAnnotatedSessionEventTap)
-        case let .pid(pid): postToPid(pid)
-        }
-    }
-
-    /// Returns a Boolean value that indicates whether the given integer
-    /// fields from this event are equivalent to the same integer fields
-    /// from the specified event.
-    ///
-    /// - Parameters:
-    ///   - other: The event to compare with this event.
-    ///   - fields: The integer fields to check.
-    func matches(_ other: CGEvent, byIntegerFields fields: [CGEventField]) -> Bool {
-        fields.allSatisfy { field in
-            getIntegerValueField(field) == other.getIntegerValueField(field)
-        }
-    }
-
-    func setTargetPID(_ pid: pid_t) {
-        let targetPID = Int64(pid)
-        setIntegerValueField(.eventTargetUnixProcessID, value: targetPID)
-    }
-
-    private func setFlags(for type: MenuBarItemEventType) {
-        flags = type.cgEventFlags
-    }
-
-    private func setUserData(_ bitPattern: ObjectIdentifier) {
-        let userData = Int64(Int(bitPattern: bitPattern))
-        setIntegerValueField(.eventSourceUserData, value: userData)
-    }
-
-    private func setWindowID(_ windowID: CGWindowID, for type: MenuBarItemEventType) {
-        let windowID = Int64(windowID)
-
-        setIntegerValueField(.mouseEventWindowUnderMousePointer, value: windowID)
-        setIntegerValueField(.mouseEventWindowUnderMousePointerThatCanHandleThisEvent, value: windowID)
-
-        if case .move = type {
-            setIntegerValueField(.windowID, value: windowID)
-        }
-    }
-
-    private func setClickState(for type: MenuBarItemEventType) {
-        if case let .click(subtype) = type {
-            setIntegerValueField(.mouseEventClickState, value: subtype.clickState)
-        }
     }
 }
