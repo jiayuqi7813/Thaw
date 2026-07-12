@@ -13,6 +13,8 @@
 		17F71BB52B880B4500905CBA /* CompactSlider in Frameworks */ = {isa = PBXBuildFile; productRef = 17F71BB42B880B4500905CBA /* CompactSlider */; };
 		7127A9FF2C4886D100D99DEF /* IfritStatic in Frameworks */ = {isa = PBXBuildFile; productRef = 7127A9FE2C4886D100D99DEF /* IfritStatic */; };
 		9570E4A96CDEC0BEBAA5573F /* AsyncAlgorithms in Frameworks */ = {isa = PBXBuildFile; productRef = 43C5F05D006747974015EBD9 /* AsyncAlgorithms */; };
+		765B9E4A97DD40A18EE1F15D /* Collections in Frameworks */ = {isa = PBXBuildFile; productRef = 6937234B615A4E0BA19DFCF5 /* Collections */; };
+		C9858DF951474BBA89EEC700 /* Subprocess in Frameworks */ = {isa = PBXBuildFile; productRef = F723B15E4E92458CA2A3A2D5 /* Subprocess */; };
 		7168EE532E281CBC00FF9830 /* AXSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 7168EE522E281CBC00FF9830 /* AXSwift */; };
 		7188A68C2E27F9ED008F131D /* MenuBarItemService.xpc in Embed XPC Services */ = {isa = PBXBuildFile; fileRef = 7188A6832E27F9ED008F131D /* MenuBarItemService.xpc */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		D27A00012F40000000000001 /* PlatformRuntimeKit in Frameworks */ = {isa = PBXBuildFile; productRef = D27A00032F40000000000003 /* PlatformRuntimeKit */; };
@@ -134,6 +136,8 @@
 				170423D92B56DE78004A2549 /* Sparkle in Frameworks */,
 				7127A9FF2C4886D100D99DEF /* IfritStatic in Frameworks */,
 				9570E4A96CDEC0BEBAA5573F /* AsyncAlgorithms in Frameworks */,
+				765B9E4A97DD40A18EE1F15D /* Collections in Frameworks */,
+				C9858DF951474BBA89EEC700 /* Subprocess in Frameworks */,
 				175061912B1543DD003144CD /* LaunchAtLogin in Frameworks */,
 				1787C4272B16890B002F50DF /* AXSwift in Frameworks */,
 				17F71BB52B880B4500905CBA /* CompactSlider in Frameworks */,
@@ -219,6 +223,7 @@
 				EDF7E8FBA3834C8090E06B59 /* MenuBarHost */,
 				A7C4F0032F60000000000003 /* ThawCapture */,
 				D27A00032F40000000000003 /* PlatformRuntimeKit */,
+				F723B15E4E92458CA2A3A2D5 /* Subprocess */,
 			);
 			productName = Ice;
 			productReference = 7166832A2A767E6A006ABF84 /* Thaw.app */;
@@ -332,6 +337,8 @@
 				17F71BB32B880B4500905CBA /* XCRemoteSwiftPackageReference "CompactSlider" */,
 				7127A9FB2C4881BC00D99DEF /* XCRemoteSwiftPackageReference "Ifrit" */,
 				1ADDA61D49BE1BA7CA5EA059 /* XCRemoteSwiftPackageReference "swift-async-algorithms" */,
+				9DDA1A418DCA43C89DE5A80F /* XCRemoteSwiftPackageReference "swift-collections" */,
+				7A0DF10D46BE41C9B7301DBB /* XCRemoteSwiftPackageReference "swift-subprocess" */,
 				D27A00002F40000000000000 /* XCRemoteSwiftPackageReference "prk-bin" */,
 				A4E38A6A423944089D70B9BB /* XCLocalSwiftPackageReference "MenuBarModel" */,
 				AD2D675A051141C9B42279EC /* XCLocalSwiftPackageReference "MenuBarHost" */,
@@ -899,6 +906,22 @@
 				minimumVersion = 1.0.0;
 			};
 		};
+		9DDA1A418DCA43C89DE5A80F /* XCRemoteSwiftPackageReference "swift-collections" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-collections";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.0;
+			};
+		};
+		7A0DF10D46BE41C9B7301DBB /* XCRemoteSwiftPackageReference "swift-subprocess" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/swiftlang/swift-subprocess";
+			requirement = {
+				kind = upToNextMinorVersion;
+				minimumVersion = 0.4.0;
+			};
+		};
 		D27A00002F40000000000000 /* XCRemoteSwiftPackageReference "prk-bin" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/thaw-app/prk-bin";
@@ -939,6 +962,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 1ADDA61D49BE1BA7CA5EA059 /* XCRemoteSwiftPackageReference "swift-async-algorithms" */;
 			productName = AsyncAlgorithms;
+		};
+		6937234B615A4E0BA19DFCF5 /* Collections */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9DDA1A418DCA43C89DE5A80F /* XCRemoteSwiftPackageReference "swift-collections" */;
+			productName = Collections;
+		};
+		F723B15E4E92458CA2A3A2D5 /* Subprocess */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7A0DF10D46BE41C9B7301DBB /* XCRemoteSwiftPackageReference "swift-subprocess" */;
+			productName = Subprocess;
 		};
 		7168EE522E281CBC00FF9830 /* AXSwift */ = {
 			isa = XCSwiftPackageProductDependency;

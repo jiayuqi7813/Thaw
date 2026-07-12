@@ -9,6 +9,7 @@
 @preconcurrency import AXSwift
 import Cocoa
 @preconcurrency import Combine
+import Collections
 @preconcurrency import CoreGraphics
 import MenuBarModel
 import os.lock
@@ -22,7 +23,7 @@ actor SimpleSemaphore {
     }
 
     private var value: Int
-    private var waiters: [Waiter] = [] // FIFO
+    private var waiters: Deque<Waiter> = [] // FIFO
 
     init(value: Int) {
         precondition(value >= 0, "SimpleSemaphore requires a non-negative value")
