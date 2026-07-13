@@ -39,6 +39,7 @@ struct MenuBarLayoutSettingsPane: View {
                 header
                 layoutBars
                 if #available(macOS 27, *) {
+                    orderFulfillmentTimeoutControl
                     systemItemHidingControls
                     experimentalOverflowPreventionControl
                 }
@@ -139,6 +140,31 @@ struct MenuBarLayoutSettingsPane: View {
     private var nonHideableItemsNotice: some View {
         SettingsWarningPill(
             message: "On macOS 27, some items can be reordered but not yet hidden. Native macOS items such as Clock, Control Center, and Siri stay visible unless system item hiding is enabled, and a few MenuBarAgent modules — like AirDrop and Sound — may also be restricted. Apps on Thaw's hiding denylist share the same restriction. You can still rearrange them in the Visible section."
+        )
+    }
+
+    @available(macOS 27, *)
+    private var orderFulfillmentTimeoutControl: some View {
+        IceSection {
+            LabeledContent {
+                IceSlider(
+                    value: orderFulfillmentTimeoutBinding,
+                    in: 1 ... 15,
+                    step: 0.5
+                ) {
+                    SecondsLabel(value: appState.settings.advanced.menuBarOrderFulfillmentTimeout)
+                }
+            } label: {
+                Text("Wait for menu bar order")
+            }
+            .annotation("How long Thaw waits for macOS to apply a menu bar reorder before continuing with any remaining layout work.")
+        }
+    }
+
+    private var orderFulfillmentTimeoutBinding: Binding<TimeInterval> {
+        Binding(
+            get: { appState.settings.advanced.menuBarOrderFulfillmentTimeout },
+            set: { appState.settings.advanced.menuBarOrderFulfillmentTimeout = $0 }
         )
     }
 

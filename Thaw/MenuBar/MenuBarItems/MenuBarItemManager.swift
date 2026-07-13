@@ -4391,12 +4391,17 @@ extension MenuBarItemManager {
     /// holds or the poll budget elapses.
     @available(macOS 27, *)
     private func waitForMenuBarAgentLayout(
-        maxAttempts: Int = Constants.MenuBarTuning.menuBarAgentResortMaxPolls,
+        maxAttempts: Int? = nil,
         interval: Duration = Constants.MenuBarTuning.menuBarAgentResortPollInterval,
         enumerate: () async -> [MenuBarItem] = { await MenuBarItem.getMenuBarItems(option: .activeSpace) },
         isSatisfied: ([MenuBarItem]) -> Bool
     ) async -> [MenuBarItem] {
         var liveItems = await enumerate()
+        let maxAttempts = maxAttempts ?? Self.menuBarAgentResortAttemptCount(
+            timeout: appState?.settings.advanced.menuBarOrderFulfillmentTimeout
+                ?? Defaults.DefaultValue.menuBarOrderFulfillmentTimeout,
+            interval: interval
+        )
         for _ in 0 ..< maxAttempts {
             try? await Task.sleep(for: interval)
             liveItems = await enumerate()
@@ -4405,6 +4410,17 @@ extension MenuBarItemManager {
             }
         }
         return liveItems
+    }
+
+    /// Converts the user-facing fulfillment window into a poll budget while
+    /// clamping malformed persisted values to the Layout control's range.
+    static nonisolated func menuBarAgentResortAttemptCount(
+        timeout: TimeInterval,
+        interval: Duration
+    ) -> Int {
+        let clampedTimeout = min(max(timeout, 1), 15)
+        let intervalMilliseconds = max(1, Double(interval.milliseconds))
+        return max(1, Int(ceil((clampedTimeout * 1000) / intervalMilliseconds)))
     }
 
     /// Waits for MenuBarAgent to re-sort after a batch

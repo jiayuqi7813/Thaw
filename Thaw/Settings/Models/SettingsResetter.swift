@@ -58,6 +58,7 @@ extension AppSettings {
         advanced.tooltipDelay = Defaults.DefaultValue.tooltipDelay
         advanced.showMenuBarTooltips = Defaults.DefaultValue.showMenuBarTooltips
         advanced.iconRefreshInterval = Defaults.DefaultValue.iconRefreshInterval
+        advanced.menuBarOrderFulfillmentTimeout = Defaults.DefaultValue.menuBarOrderFulfillmentTimeout
         advanced.enableDiagnosticLogging = Defaults.DefaultValue.enableDiagnosticLogging
         advanced.searchSectionOrder = AdvancedSettings.sanitizedSearchSectionOrder(
             from: Defaults.DefaultValue.searchSectionOrder

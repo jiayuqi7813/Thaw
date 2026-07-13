@@ -104,6 +104,10 @@ final class AdvancedSettings: ObservableObject {
     /// which reflows the bar; one-shot capture (the default) avoids the indicator.
     @Published var useContinuousMenuBarCapture = Defaults.DefaultValue.useContinuousMenuBarCapture
 
+    /// Maximum time to wait for MenuBarAgent to apply a preferred-position
+    /// reorder before Thaw continues with residual reconciliation.
+    @Published var menuBarOrderFulfillmentTimeout = Defaults.DefaultValue.menuBarOrderFulfillmentTimeout
+
     /// The order in which menu bar sections appear in the search panel.
     @Published var searchSectionOrder: [MenuBarSection.Name] = Defaults.DefaultValue.searchSectionOrder
         .compactMap(MenuBarSection.Name.init(rawValue:))
@@ -153,6 +157,7 @@ final class AdvancedSettings: ObservableObject {
         Defaults.ifPresent(key: .enableExperimentalWindowHiding, assign: &enableExperimentalWindowHiding)
         Defaults.ifPresent(key: .enableExperimentalOverflowPrevention, assign: &enableExperimentalOverflowPrevention)
         Defaults.ifPresent(key: .useContinuousMenuBarCapture, assign: &useContinuousMenuBarCapture)
+        Defaults.ifPresent(key: .menuBarOrderFulfillmentTimeout, assign: &menuBarOrderFulfillmentTimeout)
         Defaults.ifPresent(key: .searchIncludeVisible, assign: &searchIncludeVisible)
         Defaults.ifPresent(key: .searchIncludeHidden, assign: &searchIncludeHidden)
         Defaults.ifPresent(key: .searchIncludeAlwaysHidden, assign: &searchIncludeAlwaysHidden)
@@ -223,6 +228,7 @@ final class AdvancedSettings: ObservableObject {
         $enableExperimentalWindowHiding.persistToDefaults(key: .enableExperimentalWindowHiding, in: &c)
         $enableExperimentalOverflowPrevention.persistToDefaults(key: .enableExperimentalOverflowPrevention, in: &c)
         $useContinuousMenuBarCapture.persistToDefaults(key: .useContinuousMenuBarCapture, in: &c)
+        $menuBarOrderFulfillmentTimeout.persistToDefaults(key: .menuBarOrderFulfillmentTimeout, in: &c)
         $searchSectionOrder.persistToDefaults(
             key: .searchSectionOrder,
             transform: { $0.map(\.rawValue) },
@@ -304,6 +310,8 @@ final class AdvancedSettings: ObservableObject {
                 tooltipDelay = doubleValue
             case "iconRefreshInterval":
                 iconRefreshInterval = doubleValue
+            case "menuBarOrderFulfillmentTimeout":
+                menuBarOrderFulfillmentTimeout = doubleValue
             default:
                 // Key not handled by AdvancedSettings
                 break
