@@ -1118,19 +1118,6 @@ final class ControlItem: NSObject {
         settingsItem.setSymbolImage(systemName: "gear", accessibilityDescription: "Settings")
         menu.addItem(settingsItem)
 
-        let usesDarkAppearance = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        let appearanceItem = NSMenuItem(
-            title: String(localized: usesDarkAppearance ? "Use Light Appearance" : "Use Dark Appearance"),
-            action: #selector(toggleSystemAppearance),
-            keyEquivalent: ""
-        )
-        appearanceItem.setSymbolImage(
-            systemName: usesDarkAppearance ? "sun.max" : "moon",
-            accessibilityDescription: usesDarkAppearance ? "Use Light Appearance" : "Use Dark Appearance"
-        )
-        appearanceItem.target = self
-        menu.addItem(appearanceItem)
-
         menu.addItem(.separator())
 
         let searchItem = NSMenuItem(
@@ -1333,30 +1320,6 @@ final class ControlItem: NSObject {
     /// Opens the menu bar search panel.
     @objc private func showSearchPanel() {
         appState?.menuBarManager.searchPanel.show()
-    }
-
-    /// Switches the user's macOS-wide appearance between Light and Dark.
-    @objc private func toggleSystemAppearance() {
-        let usesDarkAppearance = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/usr/bin/defaults")
-        task.arguments = usesDarkAppearance
-            ? ["delete", "-g", "AppleInterfaceStyle"]
-            : ["write", "-g", "AppleInterfaceStyle", "-string", "Dark"]
-
-        do {
-            try task.run()
-            task.waitUntilExit()
-            guard task.terminationStatus == 0 else {
-                diagLog.error("Could not toggle macOS appearance: defaults exited with status \(task.terminationStatus)")
-                return
-            }
-            let appearanceChanged = Notification.Name("AppleInterfaceThemeChangedNotification")
-            DistributedNotificationCenter.default().post(name: appearanceChanged, object: nil)
-            NotificationCenter.default.post(name: appearanceChanged, object: nil)
-        } catch {
-            diagLog.error("Could not toggle macOS appearance: \(error)")
-        }
     }
 
     /// Applies the profile selected from the context menu.
