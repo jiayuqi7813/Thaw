@@ -6125,7 +6125,8 @@ extension MenuBarItemManager {
             // still have MenuBarAgent position keys. Order those structural
             // anchors first so the section boundaries always read:
             // Always Hidden → Hidden → Visible.
-            if let alwaysHidden = controlItems.alwaysHidden,
+            if #available(macOS 27, *),
+               let alwaysHidden = controlItems.alwaysHidden,
                let visible = items.first(where: { $0.tag.matchesVisibleControlItem })
             {
                 let reordered = RuntimePositionStore.applyControlItemOrder(
