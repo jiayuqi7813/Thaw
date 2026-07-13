@@ -72,6 +72,29 @@ public extension ScreenCapture {
         cachedPermissionResult.withLock { $0 = result }
     }
 
+    /// Re-checks screen capture access with ScreenCaptureKit so a grant made
+    /// in System Settings can become visible without restarting the process.
+    static func refreshPermissions() async -> Bool {
+        let preflightResult = CGPreflightScreenCaptureAccess()
+        if preflightResult {
+            setCachedPermissionResult(true)
+            return true
+        }
+
+        do {
+            _ = try await SCShareableContent.excludingDesktopWindows(
+                false,
+                onScreenWindowsOnly: true
+            )
+            setCachedPermissionResult(true)
+            return true
+        } catch {
+            diagLog.debug("refreshPermissions: ScreenCaptureKit probe failed: \(error)")
+            setCachedPermissionResult(false)
+            return false
+        }
+    }
+
     static func restoreActivationPolicyAfterScreenCapturePrompt(
         currentPolicy: NSApplication.ActivationPolicy,
         setActivationPolicy: @escaping (NSApplication.ActivationPolicy) -> Bool,
@@ -92,7 +115,9 @@ public extension ScreenCapture {
 
     /// Requests screen capture permissions.
     @MainActor
-    static func requestPermissions() {
+    static func requestPermissions(
+        completion: @escaping @MainActor @Sendable (Bool) -> Void = { _ in }
+    ) {
         diagLog.debug("requestPermissions: requesting screen capture access")
         setCachedPermissionResult(nil)
 
@@ -119,6 +144,7 @@ public extension ScreenCapture {
         let cgResult = CGRequestScreenCaptureAccess()
         if cgResult {
             setCachedPermissionResult(true)
+            completion(true)
         }
         diagLog.debug("requestPermissions: CGRequestScreenCaptureAccess() = \(cgResult)")
 
@@ -128,6 +154,9 @@ public extension ScreenCapture {
             } else {
                 setCachedPermissionResult(true)
                 diagLog.debug("requestPermissions: SCShareableContent request succeeded (\(content?.windows.count ?? 0) windows)")
+                Task { @MainActor in
+                    completion(true)
+                }
             }
         }
 

@@ -22,7 +22,7 @@ final class AppPermissions: ObservableObject {
     }
 
     /// The state of the app's granted permissions.
-    enum PermissionsState {
+    enum PermissionsState: Equatable {
         /// At least one required permission hasn't been granted.
         case missing
         /// Every permission, required or not, has been granted.
@@ -82,6 +82,15 @@ final class AppPermissions: ObservableObject {
     func refreshPermissionsState() {
         for permission in allPermissions {
             permission.refreshStatus()
+        }
+        updatePermissionsState()
+    }
+
+    /// Refreshes every grant, waiting for asynchronous system probes before
+    /// publishing the aggregate state.
+    func refreshPermissionsState() async {
+        for permission in allPermissions {
+            await permission.refreshStatus()
         }
         updatePermissionsState()
     }

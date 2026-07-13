@@ -45,5 +45,6 @@ struct SettingsWindow: Scene {
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified)
         .environmentObject(appState)
+        .environmentObject(appState.permissions)
     }
 }

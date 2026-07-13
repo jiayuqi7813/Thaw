@@ -49,8 +49,12 @@ class Permission: ObservableObject, Identifiable {
     /// The function that checks permissions.
     private let check: () -> Bool
 
+    /// An asynchronous fallback for permissions whose running-process state
+    /// can lag behind their synchronous system check.
+    private let asyncCheck: (() async -> Bool)?
+
     /// The function that requests permissions.
-    private let request: () -> Void
+    private let request: (@escaping @MainActor @Sendable (Bool) -> Void) -> Void
 
     /// Observer that runs on a timer to check permissions.
     private var timerCancellable: AnyCancellable?
@@ -78,7 +82,8 @@ class Permission: ObservableObject, Identifiable {
         isRequired: Bool,
         settingsURL: URL?,
         check: @escaping () -> Bool,
-        request: @escaping () -> Void
+        asyncCheck: (() async -> Bool)? = nil,
+        request: @escaping (@escaping @MainActor @Sendable (Bool) -> Void) -> Void
     ) {
         self.title = title
         self.iconName = iconName
@@ -88,6 +93,7 @@ class Permission: ObservableObject, Identifiable {
         self.isRequired = isRequired
         self.settingsURL = settingsURL
         self.check = check
+        self.asyncCheck = asyncCheck
         self.request = request
         self.hasPermission = check()
         configureCancellables()
@@ -119,8 +125,14 @@ class Permission: ObservableObject, Identifiable {
 
     /// Performs the request and opens the System Settings app to the appropriate pane.
     func performRequest() {
-        request()
         configureCancellables()
+        request { [weak self] granted in
+            guard let self, granted else {
+                return
+            }
+            hasPermission = true
+            stopCheck()
+        }
         if let settingsURL {
             NSWorkspace.shared.open(settingsURL)
             settingsReturnCancellable?.cancel()
@@ -128,7 +140,9 @@ class Permission: ObservableObject, Identifiable {
                 .publisher(for: NSApplication.didBecomeActiveNotification)
                 .receive(on: RunLoop.main)
                 .sink { [weak self] _ in
-                    self?.refreshStatus()
+                    Task {
+                        await self?.refreshStatus()
+                    }
                 }
         }
     }
@@ -136,6 +150,17 @@ class Permission: ObservableObject, Identifiable {
     /// Re-checks current system authorization immediately.
     func refreshStatus() {
         hasPermission = check()
+    }
+
+    /// Re-checks current system authorization, including any asynchronous
+    /// system probe needed to observe a grant without relaunching.
+    func refreshStatus() async {
+        let synchronouslyGranted = check()
+        guard !synchronouslyGranted, let asyncCheck else {
+            hasPermission = synchronouslyGranted
+            return
+        }
+        hasPermission = await asyncCheck()
     }
 
     /// Stops running the permission check.
@@ -171,8 +196,8 @@ final class AccessibilityPermission: Permission {
             check: {
                 AXHelpers.isProcessTrusted()
             },
-            request: {
-                AXHelpers.isProcessTrusted(prompt: true)
+            request: { completion in
+                completion(AXHelpers.isProcessTrusted(prompt: true))
             }
         )
     }
@@ -203,8 +228,11 @@ final class ScreenRecordingPermission: Permission {
             check: {
                 ScreenCapture.cachedCheckPermissions(reset: true)
             },
-            request: {
-                ScreenCapture.requestPermissions()
+            asyncCheck: {
+                await ScreenCapture.refreshPermissions()
+            },
+            request: { completion in
+                ScreenCapture.requestPermissions(completion: completion)
             }
         )
     }
