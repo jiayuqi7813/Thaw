@@ -4179,6 +4179,7 @@ extension MenuBarItemManager {
                    experimentalSystemItemHiding: experimentalSystemItemHiding
                )
             {
+                requestMenuBarAgentPositionRefresh()
                 MenuBarItemManager.diagLog.info(
                     "Repaired macOS 27 section boundary for \(liveItem.logString) via preferred positions"
                 )
@@ -4251,8 +4252,8 @@ extension MenuBarItemManager {
             // preferred-position write before the per-pair loop. When it places
             // every item, the loop below finds nothing to do and breaks; any
             // residual (unresolved items, or a reversed-axis guess) is corrected
-            // by the loop. The write restarts MenuBarAgent once, so wait for it
-            // to re-sort before re-reading geometry for the loop.
+            // by the loop. Invalidate MenuBarAgent's live layout once after the
+            // write, then wait for it to re-sort before re-reading geometry.
             if #available(macOS 27, *) {
                 let reordered = RuntimePositionStore.applyOrder(
                     desiredOrder: desiredOrder,
@@ -4260,6 +4261,7 @@ extension MenuBarItemManager {
                     experimentalSystemItemHiding: experimentalSystemItemHiding
                 )
                 if !reordered.isEmpty {
+                    requestMenuBarAgentPositionRefresh()
                     didReorder = true
                     liveItems = await waitForMenuBarAgentResort(
                         desiredOrder: desiredOrder,
@@ -4498,6 +4500,7 @@ extension MenuBarItemManager {
         ) else {
             return false
         }
+        requestMenuBarAgentPositionRefresh()
 
         // Poll the live order until MenuBarAgent observes the synchronized write.
         let destinationSatisfied: ([MenuBarItem]) -> Bool = { items in
@@ -4533,6 +4536,7 @@ extension MenuBarItemManager {
                 experimentalSystemItemHiding: experimentalSystemItemHiding
             )
         {
+            requestMenuBarAgentPositionRefresh()
             MenuBarItemManager.diagLog.debug(
                 "Retrying preferred-position move after refreshed key resolution for \(item.logString)"
             )
@@ -4547,9 +4551,15 @@ extension MenuBarItemManager {
         }
 
         MenuBarItemManager.diagLog.warning(
-            "Preferred-position move did not verify for \(item.logString); falling back to synthetic drag"
+            "Preferred-position move did not verify for \(item.logString)"
         )
         return false
+    }
+
+    /// Makes MenuBarAgent consume a preferred-position write without restarting
+    /// its compositor. Thaw's visible status item provides a safe layout seam.
+    private func requestMenuBarAgentPositionRefresh() {
+        appState?.menuBarManager.requestMenuBarAgentPositionRefresh()
     }
 
     /// Moves a menu bar item on macOS 27 by synthesizing the system's own
@@ -6198,6 +6208,7 @@ extension MenuBarItemManager {
                 liveItems: items
             )
             if !reordered.isEmpty {
+                requestMenuBarAgentPositionRefresh()
                 MenuBarItemManager.diagLog.info(
                     "macOS 27: restored structural divider order for \(reordered.count) control item(s)"
                 )

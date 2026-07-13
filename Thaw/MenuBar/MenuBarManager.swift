@@ -943,6 +943,12 @@ final class MenuBarManager: ObservableObject {
         section(withName: name)?.controlItem
     }
 
+    /// Invalidates MenuBarAgent's live layout after a preferred-position write
+    /// without restarting its compositor or synthesizing pointer input.
+    func requestMenuBarAgentPositionRefresh() {
+        controlItem(withName: .visible)?.requestMenuBarAgentPositionRefresh()
+    }
+
     /// Removes every control item from the menu bar ahead of app termination,
     /// so macOS 27 doesn't leave ghost icons behind (see
     /// `ControlItem.tearDownForTermination()`).

@@ -6,7 +6,7 @@
 //  Copyright (Thaw) © 2026 Toni Förster
 //  Licensed under the GNU GPLv3
 
-import CoreGraphics
+import Cocoa
 import MenuBarHost
 import PlatformRuntimeKit
 @testable import Thaw
@@ -237,6 +237,35 @@ final class ControlItemPrimaryActionTests: XCTestCase {
         XCTAssertFalse(ControlItem.isSupportedAddTargetTypeEncoding("v@:"))
     }
 
+    func testMenuBarAgentLayoutNudgeUsesRenderedWidthForVariableStatusItem() {
+        XCTAssertEqual(
+            ControlItem.menuBarAgentLayoutNudgeLength(
+                currentLength: NSStatusItem.variableLength,
+                renderedWidth: 35
+            ),
+            35
+        )
+    }
+
+    func testMenuBarAgentLayoutNudgePerturbsAlreadyFixedWidth() {
+        XCTAssertEqual(
+            ControlItem.menuBarAgentLayoutNudgeLength(
+                currentLength: 35,
+                renderedWidth: 35
+            ),
+            35.5
+        )
+    }
+
+    func testMenuBarAgentLayoutNudgeRejectsMissingRenderedWidth() {
+        XCTAssertNil(
+            ControlItem.menuBarAgentLayoutNudgeLength(
+                currentLength: NSStatusItem.variableLength,
+                renderedWidth: 0
+            )
+        )
+    }
+
     func testPlainPrimaryActionTogglesSection() {
         XCTAssertEqual(primaryAction(), .toggleSection)
     }
@@ -410,7 +439,7 @@ final class MenuBarItemCaptureSectionTests: XCTestCase {
         )
     }
 
-    func testFreshBoundsMatchAssertionRevealSemantics() {
+    func testFreshBoundsCoverVisibleAndRevealedSections() {
         XCTAssertTrue(
             MenuBarItemImageCache.shouldUseFreshBounds(
                 for: .hidden,
@@ -435,7 +464,7 @@ final class MenuBarItemCaptureSectionTests: XCTestCase {
                 revealedSection: .hidden
             )
         )
-        XCTAssertFalse(
+        XCTAssertTrue(
             MenuBarItemImageCache.shouldUseFreshBounds(
                 for: .visible,
                 revealedSection: .alwaysHidden

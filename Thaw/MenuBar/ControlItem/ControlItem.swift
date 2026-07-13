@@ -70,6 +70,22 @@ final class ControlItem: NSObject {
         return false
     }
 
+    /// Chooses a temporary concrete width that forces AppKit to invalidate the
+    /// status-item layout without visibly resizing the item. MenuBarAgent does
+    /// not reliably observe cross-process preferred-position writes until its
+    /// layout is invalidated; switching from variable length to the button's
+    /// current width provides that invalidation while preserving its geometry.
+    static nonisolated func menuBarAgentLayoutNudgeLength(
+        currentLength: CGFloat,
+        renderedWidth: CGFloat
+    ) -> CGFloat? {
+        guard renderedWidth > 0 else { return nil }
+        if currentLength == NSStatusItem.variableLength || abs(currentLength - renderedWidth) > 0.25 {
+            return renderedWidth
+        }
+        return renderedWidth + 0.5
+    }
+
     /// A namespace for control item lengths.
     fileprivate enum Lengths {
         static let standard: CGFloat = NSStatusItem.variableLength
@@ -270,6 +286,11 @@ final class ControlItem: NSObject {
 
     /// Task animating a legacy section divider width change.
     private var lengthAnimationTask: Task<Void, Never>?
+
+    /// Restores the normal length after a one-frame MenuBarAgent layout nudge.
+    private var menuBarAgentLayoutNudgeTask: Task<Void, Never>?
+    private var menuBarAgentLayoutNudgeBaseline: CGFloat?
+    private var menuBarAgentLayoutNudgeGeneration = 0
 
     /// Whether next visibility update should animate the divider width.
     private var shouldAnimateNextVisibilityUpdate = false
@@ -664,6 +685,50 @@ final class ControlItem: NSObject {
 
             self.statusItem.length = targetLength
             self.lengthAnimationTask = nil
+        }
+    }
+
+    /// Forces a compositor-preserving MenuBarAgent layout pass after Thaw
+    /// updates `TrailingItemPreferredPositions`. The temporary length matches
+    /// the button's rendered width, so this does not hide the item, flash the
+    /// compositor, or move the pointer.
+    func requestMenuBarAgentPositionRefresh() {
+        menuBarAgentLayoutNudgeGeneration += 1
+        let generation = menuBarAgentLayoutNudgeGeneration
+        menuBarAgentLayoutNudgeTask?.cancel()
+        if let baseline = menuBarAgentLayoutNudgeBaseline {
+            statusItem.length = baseline
+            menuBarAgentLayoutNudgeBaseline = nil
+        }
+
+        menuBarAgentLayoutNudgeTask = Task { @MainActor [weak self] in
+            // Give cfprefsd a moment to deliver the cross-process preference
+            // change before provoking the layout pass; otherwise MenuBarAgent
+            // can persist its old in-memory order over Thaw's fresh write.
+            try? await Task.sleep(for: .milliseconds(50))
+            guard let self, !Task.isCancelled,
+                  generation == menuBarAgentLayoutNudgeGeneration
+            else { return }
+
+            let baseline = statusItem.length
+            guard let temporaryLength = Self.menuBarAgentLayoutNudgeLength(
+                currentLength: baseline,
+                renderedWidth: statusItem.button?.bounds.width ?? 0
+            ) else {
+                menuBarAgentLayoutNudgeTask = nil
+                return
+            }
+
+            menuBarAgentLayoutNudgeBaseline = baseline
+            statusItem.length = temporaryLength
+            diagLog.debug("Invalidated status-item width to refresh MenuBarAgent positions")
+            try? await Task.sleep(for: .milliseconds(16))
+            guard !Task.isCancelled,
+                  generation == menuBarAgentLayoutNudgeGeneration
+            else { return }
+            statusItem.length = baseline
+            menuBarAgentLayoutNudgeBaseline = nil
+            menuBarAgentLayoutNudgeTask = nil
         }
     }
 
