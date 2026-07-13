@@ -8,8 +8,9 @@
 
 import Cocoa
 import Combine
-import ScreenCaptureKit
 import MenuBarModel
+import PlatformRuntimeKit
+import ScreenCaptureKit
 
 enum MenuBarSplitPillGeometry {
     static func leadingBounds(
@@ -169,6 +170,64 @@ enum MenuBarSplitPillGeometry {
                 return nil
             }
             return item.bounds
+        }
+    }
+
+    /// Adds approximate bounds for a visible runtime status item that does not
+    /// vend an AX child. The appearance overlay needs its physical span, but
+    /// the item must remain absent from Thaw's management and layout models.
+    @MainActor
+    @available(macOS 27, *)
+    static func opaqueVisibleBounds(
+        from items: [MenuBarItem],
+        positions: [String: Int],
+        keys: [String]
+    ) -> [CGRect] {
+        let existingKeys = Array(positions.keys)
+        let references: [(bounds: CGRect, weight: Int)] = items.compactMap { item in
+            guard item.isOnScreen,
+                  !item.bounds.isEmpty,
+                  let key = RuntimePositionStore.resolveKey(
+                      for: item,
+                      existingKeys: existingKeys,
+                      positions: positions,
+                      liveItems: items
+                  ),
+                  let weight = positions[key]
+            else {
+                return nil
+            }
+            return (item.bounds, weight)
+        }
+        guard references.count > 1 else { return [] }
+
+        let byX = references.sorted { $0.bounds.midX < $1.bounds.midX }
+        let ascending = (byX.first?.weight ?? 0) < (byX.last?.weight ?? 0)
+        let visualOrder = references.sorted {
+            ascending ? $0.weight < $1.weight : $0.weight > $1.weight
+        }
+        let width = max(20, references.map(\.bounds.width).reduce(0, +) / CGFloat(references.count))
+
+        return keys.compactMap { key in
+            guard let weight = positions[key] else { return nil }
+            let insertion = visualOrder.firstIndex { reference in
+                ascending ? weight < reference.weight : weight > reference.weight
+            } ?? visualOrder.endIndex
+            let before = insertion > visualOrder.startIndex ? visualOrder[insertion - 1].bounds : nil
+            let after = insertion < visualOrder.endIndex ? visualOrder[insertion].bounds : nil
+
+            let x: CGFloat
+            switch (before, after) {
+            case let (before?, after?):
+                x = ((before.maxX + after.minX) / 2) - (width / 2)
+            case let (before?, nil):
+                x = before.maxX + 4
+            case let (nil, after?):
+                x = after.minX - width - 4
+            case (nil, nil):
+                return nil
+            }
+            return CGRect(x: x, y: byX[0].bounds.minY, width: width, height: byX[0].bounds.height)
         }
     }
 
@@ -1061,7 +1120,14 @@ private final class MenuBarOverlayPanelContentView: NSView {
                 from: items,
                 context: context
             )
-            cachedAXItemBounds = bounds
+            let opaqueBounds = MenuBarSplitPillGeometry.opaqueVisibleBounds(
+                from: items,
+                positions: RuntimePositionStore.currentPositions(),
+                keys: NSWorkspace.shared.runningApplications.contains {
+                    $0.bundleIdentifier == "at.obdev.littlesnitch.agent"
+                } ? ["status:at.obdev.littlesnitch.agent::Item-0"] : []
+            )
+            cachedAXItemBounds = bounds + opaqueBounds
             let isRevealingHidden = controller?.revealedSection == .hidden
                 || controller?.revealedSection == .alwaysHidden
             cachedChevronFrame = isRevealingHidden
