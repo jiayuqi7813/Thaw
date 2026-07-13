@@ -118,7 +118,7 @@ quit_thaw_debug() {
 
 say "Building ${CONFIG}…"
 xcodebuild -workspace "$WORKSPACE" -scheme "$SCHEME" -configuration "$CONFIG" \
-    -destination 'platform=macOS' "${PACKAGE_RESOLUTION_ARGS[@]}" build >/dev/null
+    -destination 'platform=macOS' "${PACKAGE_RESOLUTION_ARGS[@]}" build
 
 PRODUCTS_DIR=$(xcodebuild -workspace "$WORKSPACE" -scheme "$SCHEME" -configuration "$CONFIG" \
     "${PACKAGE_RESOLUTION_ARGS[@]}" -showBuildSettings 2>/dev/null | awk -F' = ' '/ BUILT_PRODUCTS_DIR /{print $2; exit}')
