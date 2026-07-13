@@ -237,7 +237,8 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         revealedSection: MenuBarSection.Name?
     ) -> Bool {
         switch (section, revealedSection) {
-        case (.hidden, .hidden),
+        case (.visible, _),
+             (.hidden, .hidden),
              (.hidden, .alwaysHidden),
              (.alwaysHidden, .alwaysHidden):
             true
@@ -265,6 +266,58 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                 return nil
             }
             return (item, bounds)
+        }
+    }
+
+    /// Little Snitch's macOS 27 status item is AX-opaque. Depending on source
+    /// PID resolution timing it appears either under its own bundle identifier
+    /// or as MenuBarAgent's generic Item-0. Its AX frame can span neighbouring
+    /// glyphs, so accepting that crop poisons the cache with a composite of the
+    /// icons around it. Keep the item unmanaged by the image cache in both
+    /// identity states while the agent is actually running.
+    static nonisolated func shouldExcludeOpaqueStatusItemFromCapture(
+        _ item: MenuBarItem,
+        littleSnitchRunning: Bool
+    ) -> Bool {
+        shouldExcludeOpaqueStatusTagFromCapture(
+            item.tag,
+            littleSnitchRunning: littleSnitchRunning
+        )
+    }
+
+    static nonisolated func shouldExcludeOpaqueStatusTagFromCapture(
+        _ tag: MenuBarItemTag,
+        littleSnitchRunning: Bool
+    ) -> Bool {
+        guard littleSnitchRunning else { return false }
+
+        let littleSnitchAgentBundleID = "at.obdev.littlesnitch.agent"
+        if tag.namespace == .string(littleSnitchAgentBundleID) {
+            return true
+        }
+
+        return tag.isControlCenterGenericItem && tag.title == "Item-0"
+    }
+
+    static nonisolated func excludingOpaqueStatusItems(
+        _ items: [MenuBarItem],
+        littleSnitchRunning: Bool
+    ) -> [MenuBarItem] {
+        items.filter {
+            !shouldExcludeOpaqueStatusItemFromCapture(
+                $0,
+                littleSnitchRunning: littleSnitchRunning
+            )
+        }
+    }
+
+    static nonisolated func excludingOpaqueCaptureBounds(
+        _ captures: [(item: MenuBarItem, bounds: CGRect)],
+        opaqueBounds: [CGRect]
+    ) -> [(item: MenuBarItem, bounds: CGRect)] {
+        guard !opaqueBounds.isEmpty else { return captures }
+        return captures.filter { capture in
+            !opaqueBounds.contains { $0.intersects(capture.bounds) }
         }
     }
 
@@ -1256,6 +1309,29 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         // Skip the CGS/SkyLight path entirely and use AX-provided bounds with a
         // display-region SCK screenshot instead.
         if #available(macOS 27, *) {
+            let littleSnitchRunning = await MainActor.run {
+                !NSRunningApplication.runningApplications(
+                    withBundleIdentifier: "at.obdev.littlesnitch.agent"
+                ).isEmpty
+            }
+            if littleSnitchRunning {
+                await MainActor.run {
+                    let staleTags = self.images.keys.filter {
+                        Self.shouldExcludeOpaqueStatusTagFromCapture(
+                            $0,
+                            littleSnitchRunning: true
+                        )
+                    }
+                    for tag in staleTags {
+                        self.images.removeValue(forKey: tag)
+                        self.accessTimestamps.removeValue(forKey: tag)
+                    }
+                }
+            }
+            let capturable = Self.excludingOpaqueStatusItems(
+                capturable,
+                littleSnitchRunning: littleSnitchRunning
+            )
             let displayID = await MainActor.run {
                 Self.captureDisplayID(
                     itemCacheDisplayID: appState.itemManager.itemCache.displayID,
@@ -1267,25 +1343,48 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                 NSScreen.screens.first { $0.displayID == displayID }?.frame
             }
 
+            let liveItems: [MenuBarItem]
             let liveBoundsByID: [String: CGRect]
             if freshBounds {
                 // A reflowing concealed item can keep stale snapshot bounds long
-                // enough to crop across neighboring glyphs. Visible items use
-                // their cache-cycle bounds to avoid mismatching dynamic items.
-                let liveItems = await MenuBarItem.getMenuBarItems(option: [.onScreen, .activeSpace])
+                // enough to crop across neighboring glyphs. Missing live identities
+                // are skipped so dynamic items retain their last-good image.
+                liveItems = await MenuBarItem.getMenuBarItems(option: [.onScreen, .activeSpace])
                 liveBoundsByID = Dictionary(
                     liveItems.map { ($0.uniqueIdentifier, $0.bounds) },
                     uniquingKeysWith: { first, _ in first }
                 )
             } else {
+                liveItems = []
                 liveBoundsByID = [:]
             }
 
-            let axItems = Self.captureBounds(
+            let opaqueBounds: [CGRect] = if littleSnitchRunning, !liveItems.isEmpty {
+                await MainActor.run {
+                    MenuBarSplitPillGeometry.opaqueVisibleBounds(
+                        from: liveItems.filter {
+                            !Self.shouldExcludeOpaqueStatusItemFromCapture(
+                                $0,
+                                littleSnitchRunning: true
+                            )
+                        },
+                        positions: RuntimePositionStore.currentPositions(),
+                        keys: ["status:at.obdev.littlesnitch.agent::Item-0"]
+                    )
+                }
+            } else {
+                []
+            }
+
+            let candidateAXItems = Self.captureBounds(
                 for: capturable,
                 freshBounds: freshBounds,
                 liveBoundsByID: liveBoundsByID,
                 screenFrame: screenFrame
+            )
+            let axItems = Self.excludingOpaqueCaptureBounds(
+                candidateAXItems,
+                opaqueBounds: opaqueBounds
             )
 
             guard !axItems.isEmpty else {
@@ -1525,10 +1624,11 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
             of: items,
             scale: scale,
             appState: appState,
-            // Revealed concealed sections need fresh AX bounds because cached
-            // snapshot bounds are stale while MenuBarAgent temporarily publishes
-            // their live glyphs. Visible uses its cache-cycle bounds: an extra
-            // all-items AX walk can mismatch dynamic items and crop neighbors.
+            // All visible pixels need fresh AX bounds because MenuBarAgent can
+            // reflow around AX-opaque items between the item-cache snapshot and
+            // the hosting-window capture. An item missing from the fresh walk is
+            // skipped by captureBounds, preserving its last-good image instead
+            // of cropping a stale rectangle across a neighbour.
             freshBounds: shouldUseFreshBounds
         )
         if !captureResult.excluded.isEmpty {
@@ -2132,7 +2232,14 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                 let sectionItems = appState.itemManager.itemCache[section]
                 guard !sectionItems.isEmpty else { return }
 
-                let itemsToCapture = sectionItems.filter { item in
+                let littleSnitchRunning = !NSRunningApplication.runningApplications(
+                    withBundleIdentifier: "at.obdev.littlesnitch.agent"
+                ).isEmpty
+                let capturableSectionItems = Self.excludingOpaqueStatusItems(
+                    sectionItems,
+                    littleSnitchRunning: littleSnitchRunning
+                )
+                let itemsToCapture = capturableSectionItems.filter { item in
                     !onlyMissingImages || Self.prewarmNeedsCapture(
                         cachedImage: self.image(for: item.tag),
                         wouldAttemptCapture: self.wouldAttemptCapture(of: item)

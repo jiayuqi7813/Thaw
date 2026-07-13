@@ -39,6 +39,109 @@ final class MenuBarItemImageCacheFreshBoundsTests: XCTestCase {
         XCTAssertEqual(captures.first?.bounds, liveBounds)
     }
 
+    func testVisibleCaptureRejectsCachedBoundsShiftedByOpaqueSlot() {
+        let item = makeItem()
+        let useFreshBounds = MenuBarItemImageCache.shouldUseFreshBounds(
+            for: .visible,
+            revealedSection: nil
+        )
+
+        let captures = MenuBarItemImageCache.captureBounds(
+            for: [item],
+            freshBounds: useFreshBounds,
+            liveBoundsByID: [item.uniqueIdentifier: liveBounds],
+            screenFrame: nil
+        )
+
+        XCTAssertTrue(useFreshBounds)
+        XCTAssertEqual(captures.first?.bounds, liveBounds)
+        XCTAssertNotEqual(captures.first?.bounds, cachedBounds)
+    }
+
+    func testLittleSnitchResolvedItemIsExcludedFromCapture() {
+        let item = makeItem(
+            tag: .appItem(bundleID: "at.obdev.littlesnitch.agent", title: "Item-0")
+        )
+
+        XCTAssertTrue(
+            MenuBarItemImageCache.shouldExcludeOpaqueStatusItemFromCapture(
+                item,
+                littleSnitchRunning: true
+            )
+        )
+    }
+
+    func testLittleSnitchUnresolvedMenuBarAgentSlotIsExcludedFromCapture() {
+        let item = makeItem(
+            tag: MenuBarItemTag(namespace: .menuBarAgent, title: "Item-0")
+        )
+
+        XCTAssertTrue(
+            MenuBarItemImageCache.shouldExcludeOpaqueStatusItemFromCapture(
+                item,
+                littleSnitchRunning: true
+            )
+        )
+    }
+
+    func testGenericMenuBarAgentSlotRemainsCapturableWithoutLittleSnitch() {
+        let item = makeItem(
+            tag: MenuBarItemTag(namespace: .menuBarAgent, title: "Item-0")
+        )
+
+        XCTAssertFalse(
+            MenuBarItemImageCache.shouldExcludeOpaqueStatusItemFromCapture(
+                item,
+                littleSnitchRunning: false
+            )
+        )
+    }
+
+    func testOpaqueIdentitiesAreRemovedFromEveryCaptureRequest() {
+        let resolved = makeItem(
+            tag: .appItem(bundleID: "at.obdev.littlesnitch.agent", title: "Item-0")
+        )
+        let unresolved = makeItem(
+            tag: MenuBarItemTag(namespace: .menuBarAgent, title: "Item-0")
+        )
+        let neighbor = makeItem(
+            tag: .appItem(bundleID: "com.test.neighbor", title: "Neighbor")
+        )
+
+        let capturable = MenuBarItemImageCache.excludingOpaqueStatusItems(
+            [resolved, unresolved, neighbor],
+            littleSnitchRunning: true
+        )
+
+        XCTAssertEqual(capturable.map(\.tag), [neighbor.tag])
+    }
+
+    func testCropsIntersectingLittleSnitchOpaqueSlotAreExcluded() {
+        let left = makeItem(
+            tag: .appItem(bundleID: "com.test.left", title: "Left"),
+            bounds: CGRect(x: 100, y: 0, width: 30, height: 22)
+        )
+        let contaminated = makeItem(
+            tag: .appItem(bundleID: "com.test.contaminated", title: "Contaminated"),
+            bounds: CGRect(x: 125, y: 0, width: 30, height: 22)
+        )
+        let right = makeItem(
+            tag: .appItem(bundleID: "com.test.right", title: "Right"),
+            bounds: CGRect(x: 170, y: 0, width: 30, height: 22)
+        )
+
+        let captures = MenuBarItemImageCache.excludingOpaqueCaptureBounds(
+            [
+                (item: left, bounds: left.bounds),
+                (item: contaminated, bounds: contaminated.bounds),
+                (item: right, bounds: right.bounds),
+            ],
+            opaqueBounds: [CGRect(x: 130, y: 0, width: 40, height: 22)]
+        )
+
+        XCTAssertEqual(captures.map(\.item.tag), [left.tag, right.tag])
+    }
+
     func testVerticallyArrangedDisplayDoesNotRejectCGCoordinates() {
         let item = makeItem(bounds: CGRect(x: 200, y: -40, width: 24, height: 22))
 
@@ -65,9 +168,12 @@ final class MenuBarItemImageCacheFreshBoundsTests: XCTestCase {
         XCTAssertTrue(captures.isEmpty)
     }
 
-    private func makeItem(bounds: CGRect? = nil) -> MenuBarItem {
+    private func makeItem(
+        tag: MenuBarItemTag = .appItem(bundleID: "com.test.capture", title: "Capture"),
+        bounds: CGRect? = nil
+    ) -> MenuBarItem {
         MenuBarItem(
-            tag: .appItem(bundleID: "com.test.capture", title: "Capture"),
+            tag: tag,
             windowID: 42,
             ownerPID: 100,
             sourcePID: 100,
