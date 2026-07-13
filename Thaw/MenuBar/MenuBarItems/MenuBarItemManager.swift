@@ -6120,6 +6120,24 @@ extension MenuBarItemManager {
         case .assertionDividerReorder:
             let experimentalSystemItemHiding = appState?.settings.advanced
                 .enableExperimentalSystemItemHiding ?? false
+
+            // Collapsed macOS 27 dividers cannot be Command-dragged, but they
+            // still have MenuBarAgent position keys. Order those structural
+            // anchors first so the section boundaries always read:
+            // Always Hidden → Hidden → Visible.
+            if let alwaysHidden = controlItems.alwaysHidden,
+               let visible = items.first(where: { $0.tag.matchesVisibleControlItem })
+            {
+                let reordered = RuntimePositionStore.applyControlItemOrder(
+                    desiredOrder: [alwaysHidden, hidden, visible],
+                    liveItems: items
+                )
+                if !reordered.isEmpty {
+                    MenuBarItemManager.diagLog.info(
+                        "macOS 27: restored structural divider order for \(reordered.count) control item(s)"
+                    )
+                }
+            }
             guard hidden.isPhysicallyOrderable(
                 experimentalSystemItemHiding: experimentalSystemItemHiding
             ) else {
