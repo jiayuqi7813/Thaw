@@ -369,6 +369,26 @@ final class MenuBarItemManager: ObservableObject {
         UserDefaults.standard.set(pendingReturnDestinations, forKey: destKey)
     }
 
+    private struct PostRestrictionRepairItemID: Hashable {
+        let uniqueIdentifier: String
+        let ownerPID: pid_t
+    }
+
+    /// Visible items that proved physically unrepairable after an assertion
+    /// reflow. Keeping them eligible makes every later restriction change pulse
+    /// the whole menu bar even though the synthetic move cannot succeed. Pairing
+    /// stable identity with the owning process keeps assertion-driven synthetic
+    /// ID churn from re-arming the loop, while naturally retrying after the app
+    /// relaunches with a new PID.
+    private var postRestrictionUnrepairableItemIDs = Set<PostRestrictionRepairItemID>()
+
+    private func postRestrictionRepairItemID(for item: MenuBarItem) -> PostRestrictionRepairItemID {
+        PostRestrictionRepairItemID(
+            uniqueIdentifier: item.uniqueIdentifier,
+            ownerPID: item.ownerPID
+        )
+    }
+
     /// Records that the assessment-mode assertion was torn down and rebuilt.
     /// The OS reflows the whole bar; defer saved-layout re-apply until geometry settles.
     func noteRestrictionChange() {
@@ -380,12 +400,20 @@ final class MenuBarItemManager: ObservableObject {
             // MenuBarAgent during this window parks collateral items at y≈1413.
             // 1.2s also absorbs rapid multi-hide bursts so repair runs once the
             // user finishes, not between consecutive assertion rebuilds.
-            try? await Task.sleep(for: .milliseconds(1200))
-            guard let self, !Task.isCancelled else { return }
+            do {
+                try await Task.sleep(for: .milliseconds(1200))
+            } catch {
+                return
+            }
+            guard let self else { return }
             var stillParked = await self.repairVisibleLayoutAfterRestrictionChange()
             var poll = 0
-            while stillParked, poll < 4, !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(1))
+            while stillParked, poll < 4 {
+                do {
+                    try await Task.sleep(for: .seconds(1))
+                } catch {
+                    return
+                }
                 stillParked = await self.repairVisibleLayoutAfterRestrictionChange()
                 poll += 1
             }
@@ -415,6 +443,7 @@ final class MenuBarItemManager: ObservableObject {
         }
 
         var liveItems = await MenuBarItem.getMenuBarItems(option: .activeSpace)
+        guard !Task.isCancelled else { return false }
 
         // Pre-pulse check: determine whether a recomposite is actually necessary.
         // Hiding-unsupported apps can self-recover after assertion reflows.
@@ -422,27 +451,37 @@ final class MenuBarItemManager: ObservableObject {
         // them, so only pulse when supported visible items are parked off-band
         // or still rendering blank.
         let displayID = Bridging.getActiveMenuBarDisplayID() ?? CGMainDisplayID()
+        let liveItemIDs = Set(liveItems.map(postRestrictionRepairItemID(for:)))
+        postRestrictionUnrepairableItemIDs.formIntersection(liveItemIDs)
         let pulseCandidates = liveItems.filter {
             !$0.isControlItem &&
                 !$0.tag.isHidingUnsupported &&
+                !postRestrictionUnrepairableItemIDs.contains(postRestrictionRepairItemID(for: $0)) &&
                 controller.section(for: $0) == .visible
         }
-        let (_, liveParkedIDs) = parkedSetAndBarMidY(in: liveItems)
+        var liveParkedIDs = parkedSetAndBarMidY(in: liveItems).parkedIDs
         let prePulseParked = pulseCandidates.filter { liveParkedIDs.contains($0.windowID) }
         let prePulseOnBand = pulseCandidates.filter { !liveParkedIDs.contains($0.windowID) }
         let prePulseBlank = await appState.imageCache.itemsRenderingBlank(
             among: prePulseOnBand,
             displayID: displayID
         )
+        guard !Task.isCancelled else { return false }
         let needsPulse = !prePulseParked.isEmpty || !prePulseBlank.isEmpty
 
-        if needsPulse, controller.pulseRestrictionAfterReflow(liveItems: liveItems) {
+        if needsPulse, !Task.isCancelled, controller.pulseRestrictionAfterReflow(liveItems: liveItems) {
             MenuBarItemManager.diagLog.info(
                 "post-restriction repair: pulsed assertion for MenuBarAgent re-composite " +
                     "(prePulseParked=\(prePulseParked.count), prePulseBlank=\(prePulseBlank.count))"
             )
-            try? await Task.sleep(for: .milliseconds(800))
+            do {
+                try await Task.sleep(for: .milliseconds(800))
+            } catch {
+                return false
+            }
             liveItems = await MenuBarItem.getMenuBarItems(option: .activeSpace)
+            guard !Task.isCancelled else { return false }
+            liveParkedIDs = parkedSetAndBarMidY(in: liveItems).parkedIDs
         } else if !needsPulse {
             MenuBarItemManager.diagLog.debug(
                 "post-restriction repair: pulse skipped — no non-hiding-unsupported items parked or blank"
@@ -452,9 +491,11 @@ final class MenuBarItemManager: ObservableObject {
         // Denylisted hiding-unsupported items are excluded from synthetic drag
         // and retry signals. Their glyphs may transiently blank on assertion
         // reflows, but repeatedly pulsing can make that worse.
+        var failedUnparkIDs = Set<CGWindowID>()
         let parkedVisible = liveItems.filter {
             !$0.isControlItem &&
                 !$0.tag.isHidingUnsupported &&
+                !postRestrictionUnrepairableItemIDs.contains(postRestrictionRepairItemID(for: $0)) &&
                 controller.section(for: $0) == .visible &&
                 liveParkedIDs.contains($0.windowID)
         }
@@ -464,15 +505,36 @@ final class MenuBarItemManager: ObservableObject {
                     "using anchor \(anchor.logString)"
             )
             for item in MenuBarItem.sortByVisualCenter(parkedVisible) {
+                guard !Task.isCancelled else { return false }
                 let freshItems = await MenuBarItem.getMenuBarItems(option: .activeSpace)
+                guard !Task.isCancelled else { return false }
                 guard let currentAnchor = unparkAnchorAmong(liveItems: freshItems, controller: controller) else {
                     break
                 }
                 do {
                     try await unparkVisibleItemAfterRestrictionReflow(item: item, anchor: currentAnchor)
+                } catch EventError.itemNotMovable {
+                    guard !Task.isCancelled else { return false }
+                    failedUnparkIDs.insert(item.windowID)
+                    postRestrictionUnrepairableItemIDs.insert(postRestrictionRepairItemID(for: item))
+                    MenuBarItemManager.diagLog.warning(
+                        "post-restriction repair: suppressing future repair pulses for unmovable \(item.logString)"
+                    )
+                } catch EventError.cannotComplete {
+                    guard !Task.isCancelled else { return false }
+                    failedUnparkIDs.insert(item.windowID)
+                    postRestrictionUnrepairableItemIDs.insert(postRestrictionRepairItemID(for: item))
+                    MenuBarItemManager.diagLog.warning(
+                        "post-restriction repair: suppressing future repair pulses after move could not complete for \(item.logString)"
+                    )
+                } catch is CancellationError {
+                    return false
                 } catch {
-                    MenuBarItemManager.diagLog.error(
-                        "post-restriction repair: failed to unpark \(item.logString): \(error)"
+                    guard !Task.isCancelled else { return false }
+                    failedUnparkIDs.insert(item.windowID)
+                    postRestrictionUnrepairableItemIDs.insert(postRestrictionRepairItemID(for: item))
+                    MenuBarItemManager.diagLog.warning(
+                        "post-restriction repair: suppressing future repair pulses after move failed for \(item.logString): \(error)"
                     )
                 }
             }
@@ -483,10 +545,13 @@ final class MenuBarItemManager: ObservableObject {
         }
 
         await cacheItemsRegardless(skipRecentMoveCheck: true, skipSavedLayoutApply: true)
+        guard !Task.isCancelled else { return false }
         await appState.imageCache.refreshAfterReorder()
+        guard !Task.isCancelled else { return false }
         appState.hidEventManager.refreshMenuBarItemBoundsLookup()
 
         let afterItems = await MenuBarItem.getMenuBarItems(option: .activeSpace)
+        guard !Task.isCancelled else { return false }
         let (_, afterParkedIDs) = parkedSetAndBarMidY(in: afterItems)
         // Exclude denylisted hiding-unsupported items from stillParked and
         // blank-glyph checks: counting transient assertion-reflow side effects
@@ -521,6 +586,8 @@ final class MenuBarItemManager: ObservableObject {
         let stillParked = afterItems.contains {
             !$0.isControlItem &&
                 !$0.tag.isHidingUnsupported &&
+                !postRestrictionUnrepairableItemIDs.contains(postRestrictionRepairItemID(for: $0)) &&
+                !failedUnparkIDs.contains($0.windowID) &&
                 controller.section(for: $0) == .visible &&
                 afterParkedIDs.contains($0.windowID)
         }
