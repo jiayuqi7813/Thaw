@@ -2438,7 +2438,18 @@ extension MenuBarItemManager {
             return
         }
 
-        await enforceControlItemOrder(controlItems: controlItems, items: items)
+        // MenuBarAgent repopulates its preferred-position table in waves while
+        // login items reattach. Rewriting the structural controls during that
+        // startup settling window re-nudges the agent on every poll, turning
+        // the harmless reattachment churn into a full AX recache storm. The
+        // final cache pass after settling owns this one-time enforcement.
+        if isInStartupSettling {
+            MenuBarItemManager.diagLog.debug(
+                "cacheItemsRegardless: startup settling active, deferring structural control order"
+            )
+        } else {
+            await enforceControlItemOrder(controlItems: controlItems, items: items)
+        }
 
         guard !Task.isCancelled else {
             MenuBarItemManager.diagLog.debug("cacheItemsRegardless: cancelled before relocateNewLeftmostItems")

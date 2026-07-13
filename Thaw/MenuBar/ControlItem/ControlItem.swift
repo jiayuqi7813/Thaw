@@ -1346,6 +1346,14 @@ final class ControlItem: NSObject {
 
         do {
             try task.run()
+            task.waitUntilExit()
+            guard task.terminationStatus == 0 else {
+                diagLog.error("Could not toggle macOS appearance: defaults exited with status \(task.terminationStatus)")
+                return
+            }
+            let appearanceChanged = Notification.Name("AppleInterfaceThemeChangedNotification")
+            DistributedNotificationCenter.default().post(name: appearanceChanged, object: nil)
+            NotificationCenter.default.post(name: appearanceChanged, object: nil)
         } catch {
             diagLog.error("Could not toggle macOS appearance: \(error)")
         }
