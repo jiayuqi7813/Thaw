@@ -186,9 +186,6 @@ struct MenuBarLayoutSettingsPane: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                SettingsWarningPill(
-                    message: "Changing whether a macOS system item is hidden makes the menu bar flash once. App items can use the flicker-free position-hiding option below."
-                )
             }
         }
     }
