@@ -206,7 +206,7 @@ enum MenuBarSplitPillGeometry {
         let visualOrder = references.sorted {
             ascending ? $0.weight < $1.weight : $0.weight > $1.weight
         }
-        let width = max(20, references.map(\.bounds.width).reduce(0, +) / CGFloat(references.count))
+        let fallbackWidth = max(20, references.map(\.bounds.width).reduce(0, +) / CGFloat(references.count))
 
         return keys.compactMap { key in
             guard let weight = positions[key] else { return nil }
@@ -217,12 +217,20 @@ enum MenuBarSplitPillGeometry {
             let after = insertion < visualOrder.endIndex ? visualOrder[insertion].bounds : nil
 
             let x: CGFloat
+            let width: CGFloat
             switch (before, after) {
             case let (before?, after?):
-                x = ((before.maxX + after.minX) / 2) - (width / 2)
+                // An AX-opaque item occupies the whole gap its neighbouring
+                // status items leave in the live bar. Using an average icon
+                // width here only covered half of wider items such as Little
+                // Snitch's traffic meter.
+                x = before.maxX + 4
+                width = max(20, after.minX - before.maxX - 8)
             case let (before?, nil):
                 x = before.maxX + 4
+                width = fallbackWidth
             case let (nil, after?):
+                width = fallbackWidth
                 x = after.minX - width - 4
             case (nil, nil):
                 return nil

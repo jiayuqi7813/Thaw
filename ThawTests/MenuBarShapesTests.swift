@@ -310,10 +310,14 @@ final class MenuBarSplitPillGeometryTests: XCTestCase {
         )
 
         // The hidden CC item must not contribute to the bounds.
-        XCTAssertFalse(bounds.contains(hiddenCCItem.bounds),
-                       "hidden-section CC item should be excluded from trailing pill")
-        XCTAssertTrue(bounds.contains(visible.bounds),
-                      "visible-section item should be included")
+        XCTAssertFalse(
+            bounds.contains(hiddenCCItem.bounds),
+            "hidden-section CC item should be excluded from trailing pill"
+        )
+        XCTAssertTrue(
+            bounds.contains(visible.bounds),
+            "visible-section item should be included"
+        )
     }
 
     @available(macOS 27, *)
@@ -427,6 +431,34 @@ final class MenuBarSplitPillGeometryTests: XCTestCase {
         XCTAssertTrue(bounds.contains(control.bounds), "visible control item should be included")
         XCTAssertTrue(bounds.contains(onBar.bounds), "on-bar item should be included")
         XCTAssertFalse(bounds.contains(parked.bounds), "parked item should be excluded")
+    }
+
+    @available(macOS 27, *)
+    @MainActor
+    func testOpaqueVisibleBoundsUsesEntireReservedSlot() {
+        let left = MenuBarItem.fixture(
+            tag: .appItem(bundleID: "com.example.left", title: "Left"),
+            windowID: 1,
+            bounds: CGRect(x: 100, y: 3, width: 20, height: 24)
+        )
+        let right = MenuBarItem.fixture(
+            tag: .appItem(bundleID: "com.example.right", title: "Right"),
+            windowID: 2,
+            bounds: CGRect(x: 170, y: 3, width: 20, height: 24)
+        )
+        let positions = [
+            "status:com.example.left::Left": 100,
+            "status:at.obdev.littlesnitch.agent::Item-0": 200,
+            "status:com.example.right::Right": 300,
+        ]
+
+        let bounds = MenuBarSplitPillGeometry.opaqueVisibleBounds(
+            from: [left, right],
+            positions: positions,
+            keys: ["status:at.obdev.littlesnitch.agent::Item-0"]
+        )
+
+        XCTAssertEqual(bounds, [CGRect(x: 124, y: 3, width: 42, height: 24)])
     }
 
     @available(macOS 27, *)
