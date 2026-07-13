@@ -6109,6 +6109,19 @@ extension MenuBarItemManager {
         return "\(ids)→\(target.namespace):\(target.title)"
     }
 
+    /// Runtime-host keys for status items that are known to be visible but do
+    /// not publish an AX extras-menu-bar child. They remain unmanaged, yet
+    /// must occupy a visible structural slot so a divider cannot be sorted to
+    /// their right. Keep this list intentionally narrow: stale preference keys
+    /// must never influence the live section layout.
+    private static func opaqueVisibleRuntimePositionKeys() -> [String] {
+        let littleSnitchAgentBundleID = "at.obdev.littlesnitch.agent"
+        guard !NSRunningApplication.runningApplications(withBundleIdentifier: littleSnitchAgentBundleID).isEmpty else {
+            return []
+        }
+        return ["status:\(littleSnitchAgentBundleID)::Item-0"]
+    }
+
     private func enforceControlItemOrder(
         controlItems: ControlItemPair,
         items: [MenuBarItem],
@@ -6146,6 +6159,7 @@ extension MenuBarItemManager {
             )
             let reordered = RuntimePositionStore.applyControlItemOrder(
                 desiredOrder: alwaysHiddenItems + [alwaysHidden] + hiddenItems + [hidden] + visibleItems + [visible],
+                opaqueVisibleKeys: Self.opaqueVisibleRuntimePositionKeys(),
                 liveItems: items
             )
             if !reordered.isEmpty {

@@ -8,8 +8,8 @@
 
 import Cocoa
 import Combine
-import PlatformRuntimeKit
 import MenuBarModel
+import PlatformRuntimeKit
 
 // MARK: - ControlItem
 
@@ -514,8 +514,28 @@ final class ControlItem: NSObject {
 
             button.image = image
         case .hidden, .alwaysHidden:
+            // macOS 27 dividers are structural runtime anchors, but must not
+            // become visible controls while their section remains concealed.
+            // The section controller is the source of truth here: a stale
+            // status-item state can otherwise leave a chevron on screen after
+            // the assertion has already re-hidden its items.
+            let dividerState: HidingState
+            if MenuBarBackendProvider.current.supportsLegacySectionHiding {
+                dividerState = state
+            } else {
+                let revealed = appState.menuBarManager.sectionController?.revealedSection
+                let isRevealed = switch identifier {
+                case .hidden:
+                    revealed == .hidden || revealed == .alwaysHidden
+                case .alwaysHidden:
+                    revealed == .alwaysHidden
+                case .visible:
+                    false
+                }
+                dividerState = isRevealed ? .showSection : .hideSection
+            }
             switch Self.sectionDividerPresentation(
-                state: state,
+                state: dividerState,
                 style: appState.settings.advanced.sectionDividerStyle,
                 supportsSectionHiding: MenuBarBackendProvider.current.supportsLegacySectionHiding
             ) {

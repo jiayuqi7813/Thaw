@@ -99,6 +99,11 @@ final class MenuBarManager: ObservableObject {
     /// visibility restriction. `nil` on macOS <=26.
     private(set) var sectionController: MenuBarSectionController?
 
+    /// Whether the assertion controller is currently revealed because the
+    /// active display's persistent "Always show hidden items" setting asked
+    /// for it, rather than because the user temporarily toggled a section.
+    private var isAlwaysShowRevealActive = false
+
     var shouldDeferMacOS27MenuBarMutation: Bool {
         guard #available(macOS 27, *) else { return false }
         guard let nativeMenuBarStateChangedAt else { return false }
@@ -134,6 +139,7 @@ final class MenuBarManager: ObservableObject {
             let controller = MenuBarSectionController(appState: appState)
             controller.start()
             sectionController = controller
+            synchronizeAlwaysShowHiddenItems()
         }
         rebuildItemHotkeys()
     }
@@ -243,6 +249,7 @@ final class MenuBarManager: ObservableObject {
             appState.settings.displaySettings.$configurations
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in
+                    self?.synchronizeAlwaysShowHiddenItems()
                     self?.updateControlItemStates()
                 }
                 .store(in: &c)
@@ -896,6 +903,33 @@ final class MenuBarManager: ObservableObject {
     func updateControlItemStates(for screen: NSScreen? = nil) {
         for section in sections {
             section.updateControlItemState(for: screen)
+        }
+    }
+
+    /// Applies the persistent per-display "Always show hidden items" policy
+    /// to macOS 27's assignment-backed controller. Updating a divider alone
+    /// cannot reveal its items on this backend: the controller's allowlist is
+    /// the actual source of visibility.
+    private func synchronizeAlwaysShowHiddenItems() {
+        guard !MenuBarBackendProvider.current.supportsLegacySectionHiding,
+              let sectionController,
+              let screen = NSScreen.screenWithActiveMenuBar ?? NSScreen.main
+        else {
+            return
+        }
+
+        let settings = appState?.settings.displaySettings
+        let shouldAlwaysShow = settings?.alwaysShowHiddenItems(for: screen.displayID) == true
+            && settings?.useIceBar(for: screen.displayID) == false
+
+        if shouldAlwaysShow {
+            if sectionController.revealedSection == nil {
+                sectionController.show(.alwaysHidden)
+            }
+            isAlwaysShowRevealActive = true
+        } else if isAlwaysShowRevealActive {
+            sectionController.hideRevealedSections()
+            isAlwaysShowRevealActive = false
         }
     }
 

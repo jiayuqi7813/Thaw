@@ -6,10 +6,10 @@
 //  Copyright (Thaw) © 2026 Toni Förster
 //  Licensed under the GNU GPLv3
 
-import PlatformRuntimeKit
-import os
-import SwiftUI
 import MenuBarModel
+import os
+import PlatformRuntimeKit
+import SwiftUI
 
 /// A representation of a section in a menu bar.
 @MainActor
@@ -305,7 +305,7 @@ final class MenuBarSection {
             false
         }
 
-        if name == .hidden || name == .visible, alwaysShow, !useIceBar {
+        if alwaysShow, !useIceBar {
             controlItem.state = .showSection
         } else {
             controlItem.state = desiredState
