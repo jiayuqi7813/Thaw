@@ -6121,19 +6121,29 @@ extension MenuBarItemManager {
         // collapsed dividers are structural anchors, not draggable items.
         if #available(macOS 27, *),
            let alwaysHidden = controlItems.alwaysHidden,
-           let visible = items.first(where: { $0.tag.matchesVisibleControlItem })
+           let visible = items.first(where: { $0.tag.matchesVisibleControlItem }),
+           let controller = appState?.menuBarManager.sectionController
         {
-            let assignments = appState?.menuBarManager.sectionController?.sectionAssignment ?? [:]
             let ordinaryItems = items.filter { !$0.isControlItem }
-            let alwaysHiddenItems = ordinaryItems.filter {
-                assignments[$0.uniqueIdentifier] == .alwaysHidden
-            }
-            let hiddenItems = ordinaryItems.filter {
-                assignments[$0.uniqueIdentifier] == .hidden
-            }
-            let visibleItems = ordinaryItems.filter {
-                assignments[$0.uniqueIdentifier] == nil
-            }
+
+            // A divider is the right boundary of its section, never an
+            // independent anchor. Build the complete structural sequence from
+            // the controller's persisted section order so a previous runtime
+            // shuffle cannot make the next repair preserve an interleaving.
+            // `ordered` also keeps newly discovered items by appending them in
+            // their current visual order until the user places them.
+            let alwaysHiddenItems = controller.ordered(
+                ordinaryItems.filter { controller.section(for: $0) == .alwaysHidden },
+                in: .alwaysHidden
+            )
+            let hiddenItems = controller.ordered(
+                ordinaryItems.filter { controller.section(for: $0) == .hidden },
+                in: .hidden
+            )
+            let visibleItems = controller.ordered(
+                ordinaryItems.filter { controller.section(for: $0) == .visible },
+                in: .visible
+            )
             let reordered = RuntimePositionStore.applyControlItemOrder(
                 desiredOrder: alwaysHiddenItems + [alwaysHidden] + hiddenItems + [hidden] + visibleItems + [visible],
                 liveItems: items
