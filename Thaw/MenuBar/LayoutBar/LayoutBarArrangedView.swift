@@ -12,6 +12,7 @@ import Cocoa
 class LayoutBarArrangedView: NSView {
     enum Kind {
         case item(MenuBarItem)
+        case opaqueSlot(LayoutOpaqueSlotDescriptor)
         case newItemsBadge
     }
 

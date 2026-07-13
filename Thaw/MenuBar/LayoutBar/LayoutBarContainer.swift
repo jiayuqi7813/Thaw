@@ -8,6 +8,7 @@
 
 import Cocoa
 import Combine
+import PlatformRuntimeKit
 
 /// A container for the items in the menu bar layout interface.
 final class LayoutBarContainer: NSView {
@@ -73,6 +74,7 @@ final class LayoutBarContainer: NSView {
     }
 
     private var cancellables = Set<AnyCancellable>()
+    private var suppressLittleSnitchUnresolvedSlot = false
 
     /// Creates a container view with the given app state, section, and spacing.
     ///
@@ -137,6 +139,26 @@ final class LayoutBarContainer: NSView {
                     if let badgeView = arrangedViews.first(where: { $0.isNewItemsBadge }) {
                         badgeView.averageColorInfo = appState.menuBarManager.averageColorInfo
                     }
+                }
+                .store(in: &c)
+
+            Publishers.Merge(
+                NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didLaunchApplicationNotification),
+                NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didTerminateApplicationNotification)
+            )
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                setArrangedViews(items: appState.itemManager.itemCache.managedItems(for: section))
+            }
+            .store(in: &c)
+
+            NotificationCenter.default
+                .publisher(for: .menuBarAgentPositionsDidChange)
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in
+                    guard let self else { return }
+                    setArrangedViews(items: appState.itemManager.itemCache.managedItems(for: section))
                 }
                 .store(in: &c)
 
@@ -263,10 +285,37 @@ final class LayoutBarContainer: NSView {
             arrangedViews.removeAll()
             return
         }
+        let runningApplications = NSWorkspace.shared.runningApplications
+        let runningBundleIdentifiers = Set(runningApplications.compactMap(\.bundleIdentifier))
+        let littleSnitchRunning = runningBundleIdentifiers.contains(
+            LayoutOpaqueSlotDescriptor.littleSnitchBundleIdentifier
+        )
+        suppressLittleSnitchUnresolvedSlot = LayoutOpaqueSlotDescriptor.shouldSuppressUnresolvedSlot(
+            in: items,
+            littleSnitchRunning: littleSnitchRunning,
+            wasSuppressed: suppressLittleSnitchUnresolvedSlot
+        )
+        let positions: [String: Int]
+        let opaqueSlot: LayoutOpaqueSlotDescriptor?
+        if #available(macOS 27, *), section == .visible {
+            positions = RuntimePositionStore.currentPositions()
+            opaqueSlot = LayoutOpaqueSlotDescriptor.littleSnitch(
+                runningBundleIdentifiers: runningBundleIdentifiers,
+                positions: positions
+            )
+        } else {
+            positions = [:]
+            opaqueSlot = nil
+        }
+        let displayedItems = LayoutOpaqueSlotDescriptor.itemsForLayout(
+            items,
+            suppressUnresolvedSlot: suppressLittleSnitchUnresolvedSlot
+        )
+
         var newViews = [LayoutBarArrangedView]()
-        let itemIdentifiers = items.map(\.uniqueIdentifier)
+        let itemIdentifiers = displayedItems.map(\.uniqueIdentifier)
         let badgeIndex = appState.itemManager.newItemsBadgeIndex(in: section, itemIdentifiers: itemIdentifiers)
-        for item in items {
+        for item in displayedItems {
             if let existingView = arrangedViews.first(where: {
                 if case let .item(existingItem) = $0.kind {
                     return existingItem == item
@@ -279,10 +328,37 @@ final class LayoutBarContainer: NSView {
                 newViews.append(view)
             }
         }
+
+        if #available(macOS 27, *), let opaqueSlot {
+            let opaqueView = arrangedViews.first(where: {
+                if case let .opaqueSlot(existing) = $0.kind {
+                    return existing == opaqueSlot
+                }
+                return false
+            }) ?? LayoutOpaqueSlotView(
+                descriptor: opaqueSlot,
+                runningApplications: runningApplications
+            )
+            let insertionIndex = opaqueSlot
+                .insertionIndex(in: displayedItems, positions: positions)
+                .clamped(to: newViews.startIndex ... newViews.endIndex)
+            newViews.insert(opaqueView, at: insertionIndex)
+        }
         if let badgeIndex {
             let badgeView = arrangedViews.first(where: { $0.isNewItemsBadge }) ?? LayoutBarNewItemsBadgeView()
             badgeView.averageColorInfo = appState.menuBarManager.averageColorInfo
-            let insertionIndex = badgeIndex.clamped(to: newViews.startIndex ... newViews.endIndex)
+            let opaqueIndex = newViews.firstIndex {
+                if case .opaqueSlot = $0.kind {
+                    return true
+                }
+                return false
+            }
+            let adjustedBadgeIndex = if let opaqueIndex, opaqueIndex < badgeIndex {
+                badgeIndex + 1
+            } else {
+                badgeIndex
+            }
+            let insertionIndex = adjustedBadgeIndex.clamped(to: newViews.startIndex ... newViews.endIndex)
             newViews.insert(badgeView, at: insertionIndex)
         }
         arrangedViews = newViews

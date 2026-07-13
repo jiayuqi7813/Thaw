@@ -201,6 +201,11 @@ final class MenuBarAgentPreferencesWatcher {
         }
         lastSnapshot = current
         diagLog.info("external TrailingItemPreferredPositions change detected (\(current.count) key(s))")
+        NotificationCenter.default.post(name: .menuBarAgentPositionsDidChange, object: nil)
         onExternalChange(current)
     }
+}
+
+extension Notification.Name {
+    static let menuBarAgentPositionsDidChange = Self("menuBarAgentPositionsDidChange")
 }
