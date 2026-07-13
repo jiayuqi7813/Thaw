@@ -19,11 +19,6 @@ struct MenuBarShapePicker: View {
                 horizontalMargins
             }
         }
-        if configuration.shapeKind == .noShape {
-            Text("No shape kind selected")
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .center)
-        }
     }
 
     private var horizontalMargins: some View {

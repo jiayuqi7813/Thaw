@@ -23,13 +23,17 @@ struct MenuBarAppearanceEditor: View {
     let onDone: (() -> Void)?
 
     var body: some View {
-        bodyContent
-            .safeAreaBar(edge: .top, spacing: 0) {
-                panelHeading
-            }
-            .safeAreaBar(edge: .bottom, spacing: 0) {
-                bottomBar
-            }
+        if case .panel = location {
+            bodyContent
+                .safeAreaBar(edge: .top, spacing: 0) {
+                    panelHeading
+                }
+                .safeAreaBar(edge: .bottom, spacing: 0) {
+                    panelBottomBar
+                }
+        } else {
+            bodyContent
+        }
     }
 
     @ViewBuilder
@@ -39,20 +43,15 @@ struct MenuBarAppearanceEditor: View {
         } else {
             mainForm
                 .scrollEdgeEffectStyle(.automatic, for: .vertical)
-                .padding(.top, topPadding)
         }
     }
 
-    @ViewBuilder
     private var panelHeading: some View {
-        if case .panel = location {
-            Text("Menu Bar Appearance")
-                .font(.title2.weight(.semibold))
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.horizontal, 20)
-                .padding(.top, 16)
-                .padding(.bottom, 16)
-        }
+        Text("Menu Bar Appearance")
+            .font(.title2.weight(.semibold))
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 14)
     }
 
     private var cannotEdit: some View {
@@ -63,16 +62,6 @@ struct MenuBarAppearanceEditor: View {
 
     private var mainForm: some View {
         IceForm {
-            if
-                case .settings = location,
-                appState.settings.advanced.enableSecondaryContextMenu
-            {
-                CalloutBox(
-                    "Tip: You can also edit these settings by right-clicking in an empty area of the menu bar.",
-                    systemImage: "lightbulb"
-                )
-            }
-
             IceSection {
                 isDynamicToggle
             }
@@ -84,7 +73,7 @@ struct MenuBarAppearanceEditor: View {
                 UnlabeledBackgroundEditor(configuration: $appearanceManager.configuration.staticConfiguration)
             }
 
-            IceSection("Menu Bar Shape") {
+            IceSection("Shape") {
                 shapePicker
                 isInset
             }
@@ -98,14 +87,21 @@ struct MenuBarAppearanceEditor: View {
                 }
             }
 
-            if appearanceManager.configuration.current.tintKind != .noTint
+            if
+                appearanceManager.configuration.current.tintKind != .noTint
                 || appearanceManager.configuration.shapeKind != .noShape
                 || appearanceManager.configuration.current.backgroundKind != .none
             {
-                CalloutBox(
-                    "If effects are not visible, disable \"Show menu bar background\" in System Settings \(Constants.menuArrow) Menu Bar",
-                    systemImage: "info.circle"
+                Text(
+                    "If effects are not visible, disable “Show menu bar background” in System Settings \(Constants.menuArrow) Menu Bar."
                 )
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            if case .settings = location {
+                settingsFooter
             }
         }
     }
@@ -115,19 +111,50 @@ struct MenuBarAppearanceEditor: View {
             .annotation("Apply different settings based on the current system appearance.")
     }
 
-    private var topPadding: CGFloat {
-        0
+    @ViewBuilder
+    private var settingsFooter: some View {
+        if
+            appState.settings.advanced.enableSecondaryContextMenu
+            || appearanceManager.configuration != .defaultConfiguration
+        {
+            IceSection {
+                if appState.settings.advanced.enableSecondaryContextMenu {
+                    Text("Tip: Right-click an empty area of the menu bar to edit appearance without opening Settings.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                if appearanceManager.configuration != .defaultConfiguration {
+                    HStack {
+                        Spacer()
+                        Button("Reset Appearance", role: .destructive) {
+                            isResetPromptPresented = true
+                        }
+                        .alert("Reset Menu Bar Appearance", isPresented: $isResetPromptPresented) {
+                            Button("Cancel", role: .cancel) {
+                                isResetPromptPresented = false
+                            }
+                            Button("Reset", role: .destructive) {
+                                appearanceManager.configuration = .defaultConfiguration
+                                isResetPromptPresented = false
+                            }
+                        } message: {
+                            Text("This action cannot be undone.")
+                        }
+                    }
+                }
+            }
+        }
     }
 
-    private var bottomBar: some View {
+    private var panelBottomBar: some View {
         HStack {
-            if case .panel = location {
-                Button("Done") {
-                    if let onDone {
-                        onDone()
-                    } else {
-                        dismissWindow()
-                    }
+            Button("Done") {
+                if let onDone {
+                    onDone()
+                } else {
+                    dismissWindow()
                 }
             }
 
@@ -177,7 +204,19 @@ struct MenuBarAppearanceEditor: View {
 
 private struct UnlabeledBackgroundEditor: View {
     @Binding var configuration: MenuBarAppearancePartialConfiguration
-    var showTitle: Bool = true
+    /// When `false`, renders controls without a titled section so a parent
+    /// (e.g. Light/Dark) can own the chrome.
+    var showsSectionChrome: Bool = true
+
+    @ViewBuilder
+    private var controls: some View {
+        styleSection
+        backgroundBorderToggle
+        if configuration.backgroundHasBorder {
+            backgroundBorderColor
+            backgroundBorderWidth
+        }
+    }
 
     @ViewBuilder
     private var styleSection: some View {
@@ -199,23 +238,12 @@ private struct UnlabeledBackgroundEditor: View {
     }
 
     var body: some View {
-        VStack(spacing: .iceFormDefaultSpacing) {
-            if showTitle {
-                IceSection("Background") {
-                    styleSection
-                }
-            } else {
-                IceSection {
-                    styleSection
-                }
+        if showsSectionChrome {
+            IceSection("Background") {
+                controls
             }
-            IceSection {
-                backgroundBorderToggle
-                if configuration.backgroundHasBorder {
-                    backgroundBorderColor
-                    backgroundBorderWidth
-                }
-            }
+        } else {
+            controls
         }
     }
 
@@ -314,7 +342,7 @@ private struct LabeledBackgroundEditor: View {
         IceSection(options: .plain) {
             labelStack
         } content: {
-            UnlabeledBackgroundEditor(configuration: binding, showTitle: false)
+            UnlabeledBackgroundEditor(configuration: binding, showsSectionChrome: false)
         }
         .onReceive(NSApp.publisher(for: \.effectiveAppearance)) { _ in
             currentAppearance = .current
@@ -323,7 +351,7 @@ private struct LabeledBackgroundEditor: View {
 
     private var labelStack: some View {
         HStack {
-            Text(appearance == .light ? "Background - Light Appearance" : "Background - Dark Appearance")
+            Text(appearance == .light ? "Light" : "Dark")
                 .font(.headline)
                 .onFrameChange(update: $textFrame)
 
@@ -346,19 +374,25 @@ private struct LabeledBackgroundEditor: View {
 
 private struct UnlabeledShapeEditor: View {
     @Binding var configuration: MenuBarAppearancePartialConfiguration
+    var showsSectionChrome: Bool = true
+
+    @ViewBuilder
+    private var controls: some View {
+        tintPicker
+        tintOpacity
+        shadowToggle
+        borderToggle
+        borderColor
+        borderWidth
+    }
 
     var body: some View {
-        VStack(spacing: .iceFormDefaultSpacing) {
+        if showsSectionChrome {
             IceSection {
-                tintPicker
-                tintOpacity
-                shadowToggle
+                controls
             }
-            IceSection {
-                borderToggle
-                borderColor
-                borderWidth
-            }
+        } else {
+            controls
         }
     }
 
@@ -478,7 +512,7 @@ private struct LabeledShapeEditor: View {
 
     private var labelStack: some View {
         HStack {
-            Text(appearance.titleKey)
+            Text(appearance == .light ? "Light" : "Dark")
                 .font(.headline)
                 .onFrameChange(update: $textFrame)
 
@@ -493,9 +527,9 @@ private struct LabeledShapeEditor: View {
     private var partialEditor: some View {
         switch appearance {
         case .light:
-            UnlabeledShapeEditor(configuration: $configuration.lightModeConfiguration)
+            UnlabeledShapeEditor(configuration: $configuration.lightModeConfiguration, showsSectionChrome: false)
         case .dark:
-            UnlabeledShapeEditor(configuration: $configuration.darkModeConfiguration)
+            UnlabeledShapeEditor(configuration: $configuration.darkModeConfiguration, showsSectionChrome: false)
         }
     }
 }

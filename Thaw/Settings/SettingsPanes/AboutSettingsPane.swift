@@ -10,7 +10,6 @@ import SwiftUI
 
 struct AboutSettingsPane: View {
     @ObservedObject var updatesManager: UpdatesManager
-    var onReplayOnboarding: () -> Void
     @Environment(\.openURL) private var openURL
 
     private static let iconSize: CGFloat = 180
@@ -204,7 +203,6 @@ struct AboutSettingsPane: View {
                 Spacer()
 
                 HStack(spacing: 20) {
-                    Button("Replay Onboarding", action: onReplayOnboarding)
                     Button("Acknowledgements") {
                         if let url = Bundle.main.url(forResource: "Acknowledgements", withExtension: "pdf") {
                             NSWorkspace.shared.open(url)

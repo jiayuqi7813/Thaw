@@ -233,7 +233,7 @@ struct DisplaySettingsPane: View {
                 }
             }
 
-            IcePicker("Layout", selection: layout) {
+            IcePicker("Arrangement", selection: layout) {
                 ForEach(IceBarLayout.allCases) { lay in
                     Text(lay.localized).tag(lay)
                 }
@@ -269,7 +269,7 @@ struct DisplaySettingsPane: View {
                             maxSliderLabelWidth = max(maxSliderLabelWidth, frame.width)
                         }
                 }
-                .annotation("Maximum number of items per row in the grid layout.")
+                .annotation("Maximum number of items per row in the grid arrangement.")
             }
         }
 
@@ -545,6 +545,15 @@ struct DisplaySettingsPane: View {
         Toggle("Use \(Constants.displayName) Bar", isOn: useIceBar)
             .annotation("Show hidden menu bar items in a separate bar below the menu bar.")
 
+        Toggle(
+            "Show at mouse pointer on hotkey",
+            isOn: Binding(
+                get: { appState.settings.general.iceBarLocationOnHotkey },
+                set: { appState.settings.general.iceBarLocationOnHotkey = $0 }
+            )
+        )
+        .annotation("Always show the \(Constants.displayName) Bar at the mouse pointer's location when it is shown using a hotkey.")
+
         if useIceBar.wrappedValue {
             IcePicker("Location", selection: location) {
                 ForEach(IceBarLocation.allCases) { loc in
@@ -566,7 +575,7 @@ struct DisplaySettingsPane: View {
                 }
             }
 
-            IcePicker("Layout", selection: layout) {
+            IcePicker("Arrangement", selection: layout) {
                 ForEach(IceBarLayout.allCases) { lay in
                     Text(lay.localized).tag(lay)
                 }
@@ -602,7 +611,7 @@ struct DisplaySettingsPane: View {
                             maxSliderLabelWidth = max(maxSliderLabelWidth, frame.width)
                         }
                 }
-                .annotation("Maximum number of items per row in the grid layout.")
+                .annotation("Maximum number of items per row in the grid arrangement.")
             }
         }
 

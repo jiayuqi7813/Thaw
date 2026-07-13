@@ -11,25 +11,27 @@ import SwiftUI
 /// The navigation identifier type for the "Settings" interface.
 enum SettingsNavigationIdentifier: String, NavigationIdentifier {
     case general = "General"
-    case displays = "Displays"
     case menuBarLayout = "Menu Bar Layout"
+    case displays = "Displays"
     case menuBarAppearance = "Menu Bar Appearance"
     case hotkeys = "Hotkeys"
     case profiles = "Profiles"
     case advanced = "Advanced"
     case automation = "Automation"
+    case tools = "Tools"
     case about = "About"
 
     var localized: LocalizedStringKey {
         switch self {
         case .general: "General"
-        case .displays: "Displays"
         case .menuBarLayout: "Layout"
+        case .displays: "Displays"
         case .menuBarAppearance: "Appearance"
         case .hotkeys: "Hotkeys"
         case .profiles: "Profiles"
         case .advanced: "Advanced"
         case .automation: "Automation"
+        case .tools: "Tools"
         case .about: "About"
         }
     }
@@ -37,13 +39,14 @@ enum SettingsNavigationIdentifier: String, NavigationIdentifier {
     var iconResource: IconResource {
         switch self {
         case .general: .systemSymbol("gearshape")
-        case .displays: .systemSymbol("display.2")
         case .menuBarLayout: .systemSymbol("rectangle.topthird.inset.filled")
+        case .displays: .systemSymbol("display.2")
         case .menuBarAppearance: .systemSymbol("swatchpalette")
         case .hotkeys: .systemSymbol("keyboard")
         case .profiles: .systemSymbol("person.crop.rectangle.stack")
         case .advanced: .systemSymbol("gearshape.2")
         case .automation: .systemSymbol("app.badge.checkmark")
+        case .tools: .systemSymbol("wrench.and.screwdriver")
         case .about: .systemSymbol("cube")
         }
     }

@@ -11,6 +11,8 @@ import SwiftUI
 // MARK: - SettingsView
 
 struct SettingsView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     let appState: AppState
     @ObservedObject var navigationState: AppNavigationState
 
@@ -22,6 +24,12 @@ struct SettingsView: View {
                 .id(navigationState.settingsNavigationIdentifier)
         }
         .navigationTitle(navigationState.settingsNavigationIdentifier.localized)
+        .transaction { transaction in
+            if reduceMotion {
+                transaction.animation = nil
+                transaction.disablesAnimations = true
+            }
+        }
     }
 
     @ViewBuilder
@@ -38,11 +46,14 @@ struct SettingsView: View {
     private var settingsPane: some View {
         switch navigationState.settingsNavigationIdentifier {
         case .general:
-            GeneralSettingsPane(settings: appState.settings.general)
-        case .displays:
-            DisplaySettingsPane(displaySettings: appState.settings.displaySettings)
+            GeneralSettingsPane(
+                settings: appState.settings.general,
+                advancedSettings: appState.settings.advanced
+            )
         case .menuBarLayout:
             MenuBarLayoutSettingsPane(itemManager: appState.itemManager)
+        case .displays:
+            DisplaySettingsPane(displaySettings: appState.settings.displaySettings)
         case .menuBarAppearance:
             MenuBarAppearanceSettingsPane(appearanceManager: appState.appearanceManager)
         case .hotkeys:
@@ -53,10 +64,10 @@ struct SettingsView: View {
             AdvancedSettingsPane(settings: appState.settings.advanced)
         case .automation:
             AutomationSettingsPane()
+        case .tools:
+            ToolsSettingsPane(settings: appState.settings.advanced)
         case .about:
-            AboutSettingsPane(updatesManager: appState.updatesManager) {
-                appState.isOnboardingPresented = true
-            }
+            AboutSettingsPane(updatesManager: appState.updatesManager)
         }
     }
 }
@@ -83,7 +94,7 @@ private struct SettingsSearchSidebar: View {
                         SearchEmptyView()
                     } else {
                         SearchResultsList(groups: searchModel.displayedGroups) { entry in
-                            navigate(to: entry.pane)
+                            navigate(to: entry)
                         }
                     }
                 } else {
@@ -99,9 +110,10 @@ private struct SettingsSearchSidebar: View {
 
     /// Switches the detail pane to `pane` and clears the search query so the
     /// normal pane list returns with the new pane selected.
-    private func navigate(to pane: SettingsNavigationIdentifier) {
-        if navigationState.settingsNavigationIdentifier != pane {
-            navigationState.settingsNavigationIdentifier = pane
+    private func navigate(to entry: SearchEntry) {
+        navigationState.requestedSettingsDisclosure = entry.disclosure
+        if navigationState.settingsNavigationIdentifier != entry.pane {
+            navigationState.settingsNavigationIdentifier = entry.pane
         }
         searchModel.searchText = ""
     }
@@ -119,6 +131,7 @@ private struct SettingsSidebarPaneList: View {
             set: { newValue in
                 if navigationState.settingsNavigationIdentifier != newValue {
                     Task { @MainActor in
+                        navigationState.requestedSettingsDisclosure = nil
                         navigationState.settingsNavigationIdentifier = newValue
                     }
                 }

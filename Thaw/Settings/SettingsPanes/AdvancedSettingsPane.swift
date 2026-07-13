@@ -6,7 +6,6 @@
 //  Copyright (Thaw) © 2026 Toni Förster
 //  Licensed under the GNU GPLv3
 
-import Combine
 import MenuBarModel
 import SwiftUI
 import ThawCapture
@@ -27,49 +26,77 @@ struct SecondsLabel: View {
     }
 }
 
+struct IconPreviewSettingsSection: View {
+    @ObservedObject var settings: AdvancedSettings
+    @ObservedObject var navigationState: AppNavigationState
+    @State private var isExpanded = false
+    @State private var labelWidth: CGFloat = 0
+
+    static let defaultsExpanded = false
+
+    private var fpsBinding: Binding<Double> {
+        Binding(
+            get: {
+                let interval = settings.iconRefreshInterval
+                return interval > 0 ? (1.0 / interval).rounded() : 0
+            },
+            set: { settings.iconRefreshInterval = $0 > 0 ? 1.0 / $0 : 0 }
+        )
+    }
+
+    var body: some View {
+        IceSection {
+            DisclosureGroup("Icon previews", isExpanded: $isExpanded) {
+                VStack(alignment: .leading, spacing: 14) {
+                    if #available(macOS 27, *) {
+                        Toggle("Use live icon capture", isOn: $settings.useContinuousMenuBarCapture)
+                            .annotation("Live capture can keep animated previews up to date, but may show the screen recording indicator and reflow the menu bar.")
+                    }
+
+                    LabeledContent {
+                        IceSlider(value: fpsBinding, in: 0 ... 30, step: 1) {
+                            Text(fpsBinding.wrappedValue > 0 ? "\(Int(fpsBinding.wrappedValue)) fps" : "Off")
+                        }
+                    } label: {
+                        Text("Animated preview refresh rate")
+                            .frame(minWidth: labelWidth, alignment: .leading)
+                            .onFrameChange { frame in
+                                labelWidth = max(labelWidth, frame.width)
+                            }
+                    }
+                    .disabled(!Self.refreshRateEnabledForCurrentOS(liveCaptureEnabled: settings.useContinuousMenuBarCapture))
+                    .annotation("Static previews refresh when a panel opens or the layout changes. With live capture, this controls how often animated previews refresh.")
+                }
+                .padding(.top, 10)
+            }
+        }
+        .onChange(of: navigationState.requestedSettingsDisclosure, initial: true) { _, disclosure in
+            guard disclosure == .iconPreviews else { return }
+            isExpanded = true
+            navigationState.requestedSettingsDisclosure = nil
+        }
+    }
+
+    static func refreshRateEnabled(liveCaptureEnabled: Bool, isMacOS27: Bool) -> Bool {
+        !isMacOS27 || liveCaptureEnabled
+    }
+
+    private static func refreshRateEnabledForCurrentOS(liveCaptureEnabled: Bool) -> Bool {
+        if #available(macOS 27, *) {
+            return refreshRateEnabled(liveCaptureEnabled: liveCaptureEnabled, isMacOS27: true)
+        }
+        return refreshRateEnabled(liveCaptureEnabled: liveCaptureEnabled, isMacOS27: false)
+    }
+}
+
 struct AdvancedSettingsPane: View {
     @EnvironmentObject var appState: AppState
     @ObservedObject var settings: AdvancedSettings
     @State private var maxSliderLabelWidth: CGFloat = 0
-    @State private var currentLogFileName: String?
-    @State private var isConfirmingReset = false
-    @State private var isHidingAvailable = true
-
-    private var menuBarManager: MenuBarManager {
-        appState.menuBarManager
-    }
-
-    /// Whether to show the "hiding unsupported" warning: only relevant on
-    /// macOS 27+ (where `sectionController` exists) and only when its backend
-    /// reports the private Assessment Mode API is unavailable.
-    private var isHidingUnavailable: Bool {
-        guard #available(macOS 27, *) else { return false }
-        return !isHidingAvailable
-    }
-
-    private func syncHidingAvailability() {
-        isHidingAvailable = menuBarManager.sectionController?.isHidingAvailable ?? true
-    }
 
     var body: some View {
         IceForm {
-            IceSection("Menu Bar Sections") {
-                if isHidingUnavailable {
-                    SettingsWarningPill(
-                        message: "Hiding is unavailable on this macOS build (the required system capability was not found). Reordering still works; hiding does not."
-                    )
-                }
-                enableAlwaysHiddenSection
-                if settings.isAlwaysHiddenSectionEnabled {
-                    useOptionClickToShowAlwaysHiddenSection
-                    if appState.settings.general.showIceIcon {
-                        useDoubleClickToShowAlwaysHiddenSection
-                    }
-                }
-                showAllSectionsOnUserDrag
-                sectionDividerStyle
-            }
-            IceSection("Search") {
+            IceSection("Menu Bar Search") {
                 searchSectionOrdering
             }
             IceSection("Tooltips") {
@@ -92,95 +119,13 @@ struct AdvancedSettingsPane: View {
                 if settings.enableSecondaryContextMenu {
                     enableSecondaryContextMenuQuit
                 }
-                showIceBarAtMouseLocationOnHotkey
-                showOnHoverDelay
-                iconRefreshInterval
-                if #available(macOS 27, *) {
-                    useContinuousMenuBarCapture
-                }
             }
+            IconPreviewSettingsSection(
+                settings: settings,
+                navigationState: appState.navigationState
+            )
             IceSection("Permissions") {
                 allPermissions
-            }
-            IceSection("Diagnostics") {
-                diagnosticLogging
-            }
-            IceSection("Reset") {
-                resetSettings
-            }
-        }
-        .onAppear {
-            syncHidingAvailability()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            menuBarManager.sectionController?.refreshHidingAvailability()
-            syncHidingAvailability()
-        }
-    }
-
-    private var resetSettings: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Reset all settings")
-                Text("Reset all settings to their default values. This action cannot be undone.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-
-            Button {
-                isConfirmingReset = true
-            } label: {
-                Text("Reset \(Constants.displayName)", comment: "A button that resets all settings to defaults")
-            }
-            .buttonStyle(.bordered)
-            .tint(.red)
-        }
-        .alert("Reset all settings?", isPresented: $isConfirmingReset) {
-            Button("Reset", role: .destructive) {
-                appState.settings.resetAllSettingsToDefaults()
-            }
-            Button("Cancel", role: .cancel) {
-                isConfirmingReset = false
-            }
-        } message: {
-            Text("This will reset all settings to their default values. This action cannot be undone.")
-        }
-    }
-
-    private var enableAlwaysHiddenSection: some View {
-        Toggle(
-            "Enable the always-hidden section",
-            isOn: $settings.enableAlwaysHiddenSection
-        )
-    }
-
-    private var useOptionClickToShowAlwaysHiddenSection: some View {
-        Toggle(
-            "Use Option-click to open always-hidden section",
-            isOn: $settings.useOptionClickToShowAlwaysHiddenSection
-        )
-    }
-
-    private var useDoubleClickToShowAlwaysHiddenSection: some View {
-        Toggle(
-            "Double-click \(Constants.displayName) icon to open always-hidden section",
-            isOn: $settings.useDoubleClickToShowAlwaysHiddenSection
-        )
-    }
-
-    private var showAllSectionsOnUserDrag: some View {
-        Toggle(
-            "Show all sections when ⌘ Command + dragging menu bar items",
-            isOn: $settings.showAllSectionsOnUserDrag
-        )
-    }
-
-    private var sectionDividerStyle: some View {
-        IcePicker("Section divider style", selection: $settings.sectionDividerStyle) {
-            ForEach(SectionDividerStyle.allCases) { style in
-                Text(style.localized).tag(style)
             }
         }
     }
@@ -274,7 +219,7 @@ struct AdvancedSettingsPane: View {
 
     private var enableMenuBarItemOverflow: some View {
         Toggle(
-            "Enable menu bar item overflow",
+            "Move items that don't fit into Hidden",
             isOn: $settings.enableMenuBarItemOverflow
         )
         .annotation {
@@ -284,7 +229,7 @@ struct AdvancedSettingsPane: View {
                 section when they don't fit beside the notch on a notched \
                 display. Disable to keep the saved profile layout exactly as \
                 authored even when items would otherwise be pushed under the \
-                notch.
+                notch. This is separate from Layout's macOS overflow prevention.
                 """
             )
             .padding(.trailing, 75)
@@ -358,74 +303,6 @@ struct AdvancedSettingsPane: View {
         }
     }
 
-    private var showIceBarAtMouseLocationOnHotkey: some View {
-        let binding = Binding<Bool>(
-            get: { appState.settings.general.iceBarLocationOnHotkey },
-            set: { appState.settings.general.iceBarLocationOnHotkey = $0 }
-        )
-        return Toggle(
-            "Show at mouse pointer on hotkey",
-            isOn: binding
-        )
-        .annotation("Always show the \(Constants.displayName) Bar at the mouse pointer's location when it is shown using a hotkey.")
-    }
-
-    private var showOnHoverDelay: some View {
-        LabeledContent {
-            IceSlider(
-                value: $settings.showOnHoverDelay,
-                in: 0 ... 1,
-                step: 0.1
-            ) {
-                SecondsLabel(value: settings.showOnHoverDelay)
-            }
-        } label: {
-            Text("Show on hover delay")
-                .frame(minWidth: maxSliderLabelWidth, alignment: .leading)
-                .onFrameChange { frame in
-                    maxSliderLabelWidth = max(maxSliderLabelWidth, frame.width)
-                }
-        }
-        .annotation("The amount of time to wait before showing on hover.")
-    }
-
-    private var iconRefreshInterval: some View {
-        let fpsBinding = Binding<Double>(
-            get: {
-                let interval = settings.iconRefreshInterval
-                return interval > 0 ? (1.0 / interval).rounded() : 0
-            },
-            set: { settings.iconRefreshInterval = $0 > 0 ? 1.0 / $0 : 0 }
-        )
-        return LabeledContent {
-            IceSlider(
-                value: fpsBinding,
-                in: 0 ... 30,
-                step: 1
-            ) {
-                Text(fpsBinding.wrappedValue > 0
-                    ? "\(Int(fpsBinding.wrappedValue)) fps"
-                    : "Off")
-            }
-        } label: {
-            Text("Icon refresh rate")
-                .frame(minWidth: maxSliderLabelWidth, alignment: .leading)
-                .onFrameChange { frame in
-                    maxSliderLabelWidth = max(maxSliderLabelWidth, frame.width)
-                }
-        }
-        .annotation("How often animated menu bar icons are refreshed in panels. On macOS 27, periodic refresh requires continuous capture; one-shot mode refreshes when a capture surface opens or the layout changes.")
-    }
-
-    @available(macOS 27, *)
-    private var useContinuousMenuBarCapture: some View {
-        Toggle(
-            "Use continuous capture for menu bar icons",
-            isOn: $settings.useContinuousMenuBarCapture
-        )
-        .annotation("Keeps a ScreenCaptureKit stream running while a capture surface is open. This can be smoother on some setups, but keeps the screen-recording indicator visible and may reflow the menu bar. One-shot capture is used by default.")
-    }
-
     private var tooltipDelay: some View {
         LabeledContent {
             IceSlider(
@@ -448,48 +325,6 @@ struct AdvancedSettingsPane: View {
     private var showMenuBarTooltips: some View {
         Toggle("Show tooltips in the menu bar", isOn: $settings.showMenuBarTooltips)
             .annotation("Show a tooltip when hovering over menu bar items in the actual menu bar.")
-    }
-
-    private var diagnosticLogging: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Toggle(
-                "Enable diagnostic logging",
-                isOn: $settings.enableDiagnosticLogging
-            )
-            .annotation {
-                Text(
-                    """
-                    Writes detailed debug logs to a file for troubleshooting. \
-                    Log files are saved to ~/Library/Logs/Thaw/. \
-                    Disable when not needed to avoid unnecessary disk writes.
-                    """
-                )
-                .padding(.trailing, 75)
-            }
-
-            HStack(spacing: 12) {
-                if settings.enableDiagnosticLogging || DiagnosticLogger.shared.hasLogFiles {
-                    Button("Show Log Files in Finder") {
-                        let url = DiagnosticLogger.shared.logDirectory
-                        NSWorkspace.shared.open(url)
-                    }
-                }
-
-                if let currentLogFileName {
-                    Text(currentLogFileName)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .task(id: settings.enableDiagnosticLogging) {
-                // Small yield to let the Combine sink create/close the log file first.
-                try? await Task.sleep(for: .milliseconds(50))
-                currentLogFileName = (
-                    DiagnosticLogger.shared.currentLogFile
-                        ?? DiagnosticLogger.shared.latestLogFile
-                )?.lastPathComponent
-            }
-        }
     }
 
     private var allPermissions: some View {

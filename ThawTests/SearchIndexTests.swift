@@ -65,6 +65,41 @@ final class SearchIndexTests: XCTestCase {
         }
     }
 
+    @available(macOS 27, *)
+    func testRenamedPreviewControlsResolveIconPreviewDisclosure() throws {
+        let liveCapture = try XCTUnwrap(SearchIndex.entries.first { $0.id == "advanced.useContinuousMenuBarCapture" })
+        let refreshRate = try XCTUnwrap(SearchIndex.entries.first { $0.id == "advanced.iconRefreshInterval" })
+
+        XCTAssertEqual(liveCapture.titleText, "Use live icon capture")
+        XCTAssertEqual(refreshRate.titleText, "Animated preview refresh rate")
+        XCTAssertEqual(liveCapture.pane, .advanced)
+        XCTAssertEqual(liveCapture.disclosure, .iconPreviews)
+        XCTAssertEqual(refreshRate.disclosure, .iconPreviews)
+    }
+
+    @available(macOS 27, *)
+    func testLayoutControlsResolveAdvancedDisclosure() throws {
+        let timeout = try XCTUnwrap(SearchIndex.entries.first { $0.id == "advanced.menuBarOrderFulfillmentTimeout" })
+        let overflow = try XCTUnwrap(SearchIndex.entries.first { $0.id == "advanced.enableExperimentalOverflowPrevention" })
+
+        XCTAssertEqual(timeout.titleText, "Reorder timeout")
+        XCTAssertEqual(overflow.titleText, "Keep visible items out of macOS overflow")
+        XCTAssertEqual(timeout.disclosure, .advancedLayoutControls)
+        XCTAssertEqual(overflow.disclosure, .advancedLayoutControls)
+    }
+
+    @available(macOS 27, *)
+    func testDisclosuresDefaultCollapsed() {
+        XCTAssertFalse(LayoutAdvancedControls.defaultsExpanded)
+        XCTAssertFalse(IconPreviewSettingsSection.defaultsExpanded)
+    }
+
+    func testAnimatedPreviewRefreshAvailabilityPreservesMacOS26Behavior() {
+        XCTAssertTrue(IconPreviewSettingsSection.refreshRateEnabled(liveCaptureEnabled: false, isMacOS27: false))
+        XCTAssertFalse(IconPreviewSettingsSection.refreshRateEnabled(liveCaptureEnabled: false, isMacOS27: true))
+        XCTAssertTrue(IconPreviewSettingsSection.refreshRateEnabled(liveCaptureEnabled: true, isMacOS27: true))
+    }
+
     // MARK: - Relevance Sort
 
     func testSortedByRelevanceOrdersLowestDiffScoreFirst() {

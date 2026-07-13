@@ -46,21 +46,32 @@ struct SearchEntry: Identifiable, @unchecked Sendable {
     let sectionText: String?
     let keywords: [String]
     let property: SettingsProperty?
+
+    var disclosure: AppNavigationState.SettingsDisclosure? {
+        switch id {
+        case "advanced.enableExperimentalOverflowPrevention", "advanced.menuBarOrderFulfillmentTimeout":
+            .advancedLayoutControls
+        case "advanced.useContinuousMenuBarCapture", "advanced.iconRefreshInterval":
+            .iconPreviews
+        default:
+            nil
+        }
+    }
 }
 
 // MARK: - SearchIndex
 
 enum SearchIndex {
     /// Entries indexed on every supported macOS release.
-    private static let sharedEntries: [SearchEntry] = paneEntries + generalEntries + advancedEntries
+    private static let sharedEntries: [SearchEntry] = paneEntries + generalEntries + revealEntries + advancedEntries
         + displayEntries + hotkeyEntries + layoutEntries
 
     /// macOS 27-only settings rows, appended when the sidebar search UI is available.
     private static let macOS27Entries: [SearchEntry] = [
         SearchEntry(
             id: "advanced.enableExperimentalSystemItemHiding",
-            titleKey: "Hide macOS system items",
-            titleText: "Hide macOS system items",
+            titleKey: "Allow hiding macOS system items",
+            titleText: "Allow hiding macOS system items",
             descriptionText: "Allows items such as Clock, Control Center, and Siri to be moved into hidden sections.",
             pane: .menuBarLayout,
             sectionKey: nil,
@@ -70,24 +81,35 @@ enum SearchIndex {
         ),
         SearchEntry(
             id: "advanced.enableExperimentalOverflowPrevention",
-            titleKey: "Prevent native menu bar overflow hiding (experimental)",
-            titleText: "Prevent native menu bar overflow hiding (experimental)",
-            descriptionText: "On notched displays, macOS may collapse items behind a chevron when the menu bar is full. This writes hidden items' position weights to extreme values so the native overflow collapses them first, keeping visible items on screen.",
+            titleKey: "Keep visible items out of macOS overflow",
+            titleText: "Keep visible items out of macOS overflow",
+            descriptionText: "When a notched menu bar is full, prefer hiding already-hidden items behind macOS's overflow chevron so visible items remain on screen.",
             pane: .menuBarLayout,
-            sectionKey: nil,
-            sectionText: nil,
+            sectionKey: "Advanced layout controls",
+            sectionText: "Advanced layout controls",
             keywords: ["overflow", "native", "chevron", "notch", "experimental", "prevent"],
             property: .advanced("enableExperimentalOverflowPrevention")
         ),
         SearchEntry(
+            id: "advanced.menuBarOrderFulfillmentTimeout",
+            titleKey: "Reorder timeout",
+            titleText: "Reorder timeout",
+            descriptionText: "How long Thaw waits for macOS to apply a menu bar reorder before continuing with remaining layout work.",
+            pane: .menuBarLayout,
+            sectionKey: "Advanced layout controls",
+            sectionText: "Advanced layout controls",
+            keywords: ["reorder", "timeout", "wait", "layout", "seconds"],
+            property: .advanced("menuBarOrderFulfillmentTimeout")
+        ),
+        SearchEntry(
             id: "advanced.useContinuousMenuBarCapture",
-            titleKey: "Use continuous capture for menu bar icons",
-            titleText: "Use continuous capture for menu bar icons",
-            descriptionText: "Keeps a ScreenCaptureKit stream running while a capture surface is open for smoother periodic icon refreshes.",
+            titleKey: "Use live icon capture",
+            titleText: "Use live icon capture",
+            descriptionText: "Keeps animated previews up to date, but may show the screen recording indicator and reflow the menu bar.",
             pane: .advanced,
-            sectionKey: "Other",
-            sectionText: "Other",
-            keywords: ["capture", "continuous", "menu bar icons", "screen recording", "refresh", "stream"],
+            sectionKey: "Icon previews",
+            sectionText: "Icon previews",
+            keywords: ["capture", "live", "menu bar icons", "screen recording", "refresh", "stream"],
             property: .advanced("useContinuousMenuBarCapture")
         ),
     ]
@@ -116,6 +138,7 @@ enum SearchIndex {
         .advanced("enableExperimentalSystemItemHiding"),
         .advanced("enableExperimentalOverflowPrevention"),
         .advanced("useContinuousMenuBarCapture"),
+        .advanced("menuBarOrderFulfillmentTimeout"),
     ]
 
     static var nonSearchableProperties: Set<SettingsProperty> {
@@ -149,18 +172,7 @@ enum SearchIndex {
             pane: .general,
             sectionKey: nil,
             sectionText: nil,
-            keywords: ["general", "launch", "startup", "login", "icon", "rehide"],
-            property: nil
-        ),
-        SearchEntry(
-            id: "pane.displays",
-            titleKey: "Displays",
-            titleText: "Displays",
-            descriptionText: nil,
-            pane: .displays,
-            sectionKey: nil,
-            sectionText: nil,
-            keywords: ["display", "monitor", "screen", "notch", "spacing", "ice bar", "thaw bar"],
+            keywords: ["general", "launch", "startup", "login", "icon", "reveal", "show", "hide", "hover", "click", "scroll", "rehide", "gesture"],
             property: nil
         ),
         SearchEntry(
@@ -171,7 +183,18 @@ enum SearchIndex {
             pane: .menuBarLayout,
             sectionKey: nil,
             sectionText: nil,
-            keywords: ["layout", "arrange", "drag", "reorder", "sections", "reset", "overflow", "system items"],
+            keywords: ["layout", "arrange", "drag", "reorder", "sections", "reset", "overflow", "system items", "always hidden", "divider"],
+            property: nil
+        ),
+        SearchEntry(
+            id: "pane.displays",
+            titleKey: "Displays",
+            titleText: "Displays",
+            descriptionText: nil,
+            pane: .displays,
+            sectionKey: nil,
+            sectionText: nil,
+            keywords: ["display", "monitor", "screen", "notch", "spacing", "ice bar", "thaw bar", "arrangement"],
             property: nil
         ),
         SearchEntry(
@@ -215,7 +238,7 @@ enum SearchIndex {
             pane: .advanced,
             sectionKey: nil,
             sectionText: nil,
-            keywords: ["advanced", "sections", "search", "tooltips", "diagnostics", "logging", "reset", "context menu"],
+            keywords: ["advanced", "search", "tooltips", "reset", "context menu"],
             property: nil
         ),
         SearchEntry(
@@ -227,6 +250,17 @@ enum SearchIndex {
             sectionKey: nil,
             sectionText: nil,
             keywords: ["automation", "url", "scheme", "scripting", "xpc"],
+            property: nil
+        ),
+        SearchEntry(
+            id: "pane.tools",
+            titleKey: "Tools",
+            titleText: "Tools",
+            descriptionText: nil,
+            pane: .tools,
+            sectionKey: nil,
+            sectionText: nil,
+            keywords: ["tools", "diagnostics", "logging", "logs", "reset", "cache", "permissions", "control center", "troubleshoot"],
             property: nil
         ),
         SearchEntry(
@@ -290,13 +324,29 @@ enum SearchIndex {
             property: .general("customIceIconIsTemplate")
         ),
         SearchEntry(
+            id: "general.iceBarLocationOnHotkey",
+            titleKey: "Show at mouse pointer on hotkey",
+            titleText: "Show at mouse pointer on hotkey",
+            descriptionText: "Always show the \(Constants.displayName) Bar at the mouse pointer's location when it is shown using a hotkey.",
+            pane: .displays,
+            sectionKey: "Global",
+            sectionText: "Global",
+            keywords: ["ice bar", "thaw bar", "mouse", "pointer", "hotkey", "location"],
+            property: .general("iceBarLocationOnHotkey")
+        ),
+    ]
+
+    // MARK: Reveal Settings
+
+    private static let revealEntries: [SearchEntry] = [
+        SearchEntry(
             id: "general.showOnClick",
             titleKey: "Show on click",
             titleText: "Show on click",
             descriptionText: "Click an empty area of the menu bar to show hidden menu bar items.",
             pane: .general,
-            sectionKey: nil,
-            sectionText: nil,
+            sectionKey: "Empty menu bar area",
+            sectionText: "Empty menu bar area",
             keywords: ["click", "show", "hidden"],
             property: .general("showOnClick")
         ),
@@ -306,8 +356,8 @@ enum SearchIndex {
             titleText: "Double-click for always-hidden",
             descriptionText: "Double-click an empty area of the menu bar to show always-hidden menu bar items.",
             pane: .general,
-            sectionKey: nil,
-            sectionText: nil,
+            sectionKey: "Empty menu bar area",
+            sectionText: "Empty menu bar area",
             keywords: ["double click", "always hidden", "show"],
             property: .general("showOnDoubleClick")
         ),
@@ -317,8 +367,8 @@ enum SearchIndex {
             titleText: "Show on hover",
             descriptionText: "Hover over an empty area of the menu bar to show hidden menu bar items.",
             pane: .general,
-            sectionKey: nil,
-            sectionText: nil,
+            sectionKey: "Empty menu bar area",
+            sectionText: "Empty menu bar area",
             keywords: ["hover", "show", "hidden", "mouse"],
             property: .general("showOnHover")
         ),
@@ -328,8 +378,8 @@ enum SearchIndex {
             titleText: "Show on scroll",
             descriptionText: "Scroll or swipe in the menu bar to show hidden menu bar items.",
             pane: .general,
-            sectionKey: nil,
-            sectionText: nil,
+            sectionKey: "Empty menu bar area",
+            sectionText: "Empty menu bar area",
             keywords: ["scroll", "swipe", "show", "hidden", "gesture"],
             property: .general("showOnScroll")
         ),
@@ -339,8 +389,8 @@ enum SearchIndex {
             titleText: "Automatically rehide",
             descriptionText: nil,
             pane: .general,
-            sectionKey: nil,
-            sectionText: nil,
+            sectionKey: "After revealing",
+            sectionText: "After revealing",
             keywords: ["rehide", "auto", "automatic", "hide"],
             property: .general("autoRehide")
         ),
@@ -350,8 +400,8 @@ enum SearchIndex {
             titleText: "Rehide strategy",
             descriptionText: nil,
             pane: .general,
-            sectionKey: nil,
-            sectionText: nil,
+            sectionKey: "After revealing",
+            sectionText: "After revealing",
             keywords: ["rehide", "strategy", "smart", "timed", "focused app"],
             property: .general("rehideStrategy")
         ),
@@ -361,8 +411,8 @@ enum SearchIndex {
             titleText: "Rehide interval",
             descriptionText: "Menu bar items are rehidden after a fixed amount of time.",
             pane: .general,
-            sectionKey: nil,
-            sectionText: nil,
+            sectionKey: "After revealing",
+            sectionText: "After revealing",
             keywords: ["rehide", "interval", "timed", "seconds", "delay"],
             property: .general("rehideInterval")
         ),
@@ -372,46 +422,19 @@ enum SearchIndex {
             titleText: "Temporarily shown item delay",
             descriptionText: "The amount of time to wait before hiding temporarily shown menu bar items.",
             pane: .general,
-            sectionKey: nil,
-            sectionText: nil,
+            sectionKey: "After revealing",
+            sectionText: "After revealing",
             keywords: ["temp", "temporary", "show", "delay", "seconds"],
             property: .general("tempShowInterval")
-        ),
-        SearchEntry(
-            id: "general.iceBarLocationOnHotkey",
-            titleKey: "Show at mouse pointer on hotkey",
-            titleText: "Show at mouse pointer on hotkey",
-            descriptionText: "Always show the \(Constants.displayName) Bar at the mouse pointer's location when it is shown using a hotkey.",
-            pane: .advanced,
-            sectionKey: "Other",
-            sectionText: "Other",
-            keywords: ["ice bar", "thaw bar", "mouse", "pointer", "hotkey", "location"],
-            property: .general("iceBarLocationOnHotkey")
-        ),
-    ]
-
-    // MARK: Advanced Settings
-
-    private static let advancedEntries: [SearchEntry] = [
-        SearchEntry(
-            id: "advanced.enableAlwaysHiddenSection",
-            titleKey: "Enable the always-hidden section",
-            titleText: "Enable the always-hidden section",
-            descriptionText: nil,
-            pane: .advanced,
-            sectionKey: "Menu Bar Sections",
-            sectionText: "Menu Bar Sections",
-            keywords: ["always hidden", "section", "enable"],
-            property: .advanced("enableAlwaysHiddenSection")
         ),
         SearchEntry(
             id: "advanced.useOptionClickToShowAlwaysHiddenSection",
             titleKey: "Use Option-click to open always-hidden section",
             titleText: "Use Option-click to open always-hidden section",
             descriptionText: nil,
-            pane: .advanced,
-            sectionKey: "Menu Bar Sections",
-            sectionText: "Menu Bar Sections",
+            pane: .general,
+            sectionKey: "\(Constants.displayName) icon",
+            sectionText: "\(Constants.displayName) icon",
             keywords: ["option", "click", "always hidden", "alt"],
             property: .advanced("useOptionClickToShowAlwaysHiddenSection")
         ),
@@ -420,9 +443,9 @@ enum SearchIndex {
             titleKey: "Double-click \(Constants.displayName) icon to open always-hidden section",
             titleText: "Double-click \(Constants.displayName) icon to open always-hidden section",
             descriptionText: nil,
-            pane: .advanced,
-            sectionKey: "Menu Bar Sections",
-            sectionText: "Menu Bar Sections",
+            pane: .general,
+            sectionKey: "\(Constants.displayName) icon",
+            sectionText: "\(Constants.displayName) icon",
             keywords: ["double click", "always hidden", "icon"],
             property: .advanced("useDoubleClickToShowAlwaysHiddenSection")
         ),
@@ -431,31 +454,36 @@ enum SearchIndex {
             titleKey: "Show all sections when ⌘ Command + dragging menu bar items",
             titleText: "Show all sections when Command + dragging menu bar items",
             descriptionText: nil,
-            pane: .advanced,
-            sectionKey: "Menu Bar Sections",
-            sectionText: "Menu Bar Sections",
+            pane: .general,
+            sectionKey: "While rearranging",
+            sectionText: "While rearranging",
             keywords: ["drag", "command", "sections", "show all"],
             property: .advanced("showAllSectionsOnUserDrag")
         ),
         SearchEntry(
-            id: "advanced.sectionDividerStyle",
-            titleKey: "Section divider style",
-            titleText: "Section divider style",
-            descriptionText: nil,
-            pane: .advanced,
-            sectionKey: "Menu Bar Sections",
-            sectionText: "Menu Bar Sections",
-            keywords: ["divider", "style", "chevron", "separator", "section"],
-            property: .advanced("sectionDividerStyle")
+            id: "advanced.showOnHoverDelay",
+            titleKey: "Show on hover delay",
+            titleText: "Show on hover delay",
+            descriptionText: "The amount of time to wait before showing on hover.",
+            pane: .general,
+            sectionKey: "Empty menu bar area",
+            sectionText: "Empty menu bar area",
+            keywords: ["hover", "delay", "show", "seconds"],
+            property: .advanced("showOnHoverDelay")
         ),
+    ]
+
+    // MARK: Advanced Settings
+
+    private static let advancedEntries: [SearchEntry] = [
         SearchEntry(
             id: "advanced.searchSectionOrder",
             titleKey: "Search section ordering",
             titleText: "Search section ordering",
             descriptionText: "Choose which menu bar sections appear in the search panel, and in what order.",
             pane: .advanced,
-            sectionKey: "Search",
-            sectionText: "Search",
+            sectionKey: "Menu Bar Search",
+            sectionText: "Menu Bar Search",
             keywords: ["search", "section", "order", "panel", "reorder"],
             property: .advanced("searchSectionOrder")
         ),
@@ -465,8 +493,8 @@ enum SearchIndex {
             titleText: "Include visible section in search",
             descriptionText: nil,
             pane: .advanced,
-            sectionKey: "Search",
-            sectionText: "Search",
+            sectionKey: "Menu Bar Search",
+            sectionText: "Menu Bar Search",
             keywords: ["search", "visible", "include", "section"],
             property: .advanced("searchIncludeVisible")
         ),
@@ -476,8 +504,8 @@ enum SearchIndex {
             titleText: "Include hidden section in search",
             descriptionText: nil,
             pane: .advanced,
-            sectionKey: "Search",
-            sectionText: "Search",
+            sectionKey: "Menu Bar Search",
+            sectionText: "Menu Bar Search",
             keywords: ["search", "hidden", "include", "section"],
             property: .advanced("searchIncludeHidden")
         ),
@@ -487,8 +515,8 @@ enum SearchIndex {
             titleText: "Include always-hidden section in search",
             descriptionText: nil,
             pane: .advanced,
-            sectionKey: "Search",
-            sectionText: "Search",
+            sectionKey: "Menu Bar Search",
+            sectionText: "Menu Bar Search",
             keywords: ["search", "always hidden", "include", "section"],
             property: .advanced("searchIncludeAlwaysHidden")
         ),
@@ -516,8 +544,8 @@ enum SearchIndex {
         ),
         SearchEntry(
             id: "advanced.enableMenuBarItemOverflow",
-            titleKey: "Enable menu bar item overflow",
-            titleText: "Enable menu bar item overflow",
+            titleKey: "Move items that don't fit into Hidden",
+            titleText: "Move items that don't fit into Hidden",
             descriptionText: "Move menu bar items from the visible section into the hidden section when they don't fit beside the notch on a notched display.",
             pane: .advanced,
             sectionKey: "Other",
@@ -570,24 +598,13 @@ enum SearchIndex {
             property: .advanced("enableSecondaryContextMenuQuit")
         ),
         SearchEntry(
-            id: "advanced.showOnHoverDelay",
-            titleKey: "Show on hover delay",
-            titleText: "Show on hover delay",
-            descriptionText: "The amount of time to wait before showing on hover.",
-            pane: .advanced,
-            sectionKey: "Other",
-            sectionText: "Other",
-            keywords: ["hover", "delay", "show", "seconds"],
-            property: .advanced("showOnHoverDelay")
-        ),
-        SearchEntry(
             id: "advanced.iconRefreshInterval",
-            titleKey: "Icon refresh rate",
-            titleText: "Icon refresh rate",
-            descriptionText: "How often animated menu bar icons are refreshed in panels. On macOS 27, periodic refresh requires continuous capture; one-shot mode refreshes when a capture surface opens or the layout changes.",
+            titleKey: "Animated preview refresh rate",
+            titleText: "Animated preview refresh rate",
+            descriptionText: "Static previews refresh when a panel opens or the layout changes. With live capture, this controls how often animated previews refresh.",
             pane: .advanced,
-            sectionKey: "Other",
-            sectionText: "Other",
+            sectionKey: "Icon previews",
+            sectionText: "Icon previews",
             keywords: ["icon", "refresh", "rate", "fps", "animated", "cpu"],
             property: .advanced("iconRefreshInterval")
         ),
@@ -596,11 +613,55 @@ enum SearchIndex {
             titleKey: "Enable diagnostic logging",
             titleText: "Enable diagnostic logging",
             descriptionText: "Writes detailed debug logs to a file for troubleshooting. Log files are saved to ~/Library/Logs/Thaw/.",
-            pane: .advanced,
+            pane: .tools,
             sectionKey: "Diagnostics",
             sectionText: "Diagnostics",
-            keywords: ["diagnostic", "logging", "debug", "logs", "troubleshoot"],
+            keywords: ["diagnostic", "logging", "debug", "logs", "troubleshoot", "tools"],
             property: .advanced("enableDiagnosticLogging")
+        ),
+        SearchEntry(
+            id: "tools.resetAllSettings",
+            titleKey: "Reset all settings",
+            titleText: "Reset all settings",
+            descriptionText: "Restore every \(Constants.displayName) setting to its default value.",
+            pane: .tools,
+            sectionKey: "Reset",
+            sectionText: "Reset",
+            keywords: ["reset", "defaults", "settings", "tools"],
+            property: nil
+        ),
+        SearchEntry(
+            id: "tools.resetControlCenter",
+            titleKey: "Reset Control Center preferences",
+            titleText: "Reset Control Center preferences",
+            descriptionText: "Quit Control Center and delete its preference files so system menu bar item state can rebuild.",
+            pane: .tools,
+            sectionKey: "Troubleshooting",
+            sectionText: "Troubleshooting",
+            keywords: ["control center", "preferences", "plist", "reset", "menu bar", "tools"],
+            property: nil
+        ),
+        SearchEntry(
+            id: "tools.quitAndClearCache",
+            titleKey: "Quit and clear cache",
+            titleText: "Quit and clear cache",
+            descriptionText: "Delete \(Constants.displayName)'s cache folder, then quit the app.",
+            pane: .tools,
+            sectionKey: "Troubleshooting",
+            sectionText: "Troubleshooting",
+            keywords: ["cache", "quit", "clear", "tools"],
+            property: nil
+        ),
+        SearchEntry(
+            id: "tools.resetPermissions",
+            titleKey: "Reset permissions",
+            titleText: "Reset permissions",
+            descriptionText: "Clear Accessibility and Screen Recording decisions for \(Constants.displayName).",
+            pane: .tools,
+            sectionKey: "Troubleshooting",
+            sectionText: "Troubleshooting",
+            keywords: ["permissions", "accessibility", "screen recording", "tccutil", "tools"],
+            property: nil
         ),
     ]
 
@@ -646,13 +707,13 @@ enum SearchIndex {
         ),
         SearchEntry(
             id: "displays.iceBarLayout",
-            titleKey: "Layout",
-            titleText: "\(Constants.displayName) Bar layout",
+            titleKey: "Arrangement",
+            titleText: "\(Constants.displayName) Bar arrangement",
             descriptionText: "Items are arranged in a single horizontal row, stacked vertically, or in a grid.",
             pane: .displays,
             sectionKey: "Global",
             sectionText: "Global",
-            keywords: ["ice bar", "thaw bar", "layout", "horizontal", "vertical", "grid", "columns"],
+            keywords: ["ice bar", "thaw bar", "layout", "arrangement", "horizontal", "vertical", "grid", "columns"],
             property: nil
         ),
         SearchEntry(
@@ -755,6 +816,28 @@ enum SearchIndex {
     // MARK: Layout Settings
 
     private static let layoutEntries: [SearchEntry] = [
+        SearchEntry(
+            id: "advanced.enableAlwaysHiddenSection",
+            titleKey: "Enable the always-hidden section",
+            titleText: "Enable the always-hidden section",
+            descriptionText: nil,
+            pane: .menuBarLayout,
+            sectionKey: "Sections",
+            sectionText: "Sections",
+            keywords: ["always hidden", "section", "enable"],
+            property: .advanced("enableAlwaysHiddenSection")
+        ),
+        SearchEntry(
+            id: "advanced.sectionDividerStyle",
+            titleKey: "Section divider style",
+            titleText: "Section divider style",
+            descriptionText: nil,
+            pane: .menuBarLayout,
+            sectionKey: "Sections",
+            sectionText: "Sections",
+            keywords: ["divider", "style", "chevron", "separator", "section"],
+            property: .advanced("sectionDividerStyle")
+        ),
         SearchEntry(
             id: "layout.resetMenuBarLayout",
             titleKey: "Reset menu bar layout",
