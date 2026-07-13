@@ -6123,8 +6123,19 @@ extension MenuBarItemManager {
            let alwaysHidden = controlItems.alwaysHidden,
            let visible = items.first(where: { $0.tag.matchesVisibleControlItem })
         {
+            let assignments = appState?.menuBarManager.sectionController?.sectionAssignment ?? [:]
+            let ordinaryItems = items.filter { !$0.isControlItem }
+            let alwaysHiddenItems = ordinaryItems.filter {
+                assignments[$0.uniqueIdentifier] == .alwaysHidden
+            }
+            let hiddenItems = ordinaryItems.filter {
+                assignments[$0.uniqueIdentifier] == .hidden
+            }
+            let visibleItems = ordinaryItems.filter {
+                assignments[$0.uniqueIdentifier] == nil
+            }
             let reordered = RuntimePositionStore.applyControlItemOrder(
-                desiredOrder: [alwaysHidden, hidden, visible],
+                desiredOrder: alwaysHiddenItems + [alwaysHidden] + hiddenItems + [hidden] + visibleItems + [visible],
                 liveItems: items
             )
             if !reordered.isEmpty {
