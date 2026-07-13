@@ -434,6 +434,7 @@ private final class MenuBarSearchHostingView: NSHostingView<AnyView> {
 }
 
 private struct MenuBarSearchContentView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private typealias ListItem = SectionedListItem<MenuBarSearchModel.ItemID, MenuBarSearchListContent>
 
     @EnvironmentObject var appState: AppState
@@ -472,6 +473,12 @@ private struct MenuBarSearchContentView: View {
             .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .frame(width: 600, height: 400)
             .fixedSize()
+            .transaction { transaction in
+                if reduceMotion {
+                    transaction.animation = nil
+                    transaction.disablesAnimations = true
+                }
+            }
             .onAppear {
                 Task { @MainActor in
                     try? await Task.sleep(for: .milliseconds(50))
@@ -525,6 +532,7 @@ private struct MenuBarSearchContentView: View {
                 .font(.system(size: 18))
                 .textContentType(.none)
                 .autocorrectionDisabled(true)
+                .writingToolsBehavior(.disabled)
                 .focused($searchFieldIsFocused)
 
                 Spacer()

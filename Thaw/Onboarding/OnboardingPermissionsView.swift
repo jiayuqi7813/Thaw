@@ -11,6 +11,7 @@ import SwiftUI
 /// Permission step used by both first-launch onboarding and later
 /// missing-permission startup recovery.
 struct ThawPermissionsView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @EnvironmentObject private var permissions: AppPermissions
 
     var onContinue: () -> Void
@@ -32,7 +33,7 @@ struct ThawPermissionsView: View {
                     .font(.title2.bold())
                     .multilineTextAlignment(.center)
 
-                Text("Thaw needs the permissions below to manage your menu bar. Nothing leaves your Mac; everything runs locally.")
+                Text("Thaw uses the permissions below to manage your menu bar. Permission checks happen on your Mac.")
                     .font(.body)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -83,7 +84,7 @@ struct ThawPermissionsView: View {
             Task {
                 await permissions.refreshPermissionsState()
             }
-            withAnimation(.spring(duration: 0.6, bounce: 0.3)) {
+            withAnimation(reduceMotion ? nil : .spring(duration: 0.6, bounce: 0.3)) {
                 appeared = true
             }
         }
@@ -91,14 +92,14 @@ struct ThawPermissionsView: View {
 
     private var privacyPanel: some View {
         VStack(alignment: .leading, spacing: 8) {
-            privacyFact("No analytics usage tracking")
-            privacyFact("No network requests; everything stays on your Mac")
-            privacyFact("Open source (GPL); you can audit exactly what it does")
+            privacyFact("No analytics or usage tracking")
+            privacyFact("Permission checks stay on your Mac")
+            privacyFact("Open source under GPL; inspect how it works")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 14))
+        .background(.quaternary.opacity(0.18), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .padding(.horizontal, 30)
     }
 
@@ -118,6 +119,7 @@ struct ThawPermissionsView: View {
 }
 
 private struct OnboardingPermissionCard: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject var permission: Permission
 
     var body: some View {
@@ -180,7 +182,11 @@ private struct OnboardingPermissionCard: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 16))
-        .animation(.easeOut(duration: 0.3), value: permission.hasPermission)
+        .background(.quaternary.opacity(0.18), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(.separator.opacity(0.45), lineWidth: 0.5)
+        }
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.3), value: permission.hasPermission)
     }
 }

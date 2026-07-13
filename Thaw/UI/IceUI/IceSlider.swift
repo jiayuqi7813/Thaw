@@ -10,6 +10,7 @@
 import SwiftUI
 
 struct IceSlider<Value: BinaryFloatingPoint, ValueLabel: View>: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding private var value: Value
 
     private let bounds: ClosedRange<Value>
@@ -101,7 +102,7 @@ struct IceSlider<Value: BinaryFloatingPoint, ValueLabel: View>: View {
                 .padding(.horizontal, 8)
                 .frame(height: height)
                 .opacity(isLabelActive ? 0.65 : 0.45)
-                .animation(.easeInOut(duration: 0.15), value: isLabelActive)
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.15), value: isLabelActive)
                 .allowsHitTesting(false)
             }
             .glassEffect(.regular, in: borderShape)

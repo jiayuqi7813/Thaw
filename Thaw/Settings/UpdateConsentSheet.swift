@@ -17,26 +17,27 @@ struct UpdateConsentSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Check for updates automatically?")
+            Text("Keep \(Constants.displayName) up to date?")
                 .font(.title2.bold())
 
-            Text("Should \(Constants.displayName) automatically check for updates? You can always check manually from the \(Constants.displayName) menu bar icon or Settings \(Constants.menuArrow) About.")
+            Text("\(Constants.displayName) can check for updates automatically. You can also check manually from the menu bar or Settings \(Constants.menuArrow) About.")
                 .fixedSize(horizontal: false, vertical: true)
                 .foregroundStyle(.secondary)
 
             Toggle(isOn: $autoDownload) {
-                Text("Automatically download and install updates")
+                Text("Download and install updates automatically")
             }
             .toggleStyle(.checkbox)
 
             HStack {
                 Spacer()
-                Button("Don't Check") {
+                Button("Check Manually") {
                     guard !isProcessing else { return }
                     isProcessing = true
                     onDisable()
                 }
                 .disabled(isProcessing)
+                .buttonStyle(.glass)
                 Button("Check Automatically") {
                     guard !isProcessing else { return }
                     isProcessing = true
@@ -44,6 +45,7 @@ struct UpdateConsentSheet: View {
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(isProcessing)
+                .buttonStyle(.glassProminent)
             }
         }
         .padding(20)

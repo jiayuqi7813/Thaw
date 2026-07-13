@@ -19,6 +19,8 @@ import SwiftUI
 /// slide) reads "Continue" on the welcome slide and "Get Started" everywhere
 /// in the loop.
 struct ThawOnboardingTour: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var onFinish: () -> Void
 
     @State private var currentSlide = 0
@@ -97,7 +99,7 @@ struct ThawOnboardingTour: View {
                 let index = slide.rawValue
                 Button {
                     guard beginNavigation() else { return }
-                    withAnimation(.snappy) {
+                    withAnimation(navigationAnimation) {
                         currentSlide = index
                     }
                 } label: {
@@ -155,7 +157,7 @@ struct ThawOnboardingTour: View {
         .padding(.horizontal, 24)
         .padding(.top, 14)
         .padding(.bottom, 22)
-        .animation(.snappy, value: currentSlide)
+        .animation(navigationAnimation, value: currentSlide)
     }
 
     // MARK: Helpers
@@ -208,12 +210,16 @@ struct ThawOnboardingTour: View {
     /// Steps to the next slide, wrapping back to the first looping slide
     /// (not the welcome slide) once the last one finishes.
     private func advanceOrLoop() {
-        withAnimation(.snappy) {
+        withAnimation(navigationAnimation) {
             if currentSlide == slides.count - 1 {
                 currentSlide = firstLoopingIndex
             } else {
                 currentSlide += 1
             }
         }
+    }
+
+    private var navigationAnimation: Animation? {
+        reduceMotion ? nil : .snappy
     }
 }

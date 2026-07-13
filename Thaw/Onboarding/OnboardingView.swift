@@ -17,6 +17,8 @@ enum ThawOnboardingWindowMetrics {
 /// Full first-launch experience: feature tour, then separate permissions
 /// screen, then optional completion confirmation.
 struct ThawOnboardingView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     private enum Step {
         case tour
         case permissions
@@ -57,7 +59,13 @@ struct ThawOnboardingView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .animation(.easeInOut(duration: 0.35), value: step)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.35), value: step)
+        .transaction { transaction in
+            if reduceMotion {
+                transaction.animation = nil
+                transaction.disablesAnimations = true
+            }
+        }
     }
 
     private func complete() {

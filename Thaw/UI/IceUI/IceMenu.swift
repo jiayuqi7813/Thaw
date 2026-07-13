@@ -59,7 +59,7 @@ struct IceMenu<Title: View, Label: View, Content: View>: View {
                 title
             }
             .menuStyle(.button)
-            .buttonStyle(.bordered)
+            .buttonStyle(.glass)
             .labelsHidden()
             .fixedSize()
         } label: {

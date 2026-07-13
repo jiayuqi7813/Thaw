@@ -7,8 +7,8 @@
 //  Licensed under the GNU GPLv3
 
 import AppKit
-import SwiftUI
 import MenuBarModel
+import SwiftUI
 import UniformTypeIdentifiers
 
 struct ProfileSettingsPane: View {
@@ -78,7 +78,7 @@ struct ProfileSettingsPane: View {
                 Button("Done") {
                     commitRename(id: profile.id)
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.glass)
             } else {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(.green)
@@ -101,7 +101,7 @@ struct ProfileSettingsPane: View {
                 Button("Apply") {
                     applyProfile(id: profile.id)
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.glass)
                 .disabled(isApplying || profile.id == profileManager.activeProfileID)
 
                 Menu {
@@ -187,7 +187,7 @@ struct ProfileSettingsPane: View {
             Button("Save Current") {
                 createProfile()
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.glass)
             .disabled(newProfileName.trimmingCharacters(in: .whitespaces).isEmpty)
         }
 
@@ -202,7 +202,7 @@ struct ProfileSettingsPane: View {
                     Text("Import Profile(s)")
                 }
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.glass)
 
             if !profileManager.profiles.isEmpty {
                 Button {
@@ -214,7 +214,7 @@ struct ProfileSettingsPane: View {
                         Text("Export Profile(s)")
                     }
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.glass)
             }
         }
     }
@@ -242,7 +242,7 @@ struct ProfileSettingsPane: View {
                         NSWorkspace.shared.open(url)
                     }
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.glass)
             }
         }
     }

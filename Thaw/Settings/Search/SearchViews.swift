@@ -31,6 +31,7 @@ struct SearchField: View {
             .font(.system(size: 13))
             .textContentType(.none)
             .autocorrectionDisabled(true)
+            .writingToolsBehavior(.disabled)
             .focused($isFocused)
 
             if !text.isEmpty {
@@ -130,6 +131,8 @@ private enum SearchResultRowAppearance {
 
 /// Interactive search result row with hover and pressed feedback.
 private struct SearchResultButton: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     let entry: SearchEntry
     let action: () -> Void
 
@@ -145,11 +148,12 @@ private struct SearchResultButton: View {
         .buttonStyle(
             SearchResultButtonStyle(
                 isHovering: isHovering,
+                reduceMotion: reduceMotion,
                 rowShape: SearchResultRowAppearance.shape
             )
         )
         .onHover { hovering in
-            withAnimation(.easeOut(duration: 0.12)) {
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.12)) {
                 isHovering = hovering
             }
         }
@@ -203,6 +207,7 @@ private struct SearchResultRowContent: View {
 
 private struct SearchResultButtonStyle: ButtonStyle {
     let isHovering: Bool
+    let reduceMotion: Bool
     let rowShape: RoundedRectangle
 
     func makeBody(configuration: Configuration) -> some View {
@@ -217,7 +222,7 @@ private struct SearchResultButtonStyle: ButtonStyle {
                 }
             }
             .opacity(configuration.isPressed ? 0.92 : 1)
-            .animation(.easeOut(duration: 0.08), value: configuration.isPressed)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.08), value: configuration.isPressed)
     }
 
     private func fillOpacity(isPressed: Bool) -> Double {
