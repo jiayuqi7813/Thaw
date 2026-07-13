@@ -11,14 +11,9 @@ import SwiftUI
 // MARK: - SectionedList
 
 /// A scrollable list of items broken up by section.
-struct SectionedList<ItemID: Hashable>: View {
-    private enum ScrollDirection {
-        case up, down
-    }
-
+struct SectionedList<ItemID: Hashable, ItemContent: View>: View {
     @Binding var selection: ItemID?
-    @Binding var items: [SectionedListItem<ItemID>]
-    @State private var itemFrames = [ItemID: CGRect]()
+    @Binding var items: [SectionedListItem<ItemID, ItemContent>]
     @State private var scrollIndicatorsFlashTrigger = 0
 
     let spacing: CGFloat
@@ -26,7 +21,7 @@ struct SectionedList<ItemID: Hashable>: View {
 
     private(set) var contentPadding = EdgeInsets()
 
-    private var nextSelectableItem: SectionedListItem<ItemID>? {
+    private var nextSelectableItem: SectionedListItem<ItemID, ItemContent>? {
         guard
             let index = items.firstIndex(where: { $0.id == selection }),
             items.indices.contains(index + 1)
@@ -36,7 +31,7 @@ struct SectionedList<ItemID: Hashable>: View {
         return items[(index + 1)...].first { $0.isSelectable }
     }
 
-    private var previousSelectableItem: SectionedListItem<ItemID>? {
+    private var previousSelectableItem: SectionedListItem<ItemID, ItemContent>? {
         guard
             let index = items.firstIndex(where: { $0.id == selection }),
             items.indices.contains(index - 1)
@@ -47,7 +42,7 @@ struct SectionedList<ItemID: Hashable>: View {
     }
 
     /// Creates a sectioned list with the given selection, spacing, and items.
-    init(selection: Binding<ItemID?>, items: Binding<[SectionedListItem<ItemID>]>, spacing: CGFloat = 0, isEditing: Bool = false) {
+    init(selection: Binding<ItemID?>, items: Binding<[SectionedListItem<ItemID, ItemContent>]>, spacing: CGFloat = 0, isEditing: Bool = false) {
         self._selection = selection
         self._items = items
         self.spacing = spacing
@@ -62,10 +57,8 @@ struct SectionedList<ItemID: Hashable>: View {
 
     private var scrollView: some View {
         ScrollViewReader { scrollView in
-            GeometryReader { geometry in
-                ScrollView {
-                    scrollContent(scrollView: scrollView, geometry: geometry)
-                }
+            ScrollView {
+                scrollContent(scrollView: scrollView)
             }
         }
         .scrollIndicatorsFlash(trigger: scrollIndicatorsFlashTrigger)
@@ -90,44 +83,20 @@ struct SectionedList<ItemID: Hashable>: View {
         }
     }
 
-    private func scrollContent(scrollView: ScrollViewProxy, geometry: GeometryProxy) -> some View {
-        VStack(spacing: spacing) {
+    private func scrollContent(scrollView: ScrollViewProxy) -> some View {
+        LazyVStack(spacing: spacing) {
             ForEach(items, id: \.id) { item in
                 SectionedListItemView(
                     selection: $selection,
-                    itemFrames: $itemFrames,
                     item: item
                 )
                 .id(item.id)
             }
         }
         .onChange(of: selection) {
-            guard
-                let selection,
-                let direction = scrollDirection(for: selection, geometry: geometry)
-            else {
-                return
-            }
-            let anchor: UnitPoint = switch direction {
-            case .up: .top
-            case .down: .bottom
-            }
-            scrollView.scrollTo(selection, anchor: anchor)
+            guard let selection else { return }
+            scrollView.scrollTo(selection)
         }
-    }
-
-    private func scrollDirection(for selection: ItemID, geometry: GeometryProxy) -> ScrollDirection? {
-        guard let selectionFrame = itemFrames[selection] else {
-            return nil
-        }
-        let geometryFrame = geometry.frame(in: .global)
-        if selectionFrame.minY <= geometryFrame.minY + contentPadding.top {
-            return .up
-        }
-        if selectionFrame.maxY >= geometryFrame.maxY - contentPadding.bottom {
-            return .down
-        }
-        return nil
     }
 }
 
@@ -150,34 +119,21 @@ extension SectionedList {
 // MARK: - SectionedListItem
 
 /// An item in a sectioned list.
-struct SectionedListItem<ID: Hashable>: @unchecked Sendable {
-    let content: AnyView
+struct SectionedListItem<ID: Hashable, Content: View>: @unchecked Sendable {
+    let content: Content
     let id: ID
     let isSelectable: Bool
     let action: (@MainActor @Sendable () -> Void)?
-
-    /// Returns a selectable item for a sectioned list.
-    static func item(id: ID, isSelectable: Bool = true, action: (@MainActor @Sendable () -> Void)? = nil, @ViewBuilder content: () -> some View) -> SectionedListItem {
-        SectionedListItem(content: AnyView(content()), id: id, isSelectable: isSelectable, action: action)
-    }
-
-    /// Returns a section header item for a sectioned list.
-    static func header(id: ID, @ViewBuilder content: () -> some View) -> SectionedListItem {
-        item(id: id, isSelectable: false, action: nil) {
-            content()
-        }
-    }
 }
 
 // MARK: - SectionedListItemView
 
-private struct SectionedListItemView<ItemID: Hashable>: View {
+private struct SectionedListItemView<ItemID: Hashable, ItemContent: View>: View {
     @Environment(\.self) private var environment
     @Binding var selection: ItemID?
-    @Binding var itemFrames: [ItemID: CGRect]
     @State private var isHovering = false
 
-    let item: SectionedListItem<ItemID>
+    let item: SectionedListItem<ItemID, ItemContent>
 
     private var foregroundStyle: some ShapeStyle {
         if
@@ -231,8 +187,5 @@ private struct SectionedListItemView<ItemID: Hashable>: View {
                 item.action?()
             }
         )
-        .onFrameChange(in: .global) { frame in
-            itemFrames[item.id] = frame
-        }
     }
 }

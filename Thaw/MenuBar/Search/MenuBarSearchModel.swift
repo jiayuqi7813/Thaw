@@ -20,7 +20,7 @@ final class MenuBarSearchModel: ObservableObject {
     }
 
     @Published var searchText = ""
-    @Published var displayedItems = [SectionedListItem<ItemID>]()
+    @Published var displayedItems = [SectionedListItem<ItemID, MenuBarSearchListContent>]()
     @Published var selection: ItemID?
     @Published private(set) var averageColorInfo: MenuBarAverageColorInfo?
     @Published var editingItemTag: MenuBarItemTag?

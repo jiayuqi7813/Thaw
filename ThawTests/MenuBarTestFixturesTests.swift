@@ -488,6 +488,17 @@ final class ImageCaptureInvalidationTests: XCTestCase {
         XCTAssertFalse(captured.isEffectivelyBlank)
     }
 
+    @MainActor
+    func testCapturedImageReusesHorizontallyTrimmedSearchImage() throws {
+        let image = try makeImage(alpha: 255)
+        let captured = MenuBarItemImageCache.CapturedImage(cgImage: image, scale: 2)
+
+        let first = try XCTUnwrap(captured.horizontallyTrimmedImage)
+        let second = try XCTUnwrap(captured.horizontallyTrimmedImage)
+
+        XCTAssertTrue(first === second)
+    }
+
     func testPrewarmRevealRestorationHidesWhenPrewarmCreatedReveal() {
         XCTAssertEqual(
             MenuBarItemImageCache.PrewarmRevealRestorationAction.resolve(

@@ -434,7 +434,7 @@ private final class MenuBarSearchHostingView: NSHostingView<AnyView> {
 }
 
 private struct MenuBarSearchContentView: View {
-    private typealias ListItem = SectionedListItem<MenuBarSearchModel.ItemID>
+    private typealias ListItem = SectionedListItem<MenuBarSearchModel.ItemID, MenuBarSearchListContent>
 
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var itemManager: MenuBarItemManager
@@ -679,14 +679,12 @@ private struct MenuBarSearchContentView: View {
                     return
                 }
 
-                let headerItem = ListItem.header(id: .header(name)) {
-                    Text(name.localized)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.vertical, 10)
-                        .padding(.leading, 6)
-                }
+                let headerItem = ListItem(
+                    content: .header(name),
+                    id: .header(name),
+                    isSelectable: false,
+                    action: nil
+                )
                 items.append(SearchItem(listItem: headerItem, title: name.displayString))
 
                 for item in itemManager.itemCache.managedItems(for: name)
@@ -695,11 +693,12 @@ private struct MenuBarSearchContentView: View {
                     guard !item.isControlItem else {
                         continue
                     }
-                    let listItem = ListItem.item(id: .item(item.tag, windowID: item.windowID)) {
-                        performAction(for: item)
-                    } content: {
-                        MenuBarSearchItemView(item: item)
-                    }
+                    let listItem = ListItem(
+                        content: .item(item),
+                        id: .item(item.tag, windowID: item.windowID),
+                        isSelectable: true,
+                        action: { performAction(for: item) }
+                    )
                     items.append(SearchItem(listItem: listItem, title: item.displayName))
                 }
             }
@@ -877,6 +876,25 @@ private let controlCenterIcon: NSImage? = {
     return app.icon
 }()
 
+enum MenuBarSearchListContent: View {
+    case header(MenuBarSection.Name)
+    case item(MenuBarItem)
+
+    var body: some View {
+        switch self {
+        case let .header(name):
+            Text(name.localized)
+                .fontWeight(.semibold)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 10)
+                .padding(.leading, 6)
+        case let .item(item):
+            MenuBarSearchItemView(item: item)
+        }
+    }
+}
+
 private struct MenuBarSearchItemView: View {
     @Environment(\.menuBarSearchPanel) var panel
     @EnvironmentObject var appState: AppState
@@ -887,19 +905,7 @@ private struct MenuBarSearchItemView: View {
     @FocusState private var isEditing: Bool
 
     private var itemImage: NSImage {
-        guard
-            let cached = imageCache.images[item.tag],
-            let trimmed = cached.cgImage.trimmingTransparency(around: [
-                .minXEdge, .maxXEdge,
-            ])
-        else {
-            return NSImage()
-        }
-        let size = CGSize(
-            width: CGFloat(trimmed.width) / cached.scale,
-            height: CGFloat(trimmed.height) / cached.scale
-        )
-        return NSImage(cgImage: trimmed, size: size)
+        imageCache.images[item.tag]?.horizontallyTrimmedImage ?? NSImage()
     }
 
     private var appIcon: NSImage? {

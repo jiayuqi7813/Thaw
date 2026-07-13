@@ -25,11 +25,18 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
 
     /// A representation of a captured menu bar item image.
     struct CapturedImage: Hashable {
+        private final class PresentationCache: @unchecked Sendable {
+            var horizontallyTrimmedImage: NSImage?
+        }
+
         /// The base image.
         let cgImage: CGImage
 
         /// The scale factor of the image at the time of capture.
         let scale: CGFloat
+
+        /// Presentation-only wrappers derived from this immutable capture.
+        private let presentationCache = PresentationCache()
 
         /// The image's size, applying ``scale``.
         var scaledSize: CGSize {
@@ -42,6 +49,29 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         /// The base image, converted to an `NSImage` and applying ``scale``.
         var nsImage: NSImage {
             NSImage(cgImage: cgImage, size: scaledSize)
+        }
+
+        /// A stable image wrapper for Search, trimmed once per capture rather
+        /// than on every SwiftUI body evaluation.
+        @MainActor
+        var horizontallyTrimmedImage: NSImage? {
+            if let image = presentationCache.horizontallyTrimmedImage {
+                return image
+            }
+            guard let trimmed = cgImage.trimmingTransparency(around: [
+                .minXEdge, .maxXEdge,
+            ]) else {
+                return nil
+            }
+            let image = NSImage(
+                cgImage: trimmed,
+                size: CGSize(
+                    width: CGFloat(trimmed.width) / scale,
+                    height: CGFloat(trimmed.height) / scale
+                )
+            )
+            presentationCache.horizontallyTrimmedImage = image
+            return image
         }
 
         /// Whether the capture is effectively blank for UI thumbnail purposes.
@@ -70,6 +100,15 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                 return false
             }
             return oldData == newData
+        }
+
+        static func == (lhs: CapturedImage, rhs: CapturedImage) -> Bool {
+            lhs.cgImage == rhs.cgImage && lhs.scale == rhs.scale
+        }
+
+        func hash(into hasher: inout Hasher) {
+            hasher.combine(cgImage)
+            hasher.combine(scale)
         }
     }
 
