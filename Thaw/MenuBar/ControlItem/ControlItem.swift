@@ -8,8 +8,8 @@
 
 import Cocoa
 import Combine
-import PlatformRuntimeKit
 import MenuBarModel
+import PlatformRuntimeKit
 
 // MARK: - ControlItem
 
@@ -1370,8 +1370,17 @@ enum ControlItemDefaults {
             return UserDefaults.standard.object(forKey: stringKey) as? Value
         }
         set {
-            // Prevent saving preferred position for section divider chevrons
-            if key.isPreferredPosition, isSectionDivider(autosaveName: autosaveName) {
+            // Legacy section dividers derive their placement from AppKit's
+            // live geometry. macOS 27 uses assignment-backed sections instead,
+            // and the collapsed divider controls need stable MenuBarAgent
+            // positions to remain the boundaries: Always Hidden, Hidden, then
+            // Visible. Keep the legacy write suppression intact there.
+            if key.isPreferredPosition,
+               isSectionDivider(autosaveName: autosaveName),
+               !ProcessInfo.processInfo.isOperatingSystemAtLeast(
+                   .init(majorVersion: 27, minorVersion: 0, patchVersion: 0)
+               )
+            {
                 return
             }
             let stringKey = key.stringKey(for: autosaveName)
@@ -1414,22 +1423,25 @@ enum ControlItemDefaults {
             case .hidden:
                 ControlItemDefaults[.preferredPosition, autosaveName] = 1
             case .alwaysHidden:
-                break
+                if #available(macOS 27, *) {
+                    ControlItemDefaults[.preferredPosition, autosaveName] = 2
+                }
             }
         }
 
-        // Always reset section divider positions to defaults
-        // to prevent issues when users move them around
+        // Keep macOS 27's collapsed dividers in their structural order:
+        // Always Hidden → Hidden → Visible. On older releases the dividers
+        // remain geometry-driven and retain the historical behavior.
         if isSectionDivider(autosaveName: autosaveName) {
-            switch controlItem.identifier {
-            case .hidden:
-                ControlItemDefaults[.preferredPosition, autosaveName] = 1
-            case .alwaysHidden:
-                // Don't set a default position for always-hidden
-                // It will be positioned dynamically by the system
-                break
-            case .visible:
-                break
+            if #available(macOS 27, *) {
+                switch controlItem.identifier {
+                case .hidden:
+                    ControlItemDefaults[.preferredPosition, autosaveName] = 1
+                case .alwaysHidden:
+                    ControlItemDefaults[.preferredPosition, autosaveName] = 2
+                case .visible:
+                    break
+                }
             }
         }
 
@@ -1485,10 +1497,10 @@ enum ControlItemDefaults {
         return true
     }
 
-    /// Resets chevron section divider positions to their defaults.
+    /// Resets macOS 27 chevron section dividers to their structural order.
     static func resetChevronPositions() {
         ControlItemDefaults[.preferredPosition, ControlItem.Identifier.hidden.rawValue] = 1
-        // Always-hidden position is handled dynamically
+        ControlItemDefaults[.preferredPosition, ControlItem.Identifier.alwaysHidden.rawValue] = 2
     }
 }
 
