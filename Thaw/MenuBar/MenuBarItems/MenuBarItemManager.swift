@@ -3815,6 +3815,7 @@ extension MenuBarItemManager {
     /// - Parameters:
     ///   - item: The menu bar item to move.
     ///   - destination: The destination to move the item to.
+    @discardableResult
     func move(
         item: MenuBarItem,
         to destination: MoveDestination,
@@ -3825,7 +3826,7 @@ extension MenuBarItemManager {
         allowSectionBoundaryTargetOnMacOS27: Bool = false,
         allowParkedOffMenuBarSource: Bool = false,
         skipPreferredPositionMove: Bool = false
-    ) async throws {
+    ) async throws -> Bool {
         // System clone windows are transient WindowServer duplicates that
         // must never be moved. Refuse here as a final safety net so no
         // planning path can drag a phantom and displace real items. The
@@ -3834,7 +3835,7 @@ extension MenuBarItemManager {
         // and will vanish on its own, so there's nothing to fail or retry.
         guard !item.isSystemClone else {
             MenuBarItemManager.diagLog.warning("Skipping move for \(item.logString) - system status item clone")
-            return
+            return false
         }
         guard let appState else {
             throw EventError.cannotComplete
@@ -3876,7 +3877,7 @@ extension MenuBarItemManager {
                 MenuBarItemManager.diagLog.warning(
                     "Skipping legacy divider hide-move of \(item.logString) to \(destination.logString) on macOS 27"
                 )
-                return
+                return false
             }
         }
 
@@ -3934,14 +3935,13 @@ extension MenuBarItemManager {
 
         guard try await !itemHasCorrectPosition(item: item, for: destination, on: resolvedDisplayID) else {
             MenuBarItemManager.diagLog.debug("Item has correct position, cancelling move")
-            return
+            return true
         }
 
         // macOS 27: try the cursor-free preferred-position write first. When it
         // applies *and* verifies, the move is done without ever touching the
-        // cursor, so return before the cursor-hide/warp block below. Anything it
-        // cannot express (unresolved key, no numeric gap, end placement) falls
-        // through to the synthetic ⌘-drag, which keeps full coverage.
+        // cursor. Position-only backends report an unfulfilled move below when
+        // the write cannot be expressed or fails verification.
         if backend.preferredMovePath == .preferredPositionsThenCommandDrag {
             if #available(macOS 27, *) {
                 if !skipPreferredPositionMove,
@@ -3951,7 +3951,7 @@ extension MenuBarItemManager {
                        experimentalSystemItemHiding: experimentalSystemItemHiding
                    )
                 {
-                    return
+                    return true
                 }
             }
         }
@@ -3961,9 +3961,9 @@ extension MenuBarItemManager {
         // the cursor-hiding, pointer-warping synthetic Command-drag.
         if backend.preferredMovePath == .preferredPositionsThenCommandDrag {
             MenuBarItemManager.diagLog.info(
-                "Position-only reorder: skipping synthetic Command-drag for \(item.logString) \(destination.logString)"
+                "Position-only reorder could not fulfill \(item.logString) \(destination.logString)"
             )
-            return
+            return false
         }
 
         // Capture the original cursor position once so the cursor is warped
@@ -4007,7 +4007,7 @@ extension MenuBarItemManager {
                     // those on observed displacement, accept all others.
                     if n == 1 || anyMoveEventsSucceeded || !item.isControlItem {
                         MenuBarItemManager.diagLog.debug("Item has correct position, finished with move")
-                        return
+                        return true
                     }
                     MenuBarItemManager.diagLog.debug(
                         "Position match without observable displacement on attempt \(n); treating as false positive on a zero-width control item and retrying"
@@ -4030,7 +4030,7 @@ extension MenuBarItemManager {
                     MenuBarItemManager.diagLog.debug("Attempt \(n) succeeded and verified, finished with move")
                     // Validate that item didn't get stuck when moving to hidden section
                     await validateItemPositionAfterMove(item: item, destination: destination, on: resolvedDisplayID)
-                    return
+                    return true
                 }
                 MenuBarItemManager.diagLog.debug("Attempt \(n) events succeeded but item not at destination, retrying")
                 if n < maxAttempts {
@@ -4347,7 +4347,7 @@ extension MenuBarItemManager {
                     // attempt rather than the default budget — otherwise one pass
                     // would hijack the cursor retrying each stuck system item.
                     // Concealable third-party items keep the normal attempt budget.
-                    try await move(
+                    let fulfilled = try await move(
                         item: plannedMove.item,
                         to: plannedMove.destination,
                         skipInputPause: true,
@@ -4355,6 +4355,14 @@ extension MenuBarItemManager {
                         maxMoveAttempts: plannedMove.item.isNonConcealableSystemItem ? 1 : 8,
                         allowParkedOffMenuBarSource: repairAfterRestriction
                     )
+                    guard fulfilled else {
+                        recentMacOS27MoveFailures[failureKey] = .now
+                        MenuBarItemManager.diagLog.debug(
+                            "Could not fulfill macOS 27 section order move via preferred positions: " +
+                                "\(plannedMove.item.logString) → \(plannedMove.destination.logString)"
+                        )
+                        break
+                    }
                     recentMacOS27MoveFailures.removeValue(forKey: failureKey)
                     didReorder = true
                     MenuBarItemManager.diagLog.info(
@@ -8597,14 +8605,21 @@ extension MenuBarItemManager {
         }
 
         do {
-            try await move(
+            let fulfilled = try await move(
                 item: plannedMove.item,
                 to: plannedMove.destination,
                 skipInputPause: true,
                 watchdogTimeout: Self.layoutWatchdogTimeout,
-                allowParkedOffMenuBarSource: true,
-                skipPreferredPositionMove: true
+                allowParkedOffMenuBarSource: true
             )
+            guard fulfilled else {
+                recentMacOS27MoveFailures[failureKey] = .now
+                MenuBarItemManager.diagLog.debug(
+                    "applySavedLayout: could not fulfill macOS 27 visible control restore via preferred positions " +
+                        "\(plannedMove.item.logString) \(plannedMove.destination.logString)"
+                )
+                return false
+            }
             recentMacOS27MoveFailures.removeValue(forKey: failureKey)
             MenuBarItemManager.diagLog.info(
                 "applySavedLayout: restored macOS 27 visible control order for \(plannedMove.item.logString)"
