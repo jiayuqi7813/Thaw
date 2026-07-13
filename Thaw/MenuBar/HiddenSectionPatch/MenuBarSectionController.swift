@@ -1177,6 +1177,25 @@ final class MenuBarSectionController: ObservableObject {
             return
         }
 
+        // A layout-bar drop into Always Hidden is an explicit user choice. On
+        // macOS 27 the section's divider is normally collapsed to two points,
+        // so leaving its reveal gestures disabled would successfully conceal
+        // the item while giving the user no practical way to bring it back.
+        // Establish the section and its non-destructive Option-click reveal
+        // path before persisting the first assignment.
+        if section == .alwaysHidden,
+           let advanced = appState?.settings.advanced
+        {
+            if !advanced.enableAlwaysHiddenSection {
+                advanced.enableAlwaysHiddenSection = true
+                diagLog.info("enabled always-hidden section after layout assignment")
+            }
+            if !advanced.useOptionClickToShowAlwaysHiddenSection {
+                advanced.useOptionClickToShowAlwaysHiddenSection = true
+                diagLog.info("enabled Option-click always-hidden reveal after layout assignment")
+            }
+        }
+
         // Move the identifier to its new section in the order dict so assignment
         // and order stay consistent in a single write (no separate assignment key).
         removeFromOrder(identifier: identifier)
