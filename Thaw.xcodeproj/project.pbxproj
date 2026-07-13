@@ -9,13 +9,13 @@
 /* Begin PBXBuildFile section */
 		170423D92B56DE78004A2549 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 170423D82B56DE78004A2549 /* Sparkle */; };
 		175061912B1543DD003144CD /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = 175061902B1543DD003144CD /* LaunchAtLogin */; };
-		1787C4272B16890B002F50DF /* AXSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 1787C4262B16890B002F50DF /* AXSwift */; };
+		1787C4272B16890B002F50DF /* AXSwift6 in Frameworks */ = {isa = PBXBuildFile; productRef = 1787C4262B16890B002F50DF /* AXSwift6 */; };
 		17F71BB52B880B4500905CBA /* CompactSlider in Frameworks */ = {isa = PBXBuildFile; productRef = 17F71BB42B880B4500905CBA /* CompactSlider */; };
 		7127A9FF2C4886D100D99DEF /* IfritStatic in Frameworks */ = {isa = PBXBuildFile; productRef = 7127A9FE2C4886D100D99DEF /* IfritStatic */; };
 		9570E4A96CDEC0BEBAA5573F /* AsyncAlgorithms in Frameworks */ = {isa = PBXBuildFile; productRef = 43C5F05D006747974015EBD9 /* AsyncAlgorithms */; };
 		765B9E4A97DD40A18EE1F15D /* Collections in Frameworks */ = {isa = PBXBuildFile; productRef = 6937234B615A4E0BA19DFCF5 /* Collections */; };
 		C9858DF951474BBA89EEC700 /* Subprocess in Frameworks */ = {isa = PBXBuildFile; productRef = F723B15E4E92458CA2A3A2D5 /* Subprocess */; };
-		7168EE532E281CBC00FF9830 /* AXSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 7168EE522E281CBC00FF9830 /* AXSwift */; };
+		7168EE532E281CBC00FF9830 /* AXSwift6 in Frameworks */ = {isa = PBXBuildFile; productRef = 7168EE522E281CBC00FF9830 /* AXSwift6 */; };
 		7188A68C2E27F9ED008F131D /* MenuBarItemService.xpc in Embed XPC Services */ = {isa = PBXBuildFile; fileRef = 7188A6832E27F9ED008F131D /* MenuBarItemService.xpc */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		D27A00012F40000000000001 /* PlatformRuntimeKit in Frameworks */ = {isa = PBXBuildFile; productRef = D27A00032F40000000000003 /* PlatformRuntimeKit */; };
 		D27A00022F40000000000002 /* PlatformRuntimeKit in Frameworks */ = {isa = PBXBuildFile; productRef = D27A00042F40000000000004 /* PlatformRuntimeKit */; };
@@ -139,7 +139,7 @@
 				765B9E4A97DD40A18EE1F15D /* Collections in Frameworks */,
 				C9858DF951474BBA89EEC700 /* Subprocess in Frameworks */,
 				175061912B1543DD003144CD /* LaunchAtLogin in Frameworks */,
-				1787C4272B16890B002F50DF /* AXSwift in Frameworks */,
+				1787C4272B16890B002F50DF /* AXSwift6 in Frameworks */,
 				17F71BB52B880B4500905CBA /* CompactSlider in Frameworks */,
 				D85602169B8B4308ACEB30A0 /* MenuBarModel in Frameworks */,
 				E6A2198F9A73488581DC5B97 /* MenuBarHost in Frameworks */,
@@ -150,7 +150,7 @@
 		7188A6802E27F9ED008F131D /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
-				7168EE532E281CBC00FF9830 /* AXSwift in Frameworks */,
+				7168EE532E281CBC00FF9830 /* AXSwift6 in Frameworks */,
 				F3B1A2C4D5E6F7A8B9C0D1E3 /* MenuBarModel in Frameworks */,
 			);
 		};
@@ -214,7 +214,7 @@
 			name = Thaw;
 			packageProductDependencies = (
 				175061902B1543DD003144CD /* LaunchAtLogin */,
-				1787C4262B16890B002F50DF /* AXSwift */,
+				1787C4262B16890B002F50DF /* AXSwift6 */,
 				170423D82B56DE78004A2549 /* Sparkle */,
 				17F71BB42B880B4500905CBA /* CompactSlider */,
 				7127A9FE2C4886D100D99DEF /* IfritStatic */,
@@ -247,7 +247,7 @@
 			);
 			name = MenuBarItemService;
 			packageProductDependencies = (
-				7168EE522E281CBC00FF9830 /* AXSwift */,
+				7168EE522E281CBC00FF9830 /* AXSwift6 */,
 				C2D4E6A8B0C2D4E6A8B0C2D4 /* MenuBarModel */,
 			);
 			productName = MenuBarItemService;
@@ -332,7 +332,7 @@
 			mainGroup = 716683212A767E6A006ABF84;
 			packageReferences = (
 				1750618F2B1543DD003144CD /* XCRemoteSwiftPackageReference "LaunchAtLogin-Modern" */,
-				1787C4252B16890B002F50DF /* XCRemoteSwiftPackageReference "AXSwift" */,
+				1787C4252B16890B002F50DF /* XCRemoteSwiftPackageReference "AXSwift6" */,
 				170423D72B56DE78004A2549 /* XCRemoteSwiftPackageReference "Sparkle" */,
 				17F71BB32B880B4500905CBA /* XCRemoteSwiftPackageReference "CompactSlider" */,
 				7127A9FB2C4881BC00D99DEF /* XCRemoteSwiftPackageReference "Ifrit" */,
@@ -874,12 +874,12 @@
 				minimumVersion = 1.0.0;
 			};
 		};
-		1787C4252B16890B002F50DF /* XCRemoteSwiftPackageReference "AXSwift" */ = {
+		1787C4252B16890B002F50DF /* XCRemoteSwiftPackageReference "AXSwift6" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/stonerl/AXSwift";
+			repositoryURL = "https://github.com/thaw-app/AXSwift6";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 0.3.2;
+				minimumVersion = 0.4.0;
 			};
 		};
 		17F71BB32B880B4500905CBA /* XCRemoteSwiftPackageReference "CompactSlider" */ = {
@@ -943,10 +943,10 @@
 			package = 1750618F2B1543DD003144CD /* XCRemoteSwiftPackageReference "LaunchAtLogin-Modern" */;
 			productName = LaunchAtLogin;
 		};
-		1787C4262B16890B002F50DF /* AXSwift */ = {
+		1787C4262B16890B002F50DF /* AXSwift6 */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 1787C4252B16890B002F50DF /* XCRemoteSwiftPackageReference "AXSwift" */;
-			productName = AXSwift;
+			package = 1787C4252B16890B002F50DF /* XCRemoteSwiftPackageReference "AXSwift6" */;
+			productName = AXSwift6;
 		};
 		17F71BB42B880B4500905CBA /* CompactSlider */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -973,10 +973,10 @@
 			package = 7A0DF10D46BE41C9B7301DBB /* XCRemoteSwiftPackageReference "swift-subprocess" */;
 			productName = Subprocess;
 		};
-		7168EE522E281CBC00FF9830 /* AXSwift */ = {
+		7168EE522E281CBC00FF9830 /* AXSwift6 */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 1787C4252B16890B002F50DF /* XCRemoteSwiftPackageReference "AXSwift" */;
-			productName = AXSwift;
+			package = 1787C4252B16890B002F50DF /* XCRemoteSwiftPackageReference "AXSwift6" */;
+			productName = AXSwift6;
 		};
 		C2D4E6A8B0C2D4E6A8B0C2D4 /* MenuBarModel */ = {
 			isa = XCSwiftPackageProductDependency;

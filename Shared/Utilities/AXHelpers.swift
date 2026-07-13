@@ -6,20 +6,14 @@
 //  Copyright (Thaw) © 2026 Toni Förster
 //  Licensed under the GNU GPLv3
 
-@preconcurrency import AXSwift
+import AXSwift6
 import Cocoa
 import MenuBarModel
 
 enum AXHelpers {
-    private static let queue = DispatchQueue.targetingGlobal(
-        label: "AXHelpers.queue",
-        qos: .userInteractive,
-        attributes: .concurrent
-    )
-
     @discardableResult
     static func isProcessTrusted(prompt: Bool = false) -> Bool {
-        queue.sync { checkIsProcessTrusted(prompt: prompt) }
+        checkIsProcessTrusted(prompt: prompt)
     }
 
     /// Bounds the systemwide hit-test's AX round trip the same way
@@ -29,47 +23,43 @@ enum AXHelpers {
     /// which for `element(at:)`'s callers is Thaw's main thread during click
     /// handling.
     private static let systemWideMessagingTimeoutSet: Void = {
-        AXUIElementSetMessagingTimeout(systemWideElement.element, 0.25)
+        try? systemWideElement.setMessagingTimeout(0.25)
     }()
 
     static func element(at point: CGPoint) -> UIElement? {
-        queue.sync {
-            systemWideMessagingTimeoutSet
-            return try? systemWideElement.elementAtPosition(Float(point.x), Float(point.y))
-        }
+        systemWideMessagingTimeoutSet
+        return try? systemWideElement.elementAtPosition(Float(point.x), Float(point.y))
     }
 
     static func application(for runningApp: NSRunningApplication) -> Application? {
-        queue.sync {
-            let app = Application(runningApp)
-            // Bound every AX round trip to this app. Without a timeout,
-            // AXUIElementCopyAttributeValue blocks on mach_msg until the target
-            // app's accessibility server replies — an unresponsive app would
-            // otherwise stall menu bar enumeration indefinitely.
-            if let app {
-                AXUIElementSetMessagingTimeout(app.element, 0.25)
-            }
-            return app
+        let app = Application(runningApp)
+        // Bound every AX round trip to this app. Without a timeout,
+        // AXUIElementCopyAttributeValue blocks on mach_msg until the target
+        // app's accessibility server replies — an unresponsive app would
+        // otherwise stall menu bar enumeration indefinitely.
+        if let app {
+            try? app.setMessagingTimeout(0.25)
         }
+        return app
     }
 
     static func extrasMenuBar(for app: Application) -> UIElement? {
-        queue.sync { try? app.attribute(.extrasMenuBar) }
+        try? app.attribute(.extrasMenuBar)
     }
 
     /// The application's normal menu bar (Apple menu + app menus).
     /// Unlike point hit-testing, this remains reliable when Thaw's overlay panel
     /// occupies the screen's menu-bar origin on macOS 27.
     static func menuBar(for app: Application) -> UIElement? {
-        queue.sync { try? app.attribute(.menuBar) }
+        try? app.attribute(.menuBar)
     }
 
     static func children(for element: UIElement) -> [UIElement] {
-        queue.sync { try? element.arrayAttribute(.children) } ?? []
+        (try? element.arrayAttribute(.children)) ?? []
     }
 
     static func isEnabled(_ element: UIElement) -> Bool {
-        queue.sync { try? element.attribute(.enabled) } ?? false
+        (try? element.attribute(.enabled)) ?? false
     }
 
     /// The raw AXEnabled attribute, or nil when the element does not expose it.
@@ -79,21 +69,21 @@ enum AXHelpers {
     /// matching treats absent as enabled, and the unresolved-item diagnostics
     /// report it verbatim.
     static func enabledAttribute(_ element: UIElement) -> Bool? {
-        queue.sync { try? element.attribute(.enabled) }
+        try? element.attribute(.enabled)
     }
 
     static func frame(for element: UIElement) -> CGRect? {
-        queue.sync { try? element.attribute(.frame) }
+        try? element.attribute(.frame)
     }
 
     static func role(for element: UIElement) -> Role? {
-        queue.sync { try? element.role() }
+        try? element.role()
     }
 
-    /// Raw `AXRole` string. Prefer this when AXSwift's `Role` enum is missing a
+    /// Raw `AXRole` string. Prefer this when AXSwift6's `Role` enum is missing a
     /// case (notably `AXMenuBarItem`).
     static func roleString(for element: UIElement) -> String? {
-        queue.sync { try? element.attribute(.role) as String? }
+        try? element.attribute(.role) as String?
     }
 
     /// Whether the element is menu-bar chrome (menu bar, menu, or menu item).
@@ -133,28 +123,24 @@ enum AXHelpers {
     /// The element's `AXTitle`, when present. On macOS 27 most menu bar
     /// item elements leave this empty, so callers fall back to ``identifier``.
     static func title(for element: UIElement) -> String? {
-        queue.sync { try? element.attribute(.title) }
+        try? element.attribute(.title)
     }
 
     /// The element's `AXIdentifier`, when present. Thaw sets a stable
     /// identifier on its control-item buttons so they can be recognized in
     /// the macOS 27 Accessibility-based enumeration.
     static func identifier(for element: UIElement) -> String? {
-        queue.sync { try? element.attribute(.identifier) }
+        try? element.attribute(.identifier)
     }
 
     /// The element's accessibility description. Some status-item apps expose
     /// a stable semantic label here while `AXTitle` contains live metric text.
     static func description(for element: UIElement) -> String? {
-        queue.sync { try? element.attribute(.description) }
+        try? element.attribute(.description)
     }
 
     static func pid(for element: UIElement) -> pid_t? {
-        queue.sync {
-            var pid: pid_t = 0
-            let result = AXUIElementGetPid(element.element, &pid)
-            return result == .success ? pid : nil
-        }
+        try? element.pid()
     }
 
     /// Performs the press action on the given element, returning whether it
@@ -162,13 +148,11 @@ enum AXHelpers {
     /// ignore synthetic mouse clicks.
     @discardableResult
     static func press(_ element: UIElement) -> Bool {
-        queue.sync {
-            do {
-                try element.performAction(.press)
-                return true
-            } catch {
-                return false
-            }
+        do {
+            try element.performAction(.press)
+            return true
+        } catch {
+            return false
         }
     }
 }
