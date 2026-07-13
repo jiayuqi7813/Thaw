@@ -513,7 +513,7 @@ private struct HookRow: View {
 
                     HStack(spacing: 4) {
                         Text("Timeout")
-                        TextField(value: timeoutBinding, formatter: timeoutFormatter) {
+                        TextField(value: timeoutBinding, formatter: Self.timeoutFormatter) {
                             EmptyView()
                         }
                         .textFieldStyle(.roundedBorder)
@@ -586,7 +586,7 @@ private struct HookRow: View {
         return nil
     }
 
-    private var timeoutFormatter: NumberFormatter {
+    private static let timeoutFormatter: NumberFormatter = {
         let f = NumberFormatter()
         f.numberStyle = .decimal
         let suffix = " " + String(localized: "s", comment: "Seconds unit suffix for timeout field")
@@ -595,7 +595,7 @@ private struct HookRow: View {
         f.minimumFractionDigits = 0
         f.maximumFractionDigits = 0
         return f
-    }
+    }()
 
     private func chooseScript() {
         let panel = NSOpenPanel()
