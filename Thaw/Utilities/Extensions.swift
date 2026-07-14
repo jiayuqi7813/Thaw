@@ -644,7 +644,10 @@ extension NSScreen {
 
     /// A Boolean value that indicates whether the screen has a notch.
     var hasNotch: Bool {
-        auxiliaryTopLeftArea != nil
+        guard !UserDefaults.standard.bool(forKey: Defaults.Key.debugSimulateNotch.rawValue) else {
+            return true
+        }
+        return auxiliaryTopLeftArea != nil
     }
 
     /// The frame of the screen's notch, if it has one.
@@ -653,7 +656,17 @@ extension NSScreen {
             let auxiliaryTopLeftArea,
             let auxiliaryTopRightArea
         else {
-            return nil
+            guard UserDefaults.standard.bool(forKey: Defaults.Key.debugSimulateNotch.rawValue) else {
+                return nil
+            }
+            let notchWidth: CGFloat = 120
+            let notchHeight = safeAreaInsets.top > 0 ? safeAreaInsets.top : NSStatusBar.system.thickness
+            return CGRect(
+                x: frame.midX - (notchWidth / 2),
+                y: frame.maxY - notchHeight,
+                width: notchWidth,
+                height: notchHeight
+            )
         }
         return CGRect(
             x: auxiliaryTopLeftArea.maxX,

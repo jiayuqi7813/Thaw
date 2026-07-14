@@ -270,6 +270,7 @@ extension Defaults {
         case menuBarOrderFulfillmentTimeout = "MenuBarOrderFulfillmentTimeout"
         case diagnosticAssessmentModeSceneProbes = "Thaw.diagnosticAssessmentModeSceneProbes"
         case diagnosticAssessmentModeProbeHiddenTriggerPress = "Thaw.diagnosticAssessmentModeProbeHiddenTriggerPress"
+        case debugSimulateNotch = "Thaw.debugSimulateNotch"
 
         // MARK: Search
 
