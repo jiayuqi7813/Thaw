@@ -36,7 +36,7 @@ struct ToolsSettingsPane: View {
             IceSection("Reset") {
                 toolRow(
                     title: "Reset all settings",
-                    detail: "Restore every \(Constants.displayName) setting to its default value. This cannot be undone.",
+                    detail: "Restore \(Constants.displayName) preferences to their defaults. Saved profiles, automation whitelists, and user data are not deleted. This cannot be undone.",
                     buttonTitle: "Reset \(Constants.displayName)",
                     role: .destructive
                 ) {
@@ -202,7 +202,7 @@ struct ToolsSettingsPane: View {
     private func confirmationMessage(for action: MaintenanceToolAction) -> LocalizedStringKey {
         switch action {
         case .resetSettings:
-            "This will reset all settings to their default values. This action cannot be undone."
+            "This will reset app preferences to their default values. Saved profiles, automation whitelists, and user data will not be deleted. This action cannot be undone."
         case .resetControlCenter:
             "Control Center will quit and its preference files will be deleted. macOS usually relaunches it automatically."
         case .quitAndClearCache:

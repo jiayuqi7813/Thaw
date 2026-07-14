@@ -49,17 +49,26 @@ extension AppSettings {
     /// Resets Advanced settings to their default values.
     func resetAdvanced() {
         advanced.enableAlwaysHiddenSection = Defaults.DefaultValue.enableAlwaysHiddenSection
+        advanced.useOptionClickToShowAlwaysHiddenSection = Defaults.DefaultValue.useOptionClickToShowAlwaysHiddenSection
+        advanced.useDoubleClickToShowAlwaysHiddenSection = Defaults.DefaultValue.useDoubleClickToShowAlwaysHiddenSection
         advanced.showAllSectionsOnUserDrag = Defaults.DefaultValue.showAllSectionsOnUserDrag
         appState?.itemManager.updateNewItemsPlacement(section: .hidden, arrangedViews: [])
         advanced.sectionDividerStyle = Defaults.DefaultValue.sectionDividerStyle
         advanced.hideApplicationMenus = Defaults.DefaultValue.hideApplicationMenus
         advanced.enableSecondaryContextMenu = Defaults.DefaultValue.enableSecondaryContextMenu
+        advanced.enableSecondaryContextMenuQuit = Defaults.DefaultValue.enableSecondaryContextMenuQuit
         advanced.showOnHoverDelay = Defaults.DefaultValue.showOnHoverDelay
         advanced.tooltipDelay = Defaults.DefaultValue.tooltipDelay
         advanced.showMenuBarTooltips = Defaults.DefaultValue.showMenuBarTooltips
         advanced.iconRefreshInterval = Defaults.DefaultValue.iconRefreshInterval
         advanced.menuBarOrderFulfillmentTimeout = Defaults.DefaultValue.menuBarOrderFulfillmentTimeout
         advanced.enableDiagnosticLogging = Defaults.DefaultValue.enableDiagnosticLogging
+        advanced.useLCSSortingOnNotchedDisplays = Defaults.DefaultValue.useLCSSortingOnNotchedDisplays
+        advanced.enableMenuBarItemOverflow = Defaults.DefaultValue.enableMenuBarItemOverflow
+        advanced.enableExperimentalSystemItemHiding = Defaults.DefaultValue.enableExperimentalSystemItemHiding
+        advanced.enableExperimentalWindowHiding = Defaults.DefaultValue.enableExperimentalWindowHiding
+        advanced.enableExperimentalOverflowPrevention = Defaults.DefaultValue.enableExperimentalOverflowPrevention
+        advanced.useContinuousMenuBarCapture = Defaults.DefaultValue.useContinuousMenuBarCapture
         advanced.searchSectionOrder = AdvancedSettings.sanitizedSearchSectionOrder(
             from: Defaults.DefaultValue.searchSectionOrder
         )
