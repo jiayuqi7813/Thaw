@@ -7727,15 +7727,21 @@ extension MenuBarItemManager {
         // verbatim and items the notch would otherwise eject stay in visible.
         let activeScreen = NSScreen.screenWithActiveMenuBar ?? NSScreen.main
         if appState.settings.advanced.enableMenuBarItemOverflow,
-           let screen = activeScreen,
-           screen.hasNotch,
-           let notch = screen.frameOfNotch
+           let screen = activeScreen
         {
-            let notchGap = MenuBarSection.notchGap
-            // Available space: from notch gap to Control Center's left edge.
+            // Available space: from notch gap (or screen left edge) to
+            // Control Center's left edge.
             let ccItem = items.first(where: { $0.tag == .controlCenter })
             let rightBoundary = ccItem.map(\.bounds.minX) ?? screen.frame.maxX
-            var availableWidth = rightBoundary - (notch.maxX + notchGap)
+            let notch = screen.frameOfNotch
+            let leftVisibleBoundary = notch?.maxX ?? screen.frame.minX
+            var availableWidth: CGFloat
+            if let notch {
+                let notchGap = MenuBarSection.notchGap
+                availableWidth = rightBoundary - (notch.maxX + notchGap)
+            } else {
+                availableWidth = rightBoundary
+            }
 
             // NSStatusItemSpacing is recorded here for diagnostic logging
             // only. macOS bakes the spacing into each status item's frame
@@ -7772,7 +7778,7 @@ extension MenuBarItemManager {
             var nonProfileCount = 0
             var nonProfileBreakdown = [String]()
             for item in items where !isProfileItem(item) {
-                guard item.bounds.minX >= notch.maxX,
+                guard item.bounds.minX >= leftVisibleBoundary,
                       item.bounds.maxX <= rightBoundary
                 else { continue }
                 if transientTags.contains(where: {
@@ -7801,16 +7807,17 @@ extension MenuBarItemManager {
             var chevronFootprint: CGFloat = 0
             if let visibleCtrlUID,
                let chevron = items.first(where: { $0.uniqueIdentifier == visibleCtrlUID }),
-               chevron.bounds.minX >= notch.maxX,
+               chevron.bounds.minX >= leftVisibleBoundary,
                chevron.bounds.maxX <= rightBoundary
             {
                 chevronFootprint = chevron.bounds.width
                 availableWidth -= chevronFootprint
             }
 
+            let notchLog = notch.map { "[\($0.minX)…\($0.maxX)]" } ?? "nil"
             MenuBarItemManager.diagLog.debug(
                 """
-                Notch overflow budget: screen.maxX=\(screen.frame.maxX) notch=[\(notch.minX)…\(notch.maxX)] \
+                Notch overflow budget: screen.maxX=\(screen.frame.maxX) notch=\(notchLog) \
                 rightBoundary=\(rightBoundary) availableWidth=\(availableWidth) userSpacing=\(userSpacing) \
                 visibleUIDs.count=\(visibleUIDs.count) \
                 nonProfileCount=\(nonProfileCount) nonProfileFootprint=\(nonProfileFootprint) \
