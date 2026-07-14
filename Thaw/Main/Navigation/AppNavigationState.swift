@@ -13,7 +13,6 @@ import Combine
 final class AppNavigationState: ObservableObject {
     enum SettingsDisclosure: Hashable {
         case advancedLayoutControls
-        case iconPreviews
     }
 
     @Published var isAppFrontmost = false

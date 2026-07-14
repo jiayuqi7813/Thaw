@@ -49,10 +49,7 @@ struct MenuBarLayoutSettingsPane: View {
                 settings: appState.settings.advanced,
                 isHidingUnavailable: isHidingUnavailable
             )
-            LayoutIconPreviewControls(
-                settings: appState.settings.advanced,
-                navigationState: appState.navigationState
-            )
+            LayoutIconPreviewControls(settings: appState.settings.advanced)
 
             if canArrangeLayout {
                 if #available(macOS 27, *) {
@@ -96,11 +93,7 @@ struct MenuBarLayoutSettingsPane: View {
 
 struct LayoutIconPreviewControls: View {
     @ObservedObject var settings: AdvancedSettings
-    @ObservedObject var navigationState: AppNavigationState
     @State private var labelWidth: CGFloat = 0
-    @State private var isExpanded = false
-
-    static let defaultsExpanded = false
 
     private var fpsBinding: Binding<Double> {
         Binding(
@@ -126,21 +119,6 @@ struct LayoutIconPreviewControls: View {
                     }
             }
             .annotation("How often animated menu bar icons are refreshed in panels. Higher values are smoother but use more CPU.")
-
-            if #available(macOS 27, *) {
-                DisclosureGroup("Advanced capture options", isExpanded: $isExpanded) {
-                    Toggle("Use live icon capture", isOn: $settings.useContinuousMenuBarCapture)
-                        .annotation("Live capture can keep animated previews up to date, but may show the screen recording indicator and reflow the menu bar.")
-                        .padding(.top, 10)
-                }
-            }
-        }
-        .onChange(of: navigationState.requestedSettingsDisclosure, initial: true) { _, _ in
-            guard SettingsSearchNavigation.consumeDisclosure(
-                .iconPreviews,
-                navigationState: navigationState
-            ) else { return }
-            isExpanded = true
         }
     }
 }
@@ -183,10 +161,10 @@ private struct LayoutBarsSection: View {
 
     var body: some View {
         IceSection {
+            Text("Arrange menu bar items")
+        } content: {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Arrange menu bar items")
-                        .font(.headline)
                     Text("Drag items between sections. Move New Items to choose where future items appear.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
@@ -200,7 +178,8 @@ private struct LayoutBarsSection: View {
                         if let menuBarSection = appState.menuBarManager.section(withName: section), menuBarSection.isEnabled {
                             VStack(alignment: .leading) {
                                 Text(section.localized)
-                                    .font(.headline)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.secondary)
                                     .padding(.leading, 8)
                                 LayoutBar(imageCache: appState.imageCache, section: section)
                             }
@@ -289,21 +268,18 @@ private struct LayoutSystemItemControl: View {
 
     var body: some View {
         IceSection {
-            VStack(alignment: .leading, spacing: 12) {
-                Toggle(isOn: $isEnabled) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Allow hiding macOS system items")
-                            .font(.headline)
-                        Text("Allows items such as Clock, Control Center, and Siri to be moved into hidden sections.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
+            Toggle(isOn: $isEnabled) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Allow hiding macOS system items")
+                    Text("Allows items such as Clock, Control Center, and Siri to be moved into hidden sections.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
-                Text("Note: When Thaw Bar is off, hidden Clock, Control Center, and Siri stay anchored at the right side of the layout. You can still change whether they are visible or hidden.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
             }
+            Text("Note: When Thaw Bar is off, hidden Clock, Control Center, and Siri stay anchored at the right side of the layout. You can still change whether they are visible or hidden.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
@@ -322,7 +298,8 @@ struct LayoutAdvancedControls: View {
                 VStack(alignment: .leading, spacing: 18) {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Overflow handling")
-                            .font(.headline)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.secondary)
 
                         Toggle(
                             "Move items that don't fit into Hidden",
@@ -337,7 +314,8 @@ struct LayoutAdvancedControls: View {
 
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Compatibility and performance")
-                            .font(.headline)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.secondary)
 
                         Toggle(
                             "Use LCS sorting on notched displays",
@@ -354,6 +332,9 @@ struct LayoutAdvancedControls: View {
                                 }
                             }
                             .annotation("How long Thaw waits for macOS to apply a menu bar reorder before continuing with any remaining layout work.")
+
+                            Toggle("Use live icon capture", isOn: $settings.useContinuousMenuBarCapture)
+                                .annotation("Live capture can keep animated previews up to date, but may show the screen recording indicator and reflow the menu bar.")
                         }
                     }
                 }
@@ -384,16 +365,14 @@ private struct LayoutResetControls: View {
     @State private var status: ResetStatus?
 
     var body: some View {
-        IceSection(options: [.isBordered]) {
+        IceSection {
+            Text("Reset menu bar layout")
+        } content: {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .top, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Reset menu bar layout")
-                            .font(.headline)
-                        Text("Moves every movable item except the \(Constants.displayName) icon to the selected section — just like a fresh install.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
+                    Text("Moves every movable item except the \(Constants.displayName) icon to the selected section — just like a fresh install.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                     Spacer(minLength: 16)
                     Button {
                         isConfirming = true
