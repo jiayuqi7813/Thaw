@@ -429,7 +429,9 @@ private struct LayoutResetControls: View {
                 case .hidden: try await itemManager.resetLayoutToFreshState()
                 case .alwaysHidden: try await itemManager.resetLayoutToAlwaysHidden()
                 }
-                status = failures == 0 ? .success(target) : .partialFailure(failures)
+                let newStatus: ResetStatus = failures == 0 ? .success(target) : .partialFailure(failures)
+                status = newStatus
+                AccessibilityAnnouncements.post(newStatus.message)
             } catch {
                 status = .failure(error.localizedDescription)
             }

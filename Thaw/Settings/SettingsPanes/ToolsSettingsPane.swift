@@ -223,10 +223,10 @@ struct ToolsSettingsPane: View {
             switch action {
             case .resetSettings:
                 appState.settings.resetAllSettingsToDefaults()
-                statusMessage = String(localized: "Settings were reset to defaults.")
+                reportSuccess(String(localized: "Settings were reset to defaults."))
             case .resetControlCenter:
                 try await MaintenanceTools.resetControlCenterPreferences()
-                statusMessage = String(localized: "Control Center preferences were reset.")
+                reportSuccess(String(localized: "Control Center preferences were reset."))
             case .quitAndClearCache:
                 await appState.imageCache.suspendDiskPersistenceForReset()
                 do {
