@@ -6,6 +6,7 @@
 //  Copyright (Thaw) © 2026 Toni Förster
 //  Licensed under the GNU GPLv3
 
+import AppKit
 import SwiftUI
 
 // MARK: - SettingsView
@@ -47,13 +48,17 @@ struct SettingsView: View {
         colorScheme == .dark ? .identity : .regular
     }
 
-    @ViewBuilder
     private var sidebar: some View {
-        if #available(macOS 27, *) {
-            SettingsSearchSidebar(navigationState: navigationState)
-        } else {
-            SettingsSidebarPaneList(navigationState: navigationState)
-                .navigationSplitViewColumnWidth(ideal: 200, max: 240)
+        Group {
+            if #available(macOS 27, *) {
+                SettingsSearchSidebar(navigationState: navigationState)
+            } else {
+                SettingsSidebarPaneList(navigationState: navigationState)
+                    .navigationSplitViewColumnWidth(ideal: 200, max: 240)
+            }
+        }
+        .background {
+            SidebarTranslucencyBackground()
         }
     }
 
@@ -84,6 +89,29 @@ struct SettingsView: View {
         case .about:
             AboutSettingsPane(updatesManager: appState.updatesManager)
         }
+    }
+}
+
+// MARK: - SidebarTranslucencyBackground
+
+/// Uses behind-window blending so the sidebar samples the desktop rather than
+/// the system-owned `NavigationSplitView` backdrop beneath the SwiftUI layer.
+private struct SidebarTranslucencyBackground: NSViewRepresentable {
+    func makeNSView(context _: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        configure(view)
+        return view
+    }
+
+    func updateNSView(_ view: NSVisualEffectView, context _: Context) {
+        configure(view)
+    }
+
+    private func configure(_ view: NSVisualEffectView) {
+        view.material = .underWindowBackground
+        view.blendingMode = .behindWindow
+        view.state = .active
+        view.isEmphasized = false
     }
 }
 
@@ -196,5 +224,6 @@ private struct SettingsSidebarPaneList: View {
             }
         }
         .listStyle(.sidebar)
+        .scrollContentBackground(.hidden)
     }
 }
