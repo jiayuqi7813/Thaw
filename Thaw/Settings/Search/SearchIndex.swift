@@ -51,10 +51,9 @@ struct SearchEntry: Identifiable, @unchecked Sendable {
         switch id {
         case "advanced.enableMenuBarItemOverflow",
              "advanced.menuBarOrderFulfillmentTimeout",
+             "advanced.useContinuousMenuBarCapture",
              "advanced.useLCSSortingOnNotchedDisplays":
             .advancedLayoutControls
-        case "advanced.useContinuousMenuBarCapture":
-            .iconPreviews
         default:
             nil
         }
@@ -66,7 +65,7 @@ struct SearchEntry: Identifiable, @unchecked Sendable {
 enum SearchIndex {
     /// Entries indexed on every supported macOS release.
     private static let sharedEntries: [SearchEntry] = paneEntries + generalEntries + revealEntries + advancedEntries
-        + displayEntries + hotkeyEntries + layoutEntries
+        + displayEntries + hotkeyEntries + layoutEntries + appearanceEntries
 
     /// macOS 27-only settings rows, appended when the sidebar search UI is available.
     private static let macOS27Entries: [SearchEntry] = [
@@ -98,8 +97,8 @@ enum SearchIndex {
             titleText: "Use live icon capture",
             descriptionText: "Keeps animated previews up to date, but may show the screen recording indicator and reflow the menu bar.",
             pane: .menuBarLayout,
-            sectionKey: "Icon previews",
-            sectionText: "Icon previews",
+            sectionKey: "Advanced layout controls",
+            sectionText: "Advanced layout controls",
             keywords: ["capture", "live", "menu bar icons", "screen recording", "refresh", "stream"],
             property: .advanced("useContinuousMenuBarCapture")
         ),
@@ -195,7 +194,7 @@ enum SearchIndex {
             pane: .menuBarAppearance,
             sectionKey: nil,
             sectionText: nil,
-            keywords: ["appearance", "tint", "color", "shadow", "border", "shape", "background", "dark mode"],
+            keywords: ["appearance", "tint", "color", "shadow", "border", "shape", "background", "dark mode", "fill", "glass"],
             property: nil
         ),
         SearchEntry(
@@ -837,6 +836,77 @@ enum SearchIndex {
             sectionKey: nil,
             sectionText: nil,
             keywords: ["reset", "layout", "fresh", "visible", "hidden", "arrange"],
+            property: nil
+        ),
+    ]
+
+    // MARK: Appearance Settings
+
+    private static let appearanceEntries: [SearchEntry] = [
+        SearchEntry(
+            id: "appearance.isDynamic",
+            titleKey: "Use different settings for Light and Dark Mode",
+            titleText: "Use different settings for Light and Dark Mode",
+            descriptionText: "Edit Light and Dark separately. Switch modes below to customize each.",
+            pane: .menuBarAppearance,
+            sectionKey: nil,
+            sectionText: nil,
+            keywords: ["dynamic", "light", "dark", "appearance", "mode"],
+            property: nil
+        ),
+        SearchEntry(
+            id: "appearance.background",
+            titleKey: "Background",
+            titleText: "Background",
+            descriptionText: "Fills the menu bar behind or around a custom shape.",
+            pane: .menuBarAppearance,
+            sectionKey: "Background",
+            sectionText: "Background",
+            keywords: ["background", "style", "solid", "gradient", "glass", "adaptive", "opacity", "shadow", "border"],
+            property: nil
+        ),
+        SearchEntry(
+            id: "appearance.shape",
+            titleKey: "Shape",
+            titleText: "Shape",
+            descriptionText: nil,
+            pane: .menuBarAppearance,
+            sectionKey: "Shape",
+            sectionText: "Shape",
+            keywords: ["shape", "full", "split", "notch", "end cap", "margin", "inset"],
+            property: nil
+        ),
+        SearchEntry(
+            id: "appearance.isInset",
+            titleKey: "Inset on notched displays",
+            titleText: "Inset on notched displays",
+            descriptionText: "Shrinks the shape slightly so it sits below the notch.",
+            pane: .menuBarAppearance,
+            sectionKey: "Shape",
+            sectionText: "Shape",
+            keywords: ["inset", "notch", "shape"],
+            property: nil
+        ),
+        SearchEntry(
+            id: "appearance.shapeFill",
+            titleKey: "Shape fill",
+            titleText: "Shape fill",
+            descriptionText: "Colors the area inside the shape.",
+            pane: .menuBarAppearance,
+            sectionKey: "Shape fill",
+            sectionText: "Shape fill",
+            keywords: ["tint", "fill", "style", "solid", "gradient", "glass", "adaptive", "opacity", "shadow", "border"],
+            property: nil
+        ),
+        SearchEntry(
+            id: "appearance.reset",
+            titleKey: "Reset Appearance",
+            titleText: "Reset Appearance",
+            descriptionText: "Restore the default menu bar appearance.",
+            pane: .menuBarAppearance,
+            sectionKey: nil,
+            sectionText: nil,
+            keywords: ["reset", "appearance", "default"],
             property: nil
         ),
     ]

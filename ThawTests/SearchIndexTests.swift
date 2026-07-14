@@ -66,12 +66,13 @@ final class SearchIndexTests: XCTestCase {
     }
 
     @available(macOS 27, *)
-    func testLiveCaptureResolvesIconPreviewDisclosure() throws {
+    func testLiveCaptureResolvesAdvancedLayoutDisclosure() throws {
         let liveCapture = try XCTUnwrap(SearchIndex.entries.first { $0.id == "advanced.useContinuousMenuBarCapture" })
 
         XCTAssertEqual(liveCapture.titleText, "Use live icon capture")
         XCTAssertEqual(liveCapture.pane, .menuBarLayout)
-        XCTAssertEqual(liveCapture.disclosure, .iconPreviews)
+        XCTAssertEqual(liveCapture.sectionText, "Advanced layout controls")
+        XCTAssertEqual(liveCapture.disclosure, .advancedLayoutControls)
     }
 
     func testIconRefreshRateRoutesToLayoutWithoutDisclosure() throws {
@@ -93,17 +94,15 @@ final class SearchIndexTests: XCTestCase {
 
         if #available(macOS 27, *) {
             let timeout = try XCTUnwrap(SearchIndex.entries.first { $0.id == "advanced.menuBarOrderFulfillmentTimeout" })
-            let nativeOverflow = try XCTUnwrap(SearchIndex.entries.first { $0.id == "advanced.enableExperimentalOverflowPrevention" })
+            let liveCapture = try XCTUnwrap(SearchIndex.entries.first { $0.id == "advanced.useContinuousMenuBarCapture" })
             XCTAssertEqual(timeout.titleText, "Reorder timeout")
             XCTAssertEqual(timeout.disclosure, .advancedLayoutControls)
-            XCTAssertEqual(nativeOverflow.titleText, "Keep visible items out of macOS overflow")
-            XCTAssertEqual(nativeOverflow.disclosure, .advancedLayoutControls)
+            XCTAssertEqual(liveCapture.disclosure, .advancedLayoutControls)
         }
     }
 
     func testDisclosuresDefaultCollapsed() {
         XCTAssertFalse(LayoutAdvancedControls.defaultsExpanded)
-        XCTAssertFalse(LayoutIconPreviewControls.defaultsExpanded)
     }
 
     // MARK: - Relevance Sort

@@ -16,19 +16,19 @@ struct SettingsSearchNavigationTests {
     @MainActor
     func samePaneResultConsumesDisclosureAndClearsQuery() {
         let state = AppNavigationState()
-        state.settingsNavigationIdentifier = .advanced
-        var query = "icon preview"
+        state.settingsNavigationIdentifier = .menuBarLayout
+        var query = "reorder timeout"
 
         SettingsSearchNavigation.selectSearchResult(
-            entry(pane: .advanced, disclosure: .iconPreviews),
+            entry(pane: .menuBarLayout, disclosure: .advancedLayoutControls),
             navigationState: state,
             query: &query
         )
 
-        #expect(state.settingsNavigationIdentifier == .advanced)
-        #expect(state.requestedSettingsDisclosure == .iconPreviews)
+        #expect(state.settingsNavigationIdentifier == .menuBarLayout)
+        #expect(state.requestedSettingsDisclosure == .advancedLayoutControls)
         #expect(query.isEmpty)
-        #expect(SettingsSearchNavigation.consumeDisclosure(.iconPreviews, navigationState: state))
+        #expect(SettingsSearchNavigation.consumeDisclosure(.advancedLayoutControls, navigationState: state))
         #expect(state.requestedSettingsDisclosure == nil)
     }
 
@@ -37,7 +37,7 @@ struct SettingsSearchNavigationTests {
     func crossPaneResultChangesPaneAndReplacesStaleDisclosure() {
         let state = AppNavigationState()
         state.settingsNavigationIdentifier = .advanced
-        state.requestedSettingsDisclosure = .iconPreviews
+        state.requestedSettingsDisclosure = .advancedLayoutControls
         var query = "reorder timeout"
 
         SettingsSearchNavigation.selectSearchResult(
@@ -56,7 +56,7 @@ struct SettingsSearchNavigationTests {
     func sidebarSelectionClearsStaleDisclosure() {
         let state = AppNavigationState()
         state.settingsNavigationIdentifier = .advanced
-        state.requestedSettingsDisclosure = .iconPreviews
+        state.requestedSettingsDisclosure = .advancedLayoutControls
 
         SettingsSearchNavigation.selectSidebarPane(.tools, navigationState: state)
 
@@ -69,24 +69,19 @@ struct SettingsSearchNavigationTests {
     func unchangedSidebarSelectionPreservesPendingDisclosure() {
         let state = AppNavigationState()
         state.settingsNavigationIdentifier = .advanced
-        state.requestedSettingsDisclosure = .iconPreviews
+        state.requestedSettingsDisclosure = .advancedLayoutControls
 
         SettingsSearchNavigation.selectSidebarPane(.advanced, navigationState: state)
 
-        #expect(state.requestedSettingsDisclosure == .iconPreviews)
+        #expect(state.requestedSettingsDisclosure == .advancedLayoutControls)
     }
 
     private func entry(
         pane: SettingsNavigationIdentifier,
-        disclosure: AppNavigationState.SettingsDisclosure
+        disclosure _: AppNavigationState.SettingsDisclosure
     ) -> SearchEntry {
-        let id = switch disclosure {
-        case .advancedLayoutControls: "advanced.menuBarOrderFulfillmentTimeout"
-        case .iconPreviews: "advanced.useContinuousMenuBarCapture"
-        }
-
-        return SearchEntry(
-            id: id,
+        SearchEntry(
+            id: "advanced.menuBarOrderFulfillmentTimeout",
             titleKey: "Test",
             titleText: "Test",
             descriptionText: nil,
