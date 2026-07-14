@@ -18,6 +18,8 @@ struct MenuBarAppearanceEditor: View {
     @ObservedObject var appearanceManager: MenuBarAppearanceManager
     @Environment(\.dismissWindow) private var dismissWindow
     @State private var isResetPromptPresented = false
+    @State private var editingAppearance = SystemAppearance.current
+    @State private var currentAppearance = SystemAppearance.current
 
     let location: Location
     let onDone: (() -> Void)?
@@ -67,10 +69,18 @@ struct MenuBarAppearanceEditor: View {
             }
 
             if appearanceManager.configuration.isDynamic {
-                LabeledBackgroundEditor(configuration: $appearanceManager.configuration, appearance: .light)
-                LabeledBackgroundEditor(configuration: $appearanceManager.configuration, appearance: .dark)
-            } else {
-                UnlabeledBackgroundEditor(configuration: $appearanceManager.configuration.staticConfiguration)
+                appearanceModePicker
+            }
+
+            IceSection {
+                Text("Background")
+            } content: {
+                UnlabeledAppearanceFillEditor(
+                    configuration: editedPartialConfiguration,
+                    fillKind: .background
+                )
+            } footer: {
+                Text("Fills the menu bar behind or around a custom shape.")
             }
 
             IceSection("Shape") {
@@ -79,11 +89,15 @@ struct MenuBarAppearanceEditor: View {
             }
 
             if appearanceManager.configuration.shapeKind != .noShape {
-                if appearanceManager.configuration.isDynamic {
-                    LabeledShapeEditor(configuration: $appearanceManager.configuration, appearance: .light)
-                    LabeledShapeEditor(configuration: $appearanceManager.configuration, appearance: .dark)
-                } else {
-                    StaticShapeEditor(configuration: $appearanceManager.configuration)
+                IceSection {
+                    Text("Shape fill")
+                } content: {
+                    UnlabeledAppearanceFillEditor(
+                        configuration: editedPartialConfiguration,
+                        fillKind: .shapeFill
+                    )
+                } footer: {
+                    Text("Colors the area inside the shape.")
                 }
             }
 
@@ -104,11 +118,84 @@ struct MenuBarAppearanceEditor: View {
                 settingsFooter
             }
         }
+        .onReceive(NSApp.publisher(for: \.effectiveAppearance)) { _ in
+            currentAppearance = .current
+        }
+        .onChange(of: appearanceManager.configuration.isDynamic) { _, isDynamic in
+            if isDynamic {
+                editingAppearance = currentAppearance
+            }
+        }
+        .resetAppearanceAlert(isPresented: $isResetPromptPresented) {
+            appearanceManager.configuration = .defaultConfiguration
+        }
     }
 
     private var isDynamicToggle: some View {
-        Toggle("Use dynamic appearance", isOn: $appearanceManager.configuration.isDynamic)
-            .annotation("Apply different settings based on the current system appearance.")
+        Toggle("Use different settings for Light and Dark Mode", isOn: $appearanceManager.configuration.isDynamic)
+            .annotation("Edit Light and Dark separately. Switch modes below to customize each.")
+    }
+
+    private var appearanceModePicker: some View {
+        IceSection {
+            LabeledContent("Editing") {
+                HStack(spacing: 8) {
+                    Picker("Appearance mode", selection: $editingAppearance) {
+                        Text("Light").tag(SystemAppearance.light)
+                        Text("Dark").tag(SystemAppearance.dark)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .fixedSize()
+
+                    if currentAppearance != editingAppearance {
+                        PreviewButton(appearance: editingAppearance)
+                    }
+
+                    Button(editingAppearance == .light ? "Copy from Dark" : "Copy from Light") {
+                        copyFromOppositeAppearance()
+                    }
+                    .buttonStyle(.borderless)
+                    .fixedSize()
+                }
+            }
+        }
+    }
+
+    private var editedPartialConfiguration: Binding<MenuBarAppearancePartialConfiguration> {
+        Binding(
+            get: {
+                if appearanceManager.configuration.isDynamic {
+                    switch editingAppearance {
+                    case .light: appearanceManager.configuration.lightModeConfiguration
+                    case .dark: appearanceManager.configuration.darkModeConfiguration
+                    }
+                } else {
+                    appearanceManager.configuration.staticConfiguration
+                }
+            },
+            set: { newValue in
+                if appearanceManager.configuration.isDynamic {
+                    switch editingAppearance {
+                    case .light: appearanceManager.configuration.lightModeConfiguration = newValue
+                    case .dark: appearanceManager.configuration.darkModeConfiguration = newValue
+                    }
+                } else {
+                    appearanceManager.configuration.staticConfiguration = newValue
+                }
+            }
+        )
+    }
+
+    private func copyFromOppositeAppearance() {
+        switch editingAppearance {
+        case .light:
+            appearanceManager.configuration.lightModeConfiguration =
+                appearanceManager.configuration.darkModeConfiguration
+        case .dark:
+            appearanceManager.configuration.darkModeConfiguration =
+                appearanceManager.configuration.lightModeConfiguration
+        }
     }
 
     @ViewBuilder
@@ -130,17 +217,6 @@ struct MenuBarAppearanceEditor: View {
                         Spacer()
                         Button("Reset Appearance", role: .destructive) {
                             isResetPromptPresented = true
-                        }
-                        .alert("Reset Appearance", isPresented: $isResetPromptPresented) {
-                            Button("Cancel", role: .cancel) {
-                                isResetPromptPresented = false
-                            }
-                            Button("Reset", role: .destructive) {
-                                appearanceManager.configuration = .defaultConfiguration
-                                isResetPromptPresented = false
-                            }
-                        } message: {
-                            Text("This action cannot be undone.")
                         }
                     }
                 }
@@ -167,17 +243,6 @@ struct MenuBarAppearanceEditor: View {
                 Button("Reset") {
                     isResetPromptPresented = true
                 }
-                .alert("Reset Appearance", isPresented: $isResetPromptPresented) {
-                    Button("Cancel", role: .cancel) {
-                        isResetPromptPresented = false
-                    }
-                    Button("Reset", role: .destructive) {
-                        appearanceManager.configuration = .defaultConfiguration
-                        isResetPromptPresented = false
-                    }
-                } message: {
-                    Text("This action cannot be undone.")
-                }
             }
         }
         .buttonBorderShape(.capsule)
@@ -193,352 +258,264 @@ struct MenuBarAppearanceEditor: View {
     private var isInset: some View {
         if appearanceManager.configuration.shapeKind != .noShape {
             Toggle(
-                "Use inset shape on screens with notch",
+                "Inset on notched displays",
                 isOn: $appearanceManager.configuration.isInset
             )
+            .annotation("Shrinks the shape slightly so it sits below the notch.")
         }
     }
 }
 
-// MARK: - Background Editors
+// MARK: - Reset Alert
 
-private struct UnlabeledBackgroundEditor: View {
+private extension View {
+    func resetAppearanceAlert(
+        isPresented: Binding<Bool>,
+        onReset: @escaping () -> Void
+    ) -> some View {
+        alert("Reset Appearance", isPresented: isPresented) {
+            Button("Cancel", role: .cancel) {
+                isPresented.wrappedValue = false
+            }
+            Button("Reset", role: .destructive) {
+                onReset()
+                isPresented.wrappedValue = false
+            }
+        } message: {
+            Text("This action cannot be undone.")
+        }
+    }
+}
+
+// MARK: - Appearance Fill Editor
+
+private enum AppearanceFillKind {
+    case background
+    case shapeFill
+}
+
+/// Shared Style / Effect / Opacity / Shadow / Border controls for background
+/// and shape fill. The two surfaces use parallel fields on the partial
+/// configuration but present the same editing affordances.
+private struct UnlabeledAppearanceFillEditor: View {
     @Binding var configuration: MenuBarAppearancePartialConfiguration
-    /// When `false`, renders controls without a titled section so a parent
-    /// (e.g. Light/Dark) can own the chrome.
-    var showsSectionChrome: Bool = true
+    let fillKind: AppearanceFillKind
 
-    @ViewBuilder
-    private var controls: some View {
+    var body: some View {
         styleSection
-        backgroundBorderToggle
-        if configuration.backgroundHasBorder {
-            backgroundBorderColor
-            backgroundBorderWidth
+        borderToggle
+        if hasBorder {
+            borderColor
+            borderWidth
         }
     }
 
     @ViewBuilder
     private var styleSection: some View {
-        backgroundPicker
-        if configuration.backgroundKind != .none, configuration.backgroundKind != .glass {
-            backgroundOpacity
+        stylePicker
+        if showsOpacity {
+            opacitySlider
         }
-        if configuration.backgroundKind == .glass {
-            LabeledContent("Effect") {
-                IcePicker("Glass Style", selection: $configuration.backgroundGlassStyle) {
-                    ForEach(MenuBarGlassStyle.allCases, id: \.self) { style in
-                        Text(style.localized).tag(style)
+        if showsGlassStyle {
+            glassStylePicker
+        }
+        shadowToggle
+    }
+
+    @ViewBuilder
+    private var stylePicker: some View {
+        switch fillKind {
+        case .background:
+            LabeledContent("Style") {
+                HStack {
+                    IcePicker("Background", selection: $configuration.backgroundKind) {
+                        ForEach(MenuBarBackgroundKind.allCases, id: \.self) { kind in
+                            Text(kind.localized).tag(kind)
+                        }
                     }
+                    .labelsHidden()
+
+                    backgroundColorControls
                 }
-                .labelsHidden()
+                .frame(height: 24)
             }
-        }
-        backgroundShadowToggle
-    }
-
-    var body: some View {
-        if showsSectionChrome {
-            IceSection("Background") {
-                controls
-            }
-        } else {
-            controls
-        }
-    }
-
-    private var backgroundPicker: some View {
-        LabeledContent("Style") {
-            HStack {
-                IcePicker("Background", selection: $configuration.backgroundKind) {
-                    ForEach(MenuBarBackgroundKind.allCases, id: \.self) { kind in
-                        Text(kind.localized).tag(kind)
+        case .shapeFill:
+            LabeledContent("Style") {
+                HStack {
+                    IcePicker("Shape fill", selection: $configuration.tintKind) {
+                        ForEach(MenuBarTintKind.allCases) { tintKind in
+                            Text(tintKind.localized).tag(tintKind)
+                        }
                     }
-                }
-                .labelsHidden()
+                    .labelsHidden()
 
-                switch configuration.backgroundKind {
-                case .none:
-                    EmptyView()
-                case .solid:
-                    ColorPicker(
-                        "Background",
-                        selection: $configuration.backgroundColor,
-                        supportsOpacity: false
-                    )
-                    .labelsHidden()
-                case .gradient:
-                    IceGradientPicker(
-                        "Background",
-                        gradient: $configuration.backgroundGradient,
-                        supportsOpacity: false
-                    )
-                    .labelsHidden()
-                case .glass:
-                    EmptyView()
-                case .adaptive:
-                    EmptyView()
+                    shapeFillColorControls
                 }
+                .frame(height: 24)
             }
-            .frame(height: 24)
         }
     }
 
-    private var backgroundOpacity: some View {
+    @ViewBuilder
+    private var backgroundColorControls: some View {
+        switch configuration.backgroundKind {
+        case .none, .glass, .adaptive:
+            EmptyView()
+        case .solid:
+            ColorPicker(
+                "Background",
+                selection: $configuration.backgroundColor,
+                supportsOpacity: false
+            )
+            .labelsHidden()
+        case .gradient:
+            IceGradientPicker(
+                "Background",
+                gradient: $configuration.backgroundGradient,
+                supportsOpacity: false
+            )
+            .labelsHidden()
+        }
+    }
+
+    @ViewBuilder
+    private var shapeFillColorControls: some View {
+        switch configuration.tintKind {
+        case .noTint, .glass, .adaptive:
+            EmptyView()
+        case .solid:
+            ColorPicker(
+                "Shape fill",
+                selection: $configuration.tintColor,
+                supportsOpacity: false
+            )
+            .labelsHidden()
+        case .gradient:
+            IceGradientPicker(
+                "Shape fill",
+                gradient: $configuration.tintGradient,
+                supportsOpacity: false
+            )
+            .labelsHidden()
+        }
+    }
+
+    private var glassStylePicker: some View {
+        LabeledContent("Effect") {
+            IcePicker("Glass Style", selection: glassStyleBinding) {
+                ForEach(MenuBarGlassStyle.allCases, id: \.self) { style in
+                    Text(style.localized).tag(style)
+                }
+            }
+            .labelsHidden()
+        }
+    }
+
+    private var opacitySlider: some View {
         LabeledContent("Opacity") {
             IceSlider(
-                value: $configuration.backgroundOpacity,
+                value: opacityBinding,
                 in: 0 ... 1,
                 step: 0.05,
                 showsValue: false
             ) {
-                Text(configuration.backgroundOpacity, format: .percent.precision(.fractionLength(0)))
-            }
-        }
-    }
-
-    private var backgroundShadowToggle: some View {
-        Toggle("Shadow", isOn: $configuration.backgroundHasShadow)
-    }
-
-    private var backgroundBorderToggle: some View {
-        Toggle("Border", isOn: $configuration.backgroundHasBorder)
-    }
-
-    @ViewBuilder
-    private var backgroundBorderColor: some View {
-        if configuration.backgroundHasBorder {
-            ColorPicker(
-                "Border Color",
-                selection: $configuration.backgroundBorderColor,
-                supportsOpacity: true
-            )
-        }
-    }
-
-    @ViewBuilder
-    private var backgroundBorderWidth: some View {
-        if configuration.backgroundHasBorder {
-            IcePicker(
-                "Border Width",
-                selection: $configuration.backgroundBorderWidth
-            ) {
-                Text(verbatim: "1").tag(1.0)
-                Text(verbatim: "2").tag(2.0)
-                Text(verbatim: "3").tag(3.0)
-            }
-        }
-    }
-}
-
-private struct LabeledBackgroundEditor: View {
-    @Binding var configuration: MenuBarAppearanceConfigurationV2
-    @State private var currentAppearance = SystemAppearance.current
-    @State private var textFrame = CGRect.zero
-
-    let appearance: SystemAppearance
-
-    var body: some View {
-        IceSection(options: .plain) {
-            labelStack
-        } content: {
-            UnlabeledBackgroundEditor(configuration: binding, showsSectionChrome: false)
-        }
-        .onReceive(NSApp.publisher(for: \.effectiveAppearance)) { _ in
-            currentAppearance = .current
-        }
-    }
-
-    private var labelStack: some View {
-        HStack {
-            Text(appearance == .light ? "Light" : "Dark")
-                .font(.headline)
-                .onFrameChange(update: $textFrame)
-
-            if currentAppearance != appearance {
-                PreviewButton(appearance: appearance)
-            }
-        }
-        .frame(height: textFrame.height)
-    }
-
-    private var binding: Binding<MenuBarAppearancePartialConfiguration> {
-        switch appearance {
-        case .light: $configuration.lightModeConfiguration
-        case .dark: $configuration.darkModeConfiguration
-        }
-    }
-}
-
-// MARK: - Shape Tint Editors
-
-private struct UnlabeledShapeEditor: View {
-    @Binding var configuration: MenuBarAppearancePartialConfiguration
-    var showsSectionChrome: Bool = true
-
-    @ViewBuilder
-    private var controls: some View {
-        tintPicker
-        tintOpacity
-        shadowToggle
-        borderToggle
-        borderColor
-        borderWidth
-    }
-
-    var body: some View {
-        if showsSectionChrome {
-            IceSection {
-                controls
-            }
-        } else {
-            controls
-        }
-    }
-
-    private var tintPicker: some View {
-        LabeledContent("Tint") {
-            HStack {
-                IcePicker("Tint", selection: $configuration.tintKind) {
-                    ForEach(MenuBarTintKind.allCases) { tintKind in
-                        Text(tintKind.localized).tag(tintKind)
-                    }
-                }
-                .labelsHidden()
-
-                switch configuration.tintKind {
-                case .noTint:
-                    EmptyView()
-                case .solid:
-                    ColorPicker(
-                        configuration.tintKind.localized,
-                        selection: $configuration.tintColor,
-                        supportsOpacity: false
-                    )
-                    .labelsHidden()
-                case .gradient:
-                    IceGradientPicker(
-                        configuration.tintKind.localized,
-                        gradient: $configuration.tintGradient,
-                        supportsOpacity: false
-                    )
-                    .labelsHidden()
-                case .glass:
-                    EmptyView()
-                case .adaptive:
-                    EmptyView()
-                }
-            }
-            .frame(height: 24)
-        }
-    }
-
-    @ViewBuilder
-    private var tintOpacity: some View {
-        if configuration.tintKind == .glass {
-            LabeledContent("Effect") {
-                IcePicker("Glass Style", selection: $configuration.tintGlassStyle) {
-                    ForEach(MenuBarGlassStyle.allCases, id: \.self) { style in
-                        Text(style.localized).tag(style)
-                    }
-                }
-                .labelsHidden()
-            }
-        } else if configuration.tintKind != .noTint {
-            LabeledContent("Opacity") {
-                IceSlider(
-                    value: $configuration.tintOpacity,
-                    in: 0 ... 1,
-                    step: 0.05,
-                    showsValue: false
-                ) {
-                    Text(configuration.tintOpacity, format: .percent.precision(.fractionLength(0)))
-                }
+                Text(opacityBinding.wrappedValue, format: .percent.precision(.fractionLength(0)))
             }
         }
     }
 
     private var shadowToggle: some View {
-        Toggle("Shadow", isOn: $configuration.hasShadow)
+        Toggle("Shadow", isOn: shadowBinding)
     }
 
     private var borderToggle: some View {
-        Toggle("Border", isOn: $configuration.hasBorder)
+        Toggle("Border", isOn: borderBinding)
     }
 
-    @ViewBuilder
     private var borderColor: some View {
-        if configuration.hasBorder {
-            ColorPicker(
-                "Border Color",
-                selection: $configuration.borderColor,
-                supportsOpacity: true
-            )
-        }
+        ColorPicker(
+            "Border Color",
+            selection: borderColorBinding,
+            supportsOpacity: true
+        )
     }
 
-    @ViewBuilder
     private var borderWidth: some View {
-        if configuration.hasBorder {
-            IcePicker(
-                "Border Width",
-                selection: $configuration.borderWidth
-            ) {
-                Text(verbatim: "1").tag(1.0)
-                Text(verbatim: "2").tag(2.0)
-                Text(verbatim: "3").tag(3.0)
-            }
-        }
-    }
-}
-
-private struct LabeledShapeEditor: View {
-    @Binding var configuration: MenuBarAppearanceConfigurationV2
-    @State private var currentAppearance = SystemAppearance.current
-    @State private var textFrame = CGRect.zero
-
-    let appearance: SystemAppearance
-
-    var body: some View {
-        IceSection(options: .plain) {
-            labelStack
-        } content: {
-            partialEditor
-        }
-        .onReceive(NSApp.publisher(for: \.effectiveAppearance)) { _ in
-            currentAppearance = .current
+        IcePicker(
+            "Border Width",
+            selection: borderWidthBinding
+        ) {
+            Text(verbatim: "1").tag(1.0)
+            Text(verbatim: "2").tag(2.0)
+            Text(verbatim: "3").tag(3.0)
         }
     }
 
-    private var labelStack: some View {
-        HStack {
-            Text(appearance == .light ? "Light" : "Dark")
-                .font(.headline)
-                .onFrameChange(update: $textFrame)
+    // MARK: Kind-specific bindings
 
-            if currentAppearance != appearance {
-                PreviewButton(appearance: appearance)
-            }
-        }
-        .frame(height: textFrame.height)
-    }
-
-    @ViewBuilder
-    private var partialEditor: some View {
-        switch appearance {
-        case .light:
-            UnlabeledShapeEditor(configuration: $configuration.lightModeConfiguration, showsSectionChrome: false)
-        case .dark:
-            UnlabeledShapeEditor(configuration: $configuration.darkModeConfiguration, showsSectionChrome: false)
+    private var showsOpacity: Bool {
+        switch fillKind {
+        case .background:
+            configuration.backgroundKind != .none && configuration.backgroundKind != .glass
+        case .shapeFill:
+            configuration.tintKind != .noTint && configuration.tintKind != .glass
         }
     }
-}
 
-private struct StaticShapeEditor: View {
-    @Binding var configuration: MenuBarAppearanceConfigurationV2
+    private var showsGlassStyle: Bool {
+        switch fillKind {
+        case .background: configuration.backgroundKind == .glass
+        case .shapeFill: configuration.tintKind == .glass
+        }
+    }
 
-    var body: some View {
-        UnlabeledShapeEditor(configuration: $configuration.staticConfiguration)
+    private var hasBorder: Bool {
+        switch fillKind {
+        case .background: configuration.backgroundHasBorder
+        case .shapeFill: configuration.hasBorder
+        }
+    }
+
+    private var opacityBinding: Binding<Double> {
+        switch fillKind {
+        case .background: $configuration.backgroundOpacity
+        case .shapeFill: $configuration.tintOpacity
+        }
+    }
+
+    private var glassStyleBinding: Binding<MenuBarGlassStyle> {
+        switch fillKind {
+        case .background: $configuration.backgroundGlassStyle
+        case .shapeFill: $configuration.tintGlassStyle
+        }
+    }
+
+    private var shadowBinding: Binding<Bool> {
+        switch fillKind {
+        case .background: $configuration.backgroundHasShadow
+        case .shapeFill: $configuration.hasShadow
+        }
+    }
+
+    private var borderBinding: Binding<Bool> {
+        switch fillKind {
+        case .background: $configuration.backgroundHasBorder
+        case .shapeFill: $configuration.hasBorder
+        }
+    }
+
+    private var borderColorBinding: Binding<CGColor> {
+        switch fillKind {
+        case .background: $configuration.backgroundBorderColor
+        case .shapeFill: $configuration.borderColor
+        }
+    }
+
+    private var borderWidthBinding: Binding<Double> {
+        switch fillKind {
+        case .background: $configuration.backgroundBorderWidth
+        case .shapeFill: $configuration.borderWidth
+        }
     }
 }
 

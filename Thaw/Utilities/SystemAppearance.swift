@@ -9,7 +9,7 @@
 import SwiftUI
 
 /// A value corresponding to a light or dark appearance.
-enum SystemAppearance {
+enum SystemAppearance: Hashable {
     /// A light appearance.
     case light
     /// A dark appearance.

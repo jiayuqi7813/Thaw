@@ -177,27 +177,55 @@ private final class MenuBarAppearanceEditorHostingController: NSHostingControlle
 
     func updatePreferredContentSize() {
         guard let appState else {
-            preferredContentSize = NSSize(width: 525, height: 745)
+            preferredContentSize = NSSize(width: 525, height: 620)
             return
         }
         let configuration = appState.appearanceManager.configuration
-        let baseHeight: CGFloat = configuration.isDynamic ? 755 : 555
-        let shapeBonus: CGFloat = configuration.shapeKind == .noShape ? 0 : 105
-        let headingBonus: CGFloat = 32
-        let tintOpacityBonus: CGFloat = {
-            guard configuration.shapeKind != .noShape, !configuration.isDynamic, configuration.current.tintKind != .noTint else { return 0 }
-            return 80
-        }()
-        let backgroundBonus: CGFloat = {
-            guard configuration.current.backgroundKind != .none else { return 0 }
-            var height: CGFloat = 45 // style picker + opacity + shadow
-            if configuration.current.backgroundHasBorder {
-                height += 80 // border color + width
-            }
-            return height
-        }()
-        preferredContentSize = NSSize(width: 525, height: baseHeight + shapeBonus + headingBonus + tintOpacityBonus + backgroundBonus)
+
+        // Single-editor layout: dynamic mode only adds the mode picker row.
+        var height: CGFloat = configuration.isDynamic ? 610 : 555
+        height += 32 // panel heading
+
+        let partials: [MenuBarAppearancePartialConfiguration] = if configuration.isDynamic {
+            // Size for the taller Light/Dark config so switching modes doesn't clip.
+            [configuration.lightModeConfiguration, configuration.darkModeConfiguration]
+        } else {
+            [configuration.staticConfiguration]
+        }
+
+        if configuration.shapeKind != .noShape {
+            height += 105 // shape chrome + margins
+            height += 90 // shape fill section header + style row
+            height += partials.map { Self.shapeFillExtraHeight(for: $0) }.max() ?? 0
+        }
+
+        height += partials.map { Self.backgroundExtraHeight(for: $0) }.max() ?? 0
+
+        preferredContentSize = NSSize(width: 525, height: height)
         view.setFrameSize(preferredContentSize)
+    }
+
+    private static func shapeFillExtraHeight(for partial: MenuBarAppearancePartialConfiguration) -> CGFloat {
+        var height: CGFloat = 0
+        if partial.tintKind != .noTint, partial.tintKind != .glass {
+            height += 40 // opacity
+        }
+        if partial.tintKind == .glass {
+            height += 40 // glass effect
+        }
+        if partial.hasBorder {
+            height += 80 // border color + width
+        }
+        return height
+    }
+
+    private static func backgroundExtraHeight(for partial: MenuBarAppearancePartialConfiguration) -> CGFloat {
+        guard partial.backgroundKind != .none else { return 0 }
+        var height: CGFloat = 45 // opacity/effect + shadow
+        if partial.backgroundHasBorder {
+            height += 80 // border color + width
+        }
+        return height
     }
 }
 
