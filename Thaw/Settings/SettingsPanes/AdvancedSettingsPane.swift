@@ -26,66 +26,29 @@ struct SecondsLabel: View {
     }
 }
 
+@available(macOS 27, *)
 struct IconPreviewSettingsSection: View {
     @ObservedObject var settings: AdvancedSettings
     @ObservedObject var navigationState: AppNavigationState
     @State private var isExpanded = false
-    @State private var labelWidth: CGFloat = 0
 
     static let defaultsExpanded = false
-
-    private var fpsBinding: Binding<Double> {
-        Binding(
-            get: {
-                let interval = settings.iconRefreshInterval
-                return interval > 0 ? (1.0 / interval).rounded() : 0
-            },
-            set: { settings.iconRefreshInterval = $0 > 0 ? 1.0 / $0 : 0 }
-        )
-    }
 
     var body: some View {
         IceSection {
             DisclosureGroup("Icon previews", isExpanded: $isExpanded) {
-                VStack(alignment: .leading, spacing: 14) {
-                    if #available(macOS 27, *) {
-                        Toggle("Use live icon capture", isOn: $settings.useContinuousMenuBarCapture)
-                            .annotation("Live capture can keep animated previews up to date, but may show the screen recording indicator and reflow the menu bar.")
-                    }
-
-                    LabeledContent {
-                        IceSlider(value: fpsBinding, in: 0 ... 30, step: 1) {
-                            Text(fpsBinding.wrappedValue > 0 ? "\(Int(fpsBinding.wrappedValue)) fps" : "Off")
-                        }
-                    } label: {
-                        Text("Animated preview refresh rate")
-                            .frame(minWidth: labelWidth, alignment: .leading)
-                            .onFrameChange { frame in
-                                labelWidth = max(labelWidth, frame.width)
-                            }
-                    }
-                    .disabled(!Self.refreshRateEnabledForCurrentOS(liveCaptureEnabled: settings.useContinuousMenuBarCapture))
-                    .annotation("Static previews refresh when a panel opens or the layout changes. With live capture, this controls how often animated previews refresh.")
-                }
-                .padding(.top, 10)
+                Toggle("Use live icon capture", isOn: $settings.useContinuousMenuBarCapture)
+                    .annotation("Live capture can keep animated previews up to date, but may show the screen recording indicator and reflow the menu bar.")
+                    .padding(.top, 10)
             }
         }
-        .onChange(of: navigationState.requestedSettingsDisclosure, initial: true) { _, disclosure in
-            guard disclosure == .iconPreviews else { return }
+        .onChange(of: navigationState.requestedSettingsDisclosure, initial: true) { _, _ in
+            guard SettingsSearchNavigation.consumeDisclosure(
+                .iconPreviews,
+                navigationState: navigationState
+            ) else { return }
             isExpanded = true
-            navigationState.requestedSettingsDisclosure = nil
         }
-    }
-
-    static func refreshRateEnabled(liveCaptureEnabled: Bool, isMacOS27: Bool) -> Bool {
-        !isMacOS27 || liveCaptureEnabled
-    }
-
-    private static func refreshRateEnabledForCurrentOS(liveCaptureEnabled: Bool) -> Bool {
-        if #available(macOS 27, *) {
-            return refreshRateEnabled(liveCaptureEnabled: liveCaptureEnabled, isMacOS27: true)
-        }
-        return refreshRateEnabled(liveCaptureEnabled: liveCaptureEnabled, isMacOS27: false)
     }
 }
 
@@ -120,10 +83,12 @@ struct AdvancedSettingsPane: View {
                     enableSecondaryContextMenuQuit
                 }
             }
-            IconPreviewSettingsSection(
-                settings: settings,
-                navigationState: appState.navigationState
-            )
+            if #available(macOS 27, *) {
+                IconPreviewSettingsSection(
+                    settings: settings,
+                    navigationState: appState.navigationState
+                )
+            }
             IceSection("Permissions") {
                 allPermissions
             }

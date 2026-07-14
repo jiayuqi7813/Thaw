@@ -51,7 +51,7 @@ struct SearchEntry: Identifiable, @unchecked Sendable {
         switch id {
         case "advanced.enableExperimentalOverflowPrevention", "advanced.menuBarOrderFulfillmentTimeout":
             .advancedLayoutControls
-        case "advanced.useContinuousMenuBarCapture", "advanced.iconRefreshInterval":
+        case "advanced.useContinuousMenuBarCapture":
             .iconPreviews
         default:
             nil
@@ -599,10 +599,10 @@ enum SearchIndex {
         ),
         SearchEntry(
             id: "advanced.iconRefreshInterval",
-            titleKey: "Animated preview refresh rate",
-            titleText: "Animated preview refresh rate",
-            descriptionText: "Static previews refresh when a panel opens or the layout changes. With live capture, this controls how often animated previews refresh.",
-            pane: .advanced,
+            titleKey: "Icon refresh rate",
+            titleText: "Icon refresh rate",
+            descriptionText: "Controls how often menu bar icon previews refresh while a panel is open for both one-shot and live capture.",
+            pane: .menuBarLayout,
             sectionKey: "Icon previews",
             sectionText: "Icon previews",
             keywords: ["icon", "refresh", "rate", "fps", "animated", "cpu"],

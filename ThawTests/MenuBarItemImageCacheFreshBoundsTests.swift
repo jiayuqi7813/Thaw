@@ -39,7 +39,7 @@ final class MenuBarItemImageCacheFreshBoundsTests: XCTestCase {
         XCTAssertEqual(captures.first?.bounds, liveBounds)
     }
 
-    func testVisibleCaptureRejectsCachedBoundsShiftedByOpaqueSlot() {
+    func testVisibleCaptureUsesCacheCycleBounds() {
         let item = makeItem()
         let useFreshBounds = MenuBarItemImageCache.shouldUseFreshBounds(
             for: .visible,
@@ -53,9 +53,30 @@ final class MenuBarItemImageCacheFreshBoundsTests: XCTestCase {
             screenFrame: nil
         )
 
-        XCTAssertTrue(useFreshBounds)
-        XCTAssertEqual(captures.first?.bounds, liveBounds)
-        XCTAssertNotEqual(captures.first?.bounds, cachedBounds)
+        XCTAssertFalse(useFreshBounds)
+        XCTAssertEqual(captures.first?.bounds, cachedBounds)
+        XCTAssertNotEqual(captures.first?.bounds, liveBounds)
+    }
+
+    func testRevealedConcealedCaptureUsesFreshBounds() {
+        XCTAssertTrue(
+            MenuBarItemImageCache.shouldUseFreshBounds(
+                for: .hidden,
+                revealedSection: .hidden
+            )
+        )
+        XCTAssertTrue(
+            MenuBarItemImageCache.shouldUseFreshBounds(
+                for: .hidden,
+                revealedSection: .alwaysHidden
+            )
+        )
+        XCTAssertTrue(
+            MenuBarItemImageCache.shouldUseFreshBounds(
+                for: .alwaysHidden,
+                revealedSection: .alwaysHidden
+            )
+        )
     }
 
     func testLittleSnitchResolvedItemIsExcludedFromCapture() {
@@ -166,6 +187,66 @@ final class MenuBarItemImageCacheFreshBoundsTests: XCTestCase {
         )
 
         XCTAssertTrue(captures.isEmpty)
+    }
+
+    @available(macOS 27, *)
+    func testCompleteCropAllowsOnePixelIntegralRoundingAtImageEdge() {
+        XCTAssertTrue(
+            MenuBarItemImageCache.isCompleteCrop(
+                expected: CGRect(x: -1, y: 0, width: 25, height: 22),
+                clamped: CGRect(x: 0, y: 0, width: 24, height: 22)
+            )
+        )
+    }
+
+    @available(macOS 27, *)
+    func testCompleteCropRejectsTruncatedHostingWindowFrame() {
+        XCTAssertFalse(
+            MenuBarItemImageCache.isCompleteCrop(
+                expected: CGRect(x: -6, y: 0, width: 30, height: 22),
+                clamped: CGRect(x: 0, y: 0, width: 24, height: 22)
+            )
+        )
+    }
+
+    @available(macOS 27, *)
+    func testCompleteCropRejectsMissingVerticalContent() {
+        XCTAssertFalse(
+            MenuBarItemImageCache.isCompleteCrop(
+                expected: CGRect(x: 0, y: 0, width: 24, height: 22),
+                clamped: CGRect(x: 0, y: 0, width: 24, height: 17)
+            )
+        )
+    }
+
+    @available(macOS 27, *)
+    func testStableCaptureBoundsAllowSubpixelAXJitter() {
+        XCTAssertTrue(
+            MenuBarItemImageCache.hasStableCaptureBounds(
+                before: CGRect(x: 100, y: 3, width: 24, height: 24),
+                after: CGRect(x: 100.5, y: 3, width: 24, height: 24)
+            )
+        )
+    }
+
+    @available(macOS 27, *)
+    func testStableCaptureBoundsRejectHorizontalReflow() {
+        XCTAssertFalse(
+            MenuBarItemImageCache.hasStableCaptureBounds(
+                before: CGRect(x: 100, y: 3, width: 24, height: 24),
+                after: CGRect(x: 124, y: 3, width: 24, height: 24)
+            )
+        )
+    }
+
+    @available(macOS 27, *)
+    func testStableCaptureBoundsRejectResizedSlot() {
+        XCTAssertFalse(
+            MenuBarItemImageCache.hasStableCaptureBounds(
+                before: CGRect(x: 100, y: 3, width: 24, height: 24),
+                after: CGRect(x: 100, y: 3, width: 48, height: 24)
+            )
+        )
     }
 
     private func makeItem(

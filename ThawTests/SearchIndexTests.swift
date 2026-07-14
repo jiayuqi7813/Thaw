@@ -66,15 +66,20 @@ final class SearchIndexTests: XCTestCase {
     }
 
     @available(macOS 27, *)
-    func testRenamedPreviewControlsResolveIconPreviewDisclosure() throws {
+    func testLiveCaptureResolvesIconPreviewDisclosure() throws {
         let liveCapture = try XCTUnwrap(SearchIndex.entries.first { $0.id == "advanced.useContinuousMenuBarCapture" })
-        let refreshRate = try XCTUnwrap(SearchIndex.entries.first { $0.id == "advanced.iconRefreshInterval" })
 
         XCTAssertEqual(liveCapture.titleText, "Use live icon capture")
-        XCTAssertEqual(refreshRate.titleText, "Animated preview refresh rate")
         XCTAssertEqual(liveCapture.pane, .advanced)
         XCTAssertEqual(liveCapture.disclosure, .iconPreviews)
-        XCTAssertEqual(refreshRate.disclosure, .iconPreviews)
+    }
+
+    func testIconRefreshRateRoutesToLayoutWithoutDisclosure() throws {
+        let refreshRate = try XCTUnwrap(SearchIndex.entries.first { $0.id == "advanced.iconRefreshInterval" })
+
+        XCTAssertEqual(refreshRate.titleText, "Icon refresh rate")
+        XCTAssertEqual(refreshRate.pane, .menuBarLayout)
+        XCTAssertNil(refreshRate.disclosure)
     }
 
     @available(macOS 27, *)
@@ -92,12 +97,6 @@ final class SearchIndexTests: XCTestCase {
     func testDisclosuresDefaultCollapsed() {
         XCTAssertFalse(LayoutAdvancedControls.defaultsExpanded)
         XCTAssertFalse(IconPreviewSettingsSection.defaultsExpanded)
-    }
-
-    func testAnimatedPreviewRefreshAvailabilityPreservesMacOS26Behavior() {
-        XCTAssertTrue(IconPreviewSettingsSection.refreshRateEnabled(liveCaptureEnabled: false, isMacOS27: false))
-        XCTAssertFalse(IconPreviewSettingsSection.refreshRateEnabled(liveCaptureEnabled: false, isMacOS27: true))
-        XCTAssertTrue(IconPreviewSettingsSection.refreshRateEnabled(liveCaptureEnabled: true, isMacOS27: true))
     }
 
     // MARK: - Relevance Sort

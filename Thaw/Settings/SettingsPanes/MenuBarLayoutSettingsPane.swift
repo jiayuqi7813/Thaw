@@ -37,6 +37,7 @@ struct MenuBarLayoutSettingsPane: View {
                 settings: appState.settings.advanced,
                 isHidingUnavailable: isHidingUnavailable
             )
+            LayoutIconRefreshControl(settings: appState.settings.advanced)
 
             if !ScreenCapture.cachedCheckPermissions() {
                 MissingLayoutPermissionView()
@@ -94,6 +95,38 @@ struct MenuBarLayoutSettingsPane: View {
                 appState.menuBarManager.sectionController?.refresh()
             }
         )
+    }
+}
+
+private struct LayoutIconRefreshControl: View {
+    @ObservedObject var settings: AdvancedSettings
+    @State private var labelWidth: CGFloat = 0
+
+    private var fpsBinding: Binding<Double> {
+        Binding(
+            get: {
+                let interval = settings.iconRefreshInterval
+                return interval > 0 ? (1.0 / interval).rounded() : 0
+            },
+            set: { settings.iconRefreshInterval = $0 > 0 ? 1.0 / $0 : 0 }
+        )
+    }
+
+    var body: some View {
+        IceSection("Icon previews") {
+            LabeledContent {
+                IceSlider(value: fpsBinding, in: 0 ... 30, step: 1) {
+                    Text(fpsBinding.wrappedValue > 0 ? "\(Int(fpsBinding.wrappedValue)) fps" : "Off")
+                }
+            } label: {
+                Text("Icon refresh rate")
+                    .frame(minWidth: labelWidth, alignment: .leading)
+                    .onFrameChange { frame in
+                        labelWidth = max(labelWidth, frame.width)
+                    }
+            }
+            .annotation("How often animated menu bar icons are refreshed in panels. Higher values are smoother but use more CPU.")
+        }
     }
 }
 

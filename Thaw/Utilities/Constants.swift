@@ -76,7 +76,6 @@ enum Constants {
     /// single operating-system compatibility policy.
     enum MenuBarTuning {
         static let imageCaptureObserverDebounceMilliseconds = 200
-        static let minimumLiveImageRefreshInterval: TimeInterval = 1
         /// Inner (leading) breathing room for the split trailing pill on
         /// macOS 27. The AX item frame starts the rounded cap flush with the
         /// inner glyph's border, so without this the leftmost icons (e.g.
