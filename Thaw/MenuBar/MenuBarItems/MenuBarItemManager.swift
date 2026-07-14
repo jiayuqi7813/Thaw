@@ -2059,6 +2059,13 @@ extension MenuBarItemManager {
                 MenuBarItemManager.diagLog.debug(
                     "Skipping saveSectionOrder; menu bar items span multiple displays (relocation in progress)"
                 )
+            } else if appState?.menuBarManager.sectionController?.overflowHiddenIdentifiers.isEmpty == false {
+                // Automatic overflow is presentation state. Persisting this
+                // effective cache would turn temporary Hidden membership into
+                // authored layout and make it survive after space returns.
+                MenuBarItemManager.diagLog.debug(
+                    "Skipping saveSectionOrder while automatic overflow is active"
+                )
             } else {
                 saveSectionOrder(from: context.cache)
             }
@@ -6202,15 +6209,15 @@ extension MenuBarItemManager {
             // `ordered` also keeps newly discovered items by appending them in
             // their current visual order until the user places them.
             let alwaysHiddenItems = controller.ordered(
-                ordinaryItems.filter { controller.section(for: $0) == .alwaysHidden },
+                ordinaryItems.filter { controller.authoredSection(for: $0.uniqueIdentifier) == .alwaysHidden },
                 in: .alwaysHidden
             )
             let hiddenItems = controller.ordered(
-                ordinaryItems.filter { controller.section(for: $0) == .hidden },
+                ordinaryItems.filter { controller.authoredSection(for: $0.uniqueIdentifier) == .hidden },
                 in: .hidden
             )
             let visibleItems = controller.ordered(
-                ordinaryItems.filter { controller.section(for: $0) == .visible },
+                ordinaryItems.filter { controller.authoredSection(for: $0.uniqueIdentifier) == .visible },
                 in: .visible
             )
             let reordered = RuntimePositionStore.applyControlItemOrder(
@@ -6589,24 +6596,30 @@ extension MenuBarItemManager {
             return false
         }
         guard let appState,
-              appState.settings.advanced.enableMenuBarItemOverflow,
               let controller = appState.menuBarManager.sectionController
         else {
             return false
         }
 
+        guard appState.settings.advanced.enableMenuBarItemOverflow else {
+            lastMacOS27OverflowRebalance = nil
+            return controller.setOverflowHiddenIdentifiers([])
+        }
+
         if !force,
+           controller.overflowHiddenIdentifiers.isEmpty,
            let last = lastMacOS27OverflowRebalance,
            Date().timeIntervalSince(last) < 1.0
         {
             return false
         }
 
-        let items: [MenuBarItem]
-        if let liveItems {
-            items = liveItems
+        let items: [MenuBarItem] = if let liveItems {
+            liveItems.filter { !$0.isSystemClone }
+        } else if !itemCache.managedItems.isEmpty {
+            itemCache.managedItems.filter { !$0.isSystemClone }
         } else {
-            items = (await MenuBarItem.getMenuBarItems(option: .activeSpace))
+            await (MenuBarItem.getMenuBarItems(option: .activeSpace))
                 .filter { !$0.isSystemClone }
         }
         guard let screen = NSScreen.screenWithActiveMenuBar ?? NSScreen.main else {
@@ -6671,10 +6684,10 @@ extension MenuBarItemManager {
             availableWidth -= visibleCtrl.bounds.width
         }
 
-        let visibleLive = items
+        let authoredVisibleByGeometry = items
             .filter { item in
                 !item.isControlItem
-                    && controller.section(for: item) == .visible
+                    && controller.authoredSection(for: item.uniqueIdentifier) == .visible
                     && isProfileItem(item)
             }
             .sorted { lhs, rhs in
@@ -6683,10 +6696,19 @@ extension MenuBarItemManager {
                 }
                 return lhs.bounds.midX < rhs.bounds.midX
             }
+        let recordedVisibleOrder = controller.sectionItemOrder[.visible]
+            ?? savedSectionOrder[MenuBarSection.Name.visible.rawValue]
+            ?? []
+        let visibleLive = MenuBarSectionController.overflowOrderedVisibleItems(
+            authoredVisibleByGeometry,
+            using: recordedVisibleOrder
+        )
 
-        let hiddenLive = items.filter { controller.section(for: $0) == .hidden && !$0.isControlItem }
+        let hiddenLive = items.filter {
+            controller.authoredSection(for: $0.uniqueIdentifier) == .hidden && !$0.isControlItem
+        }
         let alwaysHiddenLive = items.filter {
-            controller.section(for: $0) == .alwaysHidden && !$0.isControlItem
+            controller.authoredSection(for: $0.uniqueIdentifier) == .alwaysHidden && !$0.isControlItem
         }
 
         var desiredFiltered = visibleLive.map(\.uniqueIdentifier)
@@ -6715,7 +6737,7 @@ extension MenuBarItemManager {
         }
 
         let savedVisible = Set(
-            MenuBarItemTag.canonicalPersistentIdentifiers(savedSectionOrder["visible"] ?? [])
+            MenuBarItemTag.canonicalPersistentIdentifiers(recordedVisibleOrder)
         )
         let unmanagedUIDs = visibleLive
             .map(\.uniqueIdentifier)
@@ -6737,6 +6759,12 @@ extension MenuBarItemManager {
             """
         )
 
+        // A zero/negative/non-finite budget means screen geometry is unsettled,
+        // not that every automatically overflowed item suddenly fits.
+        guard availableWidth.isFinite, availableWidth > 0 else {
+            return false
+        }
+
         let overflowResult = LayoutSolver.planNotchOverflow(
             desiredFiltered: desiredFiltered,
             unmanagedUIDs: unmanagedUIDs,
@@ -6751,20 +6779,15 @@ extension MenuBarItemManager {
         )
 
         lastMacOS27OverflowRebalance = Date()
-
-        guard !overflowResult.overflowUIDs.isEmpty else {
-            return false
-        }
-
         let overflowSet = Set(overflowResult.overflowUIDs)
-        let toHide = visibleLive.filter { overflowSet.contains($0.uniqueIdentifier) }
-        guard !toHide.isEmpty else { return false }
-
-        MenuBarItemManager.diagLog.info(
-            "macOS 27 overflow: moving \(toHide.count) item(s) from visible to hidden"
-        )
-        controller.setSection(.hidden, items: toHide)
-        return true
+        let overflowItems = visibleLive.filter { overflowSet.contains($0.uniqueIdentifier) }
+        let didChange = controller.setOverflowHiddenItems(overflowItems)
+        if didChange {
+            MenuBarItemManager.diagLog.info(
+                "macOS 27 overflow: temporarily concealing \(overflowSet.count) authored-visible item(s)"
+            )
+        }
+        return didChange
     }
 
     /// macOS 27 profile/saved-order apply: writes section membership and order

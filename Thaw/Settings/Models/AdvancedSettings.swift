@@ -223,7 +223,18 @@ final class AdvancedSettings: ObservableObject {
             in: &c
         )
         $useLCSSortingOnNotchedDisplays.persistToDefaults(key: .useLCSSortingOnNotchedDisplays, in: &c)
-        $enableMenuBarItemOverflow.persistToDefaults(key: .enableMenuBarItemOverflow, in: &c)
+        $enableMenuBarItemOverflow.persistToDefaults(
+            key: .enableMenuBarItemOverflow,
+            sideEffect: { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    guard let itemManager = self?.appState?.itemManager else { return }
+                    if await itemManager.rebalanceMacOS27OverflowIfNeeded(force: true) {
+                        await itemManager.cacheItemsRegardless(skipRecentMoveCheck: true)
+                    }
+                }
+            },
+            in: &c
+        )
         $enableExperimentalSystemItemHiding.persistToDefaults(key: .enableExperimentalSystemItemHiding, in: &c)
         $enableExperimentalWindowHiding.persistToDefaults(key: .enableExperimentalWindowHiding, in: &c)
         $enableExperimentalOverflowPrevention.persistToDefaults(key: .enableExperimentalOverflowPrevention, in: &c)

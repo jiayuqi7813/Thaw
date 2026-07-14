@@ -1368,6 +1368,41 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
     }
 
     @MainActor
+    func testOverflowAfterVisibleDropKeepsDroppedItemAndEjectsPreviousEdgeItem() throws {
+        guard #available(macOS 27, *) else {
+            throw XCTSkip("MenuBarAgent overflow ordering is macOS 27-specific")
+        }
+
+        // MenuBarAgent initially publishes the freshly revealed item at the
+        // application-menu edge. The layout editor has already persisted the
+        // user's intended order with that item at the Control Center end.
+        let dropped = appItem(bundleID: "com.example.dropped", title: "Dropped", x: 0, windowID: 30)
+        let previousEdge = appItem(bundleID: "com.example.edge", title: "Edge", x: 24, windowID: 31)
+        let keeper = appItem(bundleID: "com.example.keeper", title: "Keeper", x: 48, windowID: 32)
+        let intendedOrder = [previousEdge.uniqueIdentifier, keeper.uniqueIdentifier, dropped.uniqueIdentifier]
+
+        let ordered = MenuBarSectionController.overflowOrderedVisibleItems(
+            [dropped, previousEdge, keeper],
+            using: intendedOrder
+        )
+        let hiddenControlUID = "thaw:HiddenControlItem"
+        let result = LayoutSolver.planNotchOverflow(
+            desiredFiltered: ordered.map(\.uniqueIdentifier) + [hiddenControlUID],
+            unmanagedUIDs: [],
+            controlUIDs: ControlUIDs(visible: nil, hidden: hiddenControlUID, alwaysHidden: nil),
+            sectionMap: Dictionary(uniqueKeysWithValues: ordered.map {
+                ($0.uniqueIdentifier, MenuBarSection.Name.visible.rawValue)
+            }),
+            uidWidths: Dictionary(uniqueKeysWithValues: ordered.map { ($0.uniqueIdentifier, 24) }),
+            availableWidth: 48
+        )
+
+        XCTAssertEqual(ordered.map(\.uniqueIdentifier), intendedOrder)
+        XCTAssertEqual(result.overflowUIDs, [previousEdge.uniqueIdentifier])
+        XCTAssertFalse(result.overflowUIDs.contains(dropped.uniqueIdentifier))
+    }
+
+    @MainActor
     func testVisibleOrderingKeepsMenuBarAgentItemsInLiveOrderWithoutSavedOrder() throws {
         guard #available(macOS 27, *) else {
             throw XCTSkip("MenuBarAgent anchoring is macOS 27-specific")

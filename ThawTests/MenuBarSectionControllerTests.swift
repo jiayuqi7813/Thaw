@@ -637,6 +637,57 @@ final class MenuBarSectionControllerTests: XCTestCase {
         XCTAssertEqual(controller.section(for: identifier), .hidden)
     }
 
+    func testClearingAutomaticOverflowRestoresAuthoredVisibleAssignment() {
+        let controller = makeController()
+        let identifier = "com.example.overflowed:Item-0"
+
+        controller.setOverflowHiddenIdentifiers([identifier])
+        XCTAssertEqual(controller.section(for: identifier), .hidden)
+        XCTAssertEqual(controller.authoredSection(for: identifier), .visible)
+
+        controller.setOverflowHiddenIdentifiers([])
+
+        XCTAssertEqual(controller.section(for: identifier), .visible)
+    }
+
+    func testClearingAutomaticOverflowPreservesExplicitHiddenAssignment() {
+        let controller = makeController()
+        let explicitHidden = "com.example.explicit:Item-0"
+        let overflowHidden = "com.example.overflowed:Item-0"
+        controller.setSection(.hidden, identifier: explicitHidden)
+        controller.setOverflowHiddenIdentifiers([overflowHidden])
+
+        controller.setOverflowHiddenIdentifiers([])
+
+        XCTAssertEqual(controller.section(for: explicitHidden), .hidden)
+        XCTAssertEqual(controller.section(for: overflowHidden), .visible)
+    }
+
+    func testReplacingAutomaticOverflowRestoresItemsThatFitAgain() {
+        let controller = makeController()
+        let nowFits = "com.example.now-fits:Item-0"
+        let stillOverflowed = "com.example.still-overflowed:Item-0"
+        controller.setOverflowHiddenIdentifiers([nowFits, stillOverflowed])
+
+        controller.setOverflowHiddenIdentifiers([stillOverflowed])
+
+        XCTAssertEqual(controller.section(for: nowFits), .visible)
+        XCTAssertEqual(controller.section(for: stillOverflowed), .hidden)
+    }
+
+    func testAutomaticOverflowRetainsSnapshotForLaterRebalance() {
+        let controller = makeController()
+        let item = MenuBarItem.fixture(
+            tag: .appItem(bundleID: "com.example.overflowed", title: "Item-0"),
+            windowID: 73,
+            bounds: CGRect(x: 120, y: 0, width: 24, height: 22)
+        )
+
+        controller.setOverflowHiddenItems([item])
+
+        XCTAssertEqual(controller.snapshot(for: item.uniqueIdentifier)?.windowID, item.windowID)
+    }
+
     func testSetSection_RejectsControlItemIdentifier() {
         let controller = makeController()
         let controlItemIdentifier = ControlItem.Identifier.hidden.rawValue

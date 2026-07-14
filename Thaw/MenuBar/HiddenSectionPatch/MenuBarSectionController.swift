@@ -148,6 +148,11 @@ final class MenuBarSectionController: ObservableObject {
     /// layout bars reflect changes.
     @Published private(set) var sectionAssignment: [String: MenuBarSection.Name]
 
+    /// Visible-by-authoring items temporarily concealed because the active menu
+    /// bar cannot fit them. This is deliberately not persisted: overflow is an
+    /// environmental presentation decision, not a layout edit.
+    @Published private(set) var overflowHiddenIdentifiers: Set<String> = []
+
     /// User-chosen left-to-right order of items within each section, set by
     /// layout-bar drags and persisted. The Visible section renders from fresh
     /// AX geometry on macOS 27 so stale saved order cannot drift from the real
@@ -636,6 +641,16 @@ final class MenuBarSectionController: ObservableObject {
         )
     }
 
+    /// Effective assignment before reveal adjustments. Authored assignments
+    /// win; automatic overflow only layers Hidden onto authored-visible items.
+    private var assignmentIncludingAutomaticOverflow: [String: MenuBarSection.Name] {
+        var assignment = sectionAssignment
+        for identifier in overflowHiddenIdentifiers where assignment[identifier] == nil {
+            assignment[identifier] = .hidden
+        }
+        return assignment
+    }
+
     /// Drops assignments that can never be valid hidden-section entries.
     static func sanitizedSectionAssignment(
         _ assignment: [String: MenuBarSection.Name]
@@ -1105,6 +1120,41 @@ final class MenuBarSectionController: ObservableObject {
         }.map(\.element)
     }
 
+    /// Orders visible items for overflow decisions using the layout editor's
+    /// recorded intent rather than transient MenuBarAgent geometry.
+    ///
+    /// A freshly revealed item can briefly appear at the application-menu edge.
+    /// Sorting only by that live frame makes overflow immediately eject the item
+    /// the user just moved to Visible. Recorded items follow `order`; genuinely
+    /// new items that are not recorded retain their live relative order at the end.
+    static func overflowOrderedVisibleItems(
+        _ items: [MenuBarItem],
+        using order: [String]
+    ) -> [MenuBarItem] {
+        let liveOrder = liveVisualOrder(items)
+        let canonicalOrder = MenuBarItemTag.canonicalPersistentIdentifiers(order)
+        guard !canonicalOrder.isEmpty else { return liveOrder }
+
+        let rank = Dictionary(
+            canonicalOrder.enumerated().map { ($1, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        return liveOrder.enumerated().sorted { lhs, rhs in
+            let lhsRank = rank[MenuBarItemTag.canonicalPersistentIdentifier(lhs.element.uniqueIdentifier)]
+            let rhsRank = rank[MenuBarItemTag.canonicalPersistentIdentifier(rhs.element.uniqueIdentifier)]
+            switch (lhsRank, rhsRank) {
+            case let (lhsRank?, rhsRank?):
+                return lhsRank < rhsRank
+            case (_?, nil):
+                return true
+            case (nil, _?):
+                return false
+            case (nil, nil):
+                return lhs.offset < rhs.offset
+            }
+        }.map(\.element)
+    }
+
     private static func liveVisualOrder(_ items: [MenuBarItem]) -> [MenuBarItem] {
         items.sorted { lhs, rhs in
             if lhs.bounds.midX == rhs.bounds.midX {
@@ -1141,7 +1191,46 @@ final class MenuBarSectionController: ObservableObject {
 
     /// The section the item with the given identifier is assigned to.
     func section(for identifier: String) -> MenuBarSection.Name {
+        let identifier = MenuBarItemTag.canonicalPersistentIdentifier(identifier)
+        if authoredSection(for: identifier) == .visible,
+           overflowHiddenIdentifiers.contains(identifier)
+        {
+            return .hidden
+        }
+        return authoredSection(for: identifier)
+    }
+
+    /// The section explicitly authored by the user or active profile, excluding
+    /// temporary automatic-overflow concealment.
+    func authoredSection(for identifier: String) -> MenuBarSection.Name {
         sectionAssignment[MenuBarItemTag.canonicalPersistentIdentifier(identifier)] ?? .visible
+    }
+
+    /// Replaces the exact set of authored-visible items concealed by automatic
+    /// overflow. Passing an empty set restores every overflowed item to its
+    /// authored section without disturbing explicit Hidden assignments.
+    @discardableResult
+    func setOverflowHiddenIdentifiers(_ identifiers: Set<String>) -> Bool {
+        let canonical = Set(
+            MenuBarItemTag.canonicalPersistentIdentifiers(Array(identifiers))
+                .filter { authoredSection(for: $0) == .visible }
+        )
+        guard canonical != overflowHiddenIdentifiers else { return false }
+        overflowHiddenIdentifiers = canonical
+        diagLog.info("automatic overflow now conceals \(canonical.count) item(s)")
+        refresh()
+        return true
+    }
+
+    /// Captures live items before automatic overflow conceals them, then applies
+    /// the exact overflow set. The snapshots keep those items available for a
+    /// later wider-space rebalance even when concealment removes them from AX.
+    @discardableResult
+    func setOverflowHiddenItems(_ items: [MenuBarItem]) -> Bool {
+        for item in items where authoredSection(for: item.uniqueIdentifier) == .visible {
+            snapshots[MenuBarItemTag.canonicalPersistentIdentifier(item.uniqueIdentifier)] = item
+        }
+        return setOverflowHiddenIdentifiers(Set(items.map(\.uniqueIdentifier)))
     }
 
     /// The section for a live item. System anchors and any item Thaw can't
@@ -1164,6 +1253,7 @@ final class MenuBarSectionController: ObservableObject {
     /// the entry (the default). Persists and re-applies the restriction.
     func setSection(_ section: MenuBarSection.Name, identifier: String) {
         let identifier = MenuBarItemTag.canonicalPersistentIdentifier(identifier)
+        overflowHiddenIdentifiers.remove(identifier)
         guard !Self.isControlItemAssignmentIdentifier(identifier),
               !Self.isOwnAppAssignmentIdentifier(identifier)
         else {
@@ -1254,6 +1344,7 @@ final class MenuBarSectionController: ObservableObject {
                 continue
             }
             let identifier = MenuBarItemTag.canonicalPersistentIdentifier(item.uniqueIdentifier)
+            overflowHiddenIdentifiers.remove(identifier)
             removeFromOrder(identifier: identifier)
             if section != .visible {
                 sectionItemOrder[section, default: []].append(identifier)
@@ -1313,6 +1404,7 @@ final class MenuBarSectionController: ObservableObject {
     /// `.visible` entries are dropped (the default), then the restriction is
     /// persisted and re-applied.
     func resetAssignment(to assignment: [String: MenuBarSection.Name]) {
+        overflowHiddenIdentifiers.removeAll()
         let sanitized = Self.sanitizedSectionAssignment(assignment)
         // Rebuild order from the new assignment, preserving relative order for
         // items that remain in the same section.
@@ -1348,6 +1440,7 @@ final class MenuBarSectionController: ObservableObject {
         itemSectionMap: [String: String],
         itemOrder: [String: [String]]
     ) {
+        overflowHiddenIdentifiers.removeAll()
         var assignment = Self.assignment(
             from: itemSectionMap,
             itemOrder: itemOrder
@@ -1460,7 +1553,7 @@ final class MenuBarSectionController: ObservableObject {
     /// item cache (between conceal and the snapshot re-add) doesn't lose its
     /// last-good icon to the stale-entry cleanup, leaving a blank Hidden slot.
     var assignedSnapshotTags: Set<MenuBarItemTag> {
-        Set(sectionAssignment.keys.compactMap { snapshots[$0]?.tag })
+        Set(assignmentIncludingAutomaticOverflow.keys.compactMap { snapshots[$0]?.tag })
     }
 
     private func refreshSignature(
@@ -1470,6 +1563,7 @@ final class MenuBarSectionController: ObservableObject {
     ) -> String {
         [
             "assignment=\(sectionAssignment.map { "\($0.key)=\($0.value.rawValue)" }.sorted().joined(separator: ","))",
+            "overflow=\(overflowHiddenIdentifiers.sorted().joined(separator: ","))",
             "revealed=\(revealedSection?.rawValue ?? "none")",
             "temporary=\(temporarilyRevealedIDs.sorted().joined(separator: ","))",
             "items=\(allItems.map(\.uniqueIdentifier).sorted().joined(separator: ","))",
@@ -1524,10 +1618,11 @@ final class MenuBarSectionController: ObservableObject {
         // Snapshot every assigned item while it's still live, so it can keep
         // appearing in the layout bars after it's concealed. Drop snapshots for
         // items that are no longer assigned.
-        for item in allItems where sectionAssignment[item.uniqueIdentifier] != nil {
+        let assignmentIncludingOverflow = assignmentIncludingAutomaticOverflow
+        for item in allItems where assignmentIncludingOverflow[item.uniqueIdentifier] != nil {
             snapshots[item.uniqueIdentifier] = item
         }
-        snapshots = snapshots.filter { sectionAssignment[$0.key] != nil }
+        snapshots = snapshots.filter { assignmentIncludingOverflow[$0.key] != nil }
         let effectiveAssignment = effectiveAssignmentExcludingTemporarilyRevealed()
 
         // Apple Control Center modules cannot be hidden by the assessment-mode
@@ -1541,7 +1636,7 @@ final class MenuBarSectionController: ObservableObject {
         // thrashed it to empty. So a temporary reveal leaves CC modules as-is —
         // they show/hide only on a real assignment change (drag to/from Hidden).
         var ccHiddenTitles = Set<String>()
-        for (identifier, section) in sectionAssignment where section != .visible {
+        for (identifier, section) in assignmentIncludingOverflow where section != .visible {
             if let title = RuntimeModuleController.governableMenuExtraTitle(forItemIdentifier: identifier) {
                 ccHiddenTitles.insert(title)
             }
@@ -1669,7 +1764,7 @@ final class MenuBarSectionController: ObservableObject {
         let maxElevated = positions.values.filter { $0 >= 50000 }.max()
         var overflowBase = maxElevated.map { $0 + 10 } ?? 50000
 
-        for (identifier, section) in sectionAssignment where section != .visible {
+        for (identifier, section) in assignmentIncludingAutomaticOverflow where section != .visible {
             guard let item = allItems.first(where: { $0.uniqueIdentifier == identifier }) ??
                 snapshots[identifier]
             else { continue }
@@ -1788,7 +1883,7 @@ final class MenuBarSectionController: ObservableObject {
     /// Assignment applied to hiding backends after removing single-item reveals.
     private func effectiveAssignmentExcludingTemporarilyRevealed() -> [String: MenuBarSection.Name] {
         Self.effectiveSectionAssignment(
-            sectionAssignment,
+            assignmentIncludingAutomaticOverflow,
             revealing: revealedSection,
             temporarilyRevealedIDs: temporarilyRevealedIDs
         )
