@@ -43,7 +43,6 @@ struct MenuBarLayoutSettingsPane: View {
             } else if appState.menuBarManager.isMenuBarHiddenBySystemUserDefaults {
                 CannotArrangeLayoutView()
             } else {
-                LayoutHeaderSection()
                 LayoutBarsSection(itemManager: itemManager)
                 if #available(macOS 27, *) {
                     LayoutSystemItemControl(isEnabled: systemItemHidingBinding)
@@ -122,26 +121,8 @@ private struct LayoutSectionOptions: View {
     }
 }
 
-private struct LayoutHeaderSection: View {
-    var body: some View {
-        IceSection {
-            VStack(spacing: 3) {
-                Text("Arrange menu bar items")
-                    .font(.title3.bold())
-                Text("Drag items between sections. Move New Items to choose where future items appear.")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.secondary)
-                Text("Tip: Hold ⌘ Command while dragging an item directly in the menu bar.")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.secondary)
-            }
-            .multilineTextAlignment(.center)
-            .frame(maxWidth: .infinity, alignment: .center)
-        }
-    }
-}
-
 private struct LayoutBarsSection: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @EnvironmentObject private var appState: AppState
     @ObservedObject var itemManager: MenuBarItemManager
     @State private var loadDeadlineReached = false
@@ -153,24 +134,41 @@ private struct LayoutBarsSection: View {
     }
 
     var body: some View {
-        VStack(spacing: 20) {
-            ForEach(MenuBarSection.Name.allCases, id: \.self) { section in
-                if let menuBarSection = appState.menuBarManager.section(withName: section), menuBarSection.isEnabled {
-                    VStack(alignment: .leading) {
-                        Text(section.localized)
-                            .font(.headline)
-                            .padding(.leading, 8)
-                        LayoutBar(imageCache: appState.imageCache, section: section)
+        IceSection {
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Arrange menu bar items")
+                        .font(.headline)
+                    Text("Drag items between sections. Move New Items to choose where future items appear.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Text("Tip: Hold ⌘ Command while dragging an item directly in the menu bar.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+
+                VStack(spacing: 20) {
+                    ForEach(MenuBarSection.Name.allCases, id: \.self) { section in
+                        if let menuBarSection = appState.menuBarManager.section(withName: section), menuBarSection.isEnabled {
+                            VStack(alignment: .leading) {
+                                Text(section.localized)
+                                    .font(.headline)
+                                    .padding(.leading, 8)
+                                LayoutBar(imageCache: appState.imageCache, section: section)
+                            }
+                        }
                     }
                 }
-            }
-        }
-        .opacity(hasItems ? 1 : 0.75)
-        .blur(radius: hasItems ? 0 : 5)
-        .allowsHitTesting(hasItems)
-        .overlay {
-            if !hasItems {
-                loadingOverlay
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.18)) { content in
+                    content.opacity(hasItems ? 1 : 0.75)
+                }
+                .allowsHitTesting(hasItems)
+                .overlay {
+                    if !hasItems {
+                        loadingOverlay
+                            .transition(layoutTransition)
+                    }
+                }
             }
         }
         .task(id: hasItems) {
@@ -191,11 +189,19 @@ private struct LayoutBarsSection: View {
                         Text("Unable to load menu bar items")
                     }
                 }
+                .transition(layoutTransition)
             } else {
-                Text("Loading menu bar items…")
-                ProgressView()
+                VStack(spacing: 8) {
+                    Text("Loading menu bar items…")
+                    ProgressView()
+                }
+                .transition(layoutTransition)
             }
         }
+    }
+
+    private var layoutTransition: AnyTransition {
+        reduceMotion ? .identity : .opacity.animation(.easeOut(duration: 0.18))
     }
 
     private func loadItemsIfNeeded() async {
@@ -310,6 +316,7 @@ struct LayoutAdvancedControls: View {
 }
 
 private struct LayoutResetControls: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject var itemManager: MenuBarItemManager
     let controlItemsDisabled: Bool
     let alwaysHiddenEnabled: Bool
@@ -358,15 +365,21 @@ private struct LayoutResetControls: View {
                         }
                         .buttonStyle(.glass)
                     }
+                    .transition(resetTransition)
                 }
 
                 if let status {
                     Text(status.message)
                         .font(.footnote)
                         .foregroundStyle(status.isError ? .red : .secondary)
+                        .transition(resetTransition)
                 }
             }
         }
+    }
+
+    private var resetTransition: AnyTransition {
+        reduceMotion ? .identity : .opacity.animation(.easeOut(duration: 0.18))
     }
 
     private func reset(to target: ResetTarget) {

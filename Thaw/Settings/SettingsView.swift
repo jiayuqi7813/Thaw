@@ -20,16 +20,33 @@ struct SettingsView: View {
         NavigationSplitView {
             sidebar
         } detail: {
-            settingsPane
-                .id(navigationState.settingsNavigationIdentifier)
+            VStack(alignment: .leading, spacing: 0) {
+                SettingsPaneHeader(title: navigationState.settingsNavigationIdentifier.localized)
+                    .padding(.top, 24)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 8)
+
+                settingsPane
+                    .id(navigationState.settingsNavigationIdentifier)
+                    .transition(paneTransition)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .ignoresSafeArea(.container, edges: .top)
+            .glassEffect(.regular, in: Rectangle())
         }
-        .navigationTitle(navigationState.settingsNavigationIdentifier.localized)
+        .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
+        .buttonBorderShape(.roundedRectangle(radius: 8))
         .transaction { transaction in
             if reduceMotion {
                 transaction.animation = nil
                 transaction.disablesAnimations = true
             }
         }
+    }
+
+    private var paneTransition: AnyTransition {
+        reduceMotion ? .identity : .opacity.animation(.easeOut(duration: 0.14))
     }
 
     @ViewBuilder
@@ -72,10 +89,22 @@ struct SettingsView: View {
     }
 }
 
+private struct SettingsPaneHeader: View {
+    let title: LocalizedStringKey
+
+    var body: some View {
+        Text(title)
+            .font(.largeTitle.weight(.bold))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityAddTraits(.isHeader)
+    }
+}
+
 // MARK: - SettingsSearchSidebar
 
 @available(macOS 27, *)
 private struct SettingsSearchSidebar: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject var navigationState: AppNavigationState
 
     @StateObject private var searchModel = SearchModel()
@@ -84,25 +113,33 @@ private struct SettingsSearchSidebar: View {
         !searchModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    private var contentMode: ContentMode {
+        if !isSearching {
+            return .navigation
+        }
+        return searchModel.displayedGroups.isEmpty ? .empty : .results
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             SearchField(text: $searchModel.searchText)
 
             Group {
-                if isSearching {
-                    if searchModel.displayedGroups.isEmpty {
-                        SearchEmptyView()
-                    } else {
-                        SearchResultsList(groups: searchModel.displayedGroups) { entry in
-                            navigate(to: entry)
-                        }
-                    }
-                } else {
+                switch contentMode {
+                case .navigation:
                     SettingsSidebarPaneList(
                         navigationState: navigationState
                     )
+                case .results:
+                    SearchResultsList(groups: searchModel.displayedGroups) { entry in
+                        navigate(to: entry)
+                    }
+                case .empty:
+                    SearchEmptyView()
                 }
             }
+            .id(contentMode)
+            .transition(contentTransition)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .navigationSplitViewColumnWidth(ideal: 200, max: 240)
@@ -116,6 +153,16 @@ private struct SettingsSearchSidebar: View {
             navigationState.settingsNavigationIdentifier = entry.pane
         }
         searchModel.searchText = ""
+    }
+
+    private var contentTransition: AnyTransition {
+        reduceMotion ? .identity : .opacity.animation(.easeOut(duration: 0.1))
+    }
+
+    private enum ContentMode: Hashable {
+        case navigation
+        case results
+        case empty
     }
 }
 

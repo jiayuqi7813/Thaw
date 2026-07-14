@@ -42,15 +42,14 @@ struct IceForm<Content: View>: View {
     }
 
     var body: some View {
-        // Native SwiftUI grouped form. The Liquid Glass card chrome, scrolling,
-        // row insets, separators, header styling, and control sizing all come
-        // from the OS — `IceForm`/``IceSection`` are thin wrappers so call sites
-        // stay unchanged. `alignment`/`padding`/`spacing` are retained for API
-        // compatibility but are now governed by the native form style.
+        // Native SwiftUI grouped form. The detail host supplies the page-level
+        // Liquid Glass surface; hiding only the scroll background lets that
+        // surface show around the native section cards.
         Form {
             content
         }
         .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
         .focusSection()
         .accessibilityElement(children: .contain)
     }

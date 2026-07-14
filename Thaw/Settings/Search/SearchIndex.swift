@@ -178,7 +178,7 @@ enum SearchIndex {
         SearchEntry(
             id: "pane.menuBarLayout",
             titleKey: "Layout",
-            titleText: "Menu Bar Layout",
+            titleText: "Layout",
             descriptionText: nil,
             pane: .menuBarLayout,
             sectionKey: nil,
@@ -200,7 +200,7 @@ enum SearchIndex {
         SearchEntry(
             id: "pane.menuBarAppearance",
             titleKey: "Appearance",
-            titleText: "Menu Bar Appearance",
+            titleText: "Appearance",
             descriptionText: nil,
             pane: .menuBarAppearance,
             sectionKey: nil,

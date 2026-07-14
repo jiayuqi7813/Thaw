@@ -12,6 +12,7 @@ import SwiftUI
 
 /// Compact search field pinned above the settings sidebar content.
 struct SearchField: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var text: String
     @FocusState private var isFocused: Bool
 
@@ -34,17 +35,19 @@ struct SearchField: View {
             .writingToolsBehavior(.disabled)
             .focused($isFocused)
 
-            if !text.isEmpty {
-                Button {
-                    text = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.tertiary)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Clear search")
+            Button {
+                text = ""
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.tertiary)
             }
+            .buttonStyle(.plain)
+            .opacity(text.isEmpty ? 0 : 1)
+            .allowsHitTesting(!text.isEmpty)
+            .accessibilityHidden(text.isEmpty)
+            .accessibilityLabel("Clear search")
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.1), value: text.isEmpty)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
