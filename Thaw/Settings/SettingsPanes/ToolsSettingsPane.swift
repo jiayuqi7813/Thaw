@@ -228,17 +228,28 @@ struct ToolsSettingsPane: View {
                 try await MaintenanceTools.resetControlCenterPreferences()
                 statusMessage = String(localized: "Control Center preferences were reset.")
             case .quitAndClearCache:
-                try MaintenanceTools.clearAppCache()
-                statusMessage = String(localized: "Cache cleared. Quitting…")
-                NSApp.terminate(nil)
+                await appState.imageCache.suspendDiskPersistenceForReset()
+                do {
+                    try MaintenanceTools.clearAppCache()
+                } catch {
+                    appState.imageCache.resumeDiskPersistenceAfterFailedReset()
+                    throw error
+                }
+                reportSuccess(String(localized: "Cache cleared. Quitting…"))
+                ApplicationTermination.request()
             case .resetPermissions:
                 try await MaintenanceTools.resetAppPermissions()
-                statusMessage = String(localized: "Permissions cleared. Quitting…")
-                NSApp.terminate(nil)
+                reportSuccess(String(localized: "Permissions cleared. Quitting…"))
+                ApplicationTermination.request()
             }
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    private func reportSuccess(_ message: String) {
+        statusMessage = message
+        AccessibilityAnnouncements.post(message)
     }
 }
 

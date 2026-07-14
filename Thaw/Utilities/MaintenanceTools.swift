@@ -20,6 +20,8 @@ import Subprocess
 /// bundle identifier. They are intentionally narrow: no sudo, no other apps'
 /// preferences beyond Control Center's menu-bar state plists.
 enum MaintenanceTools {
+    private static let legacyCacheDirectoryName = "com.stonerl.thaw"
+
     enum ToolError: LocalizedError {
         case commandFailed(String, Int32, String)
 
@@ -69,10 +71,32 @@ enum MaintenanceTools {
     static func clearAppCache() throws {
         let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
             ?? FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Caches", directoryHint: .isDirectory)
-        let cacheDirectory = caches.appending(path: Constants.bundleIdentifier, directoryHint: .isDirectory)
-        if FileManager.default.fileExists(atPath: cacheDirectory.path(percentEncoded: false)) {
-            try FileManager.default.removeItem(at: cacheDirectory)
+        try clearAppCache(
+            cachesDirectory: caches,
+            bundleIdentifier: Constants.bundleIdentifier,
+            fileManager: .default
+        )
+    }
+
+    static func clearAppCache(
+        cachesDirectory: URL,
+        bundleIdentifier: String,
+        fileManager: FileManager
+    ) throws {
+        for directoryName in appCacheDirectoryNames(bundleIdentifier: bundleIdentifier) {
+            let cacheDirectory = cachesDirectory.appending(path: directoryName, directoryHint: .isDirectory)
+            if fileManager.fileExists(atPath: cacheDirectory.path(percentEncoded: false)) {
+                try fileManager.removeItem(at: cacheDirectory)
+            }
         }
+    }
+
+    static func appCacheDirectoryNames(bundleIdentifier: String) -> [String] {
+        var names = [bundleIdentifier]
+        if bundleIdentifier != legacyCacheDirectoryName {
+            names.append(legacyCacheDirectoryName)
+        }
+        return names
     }
 
     /// Resets Accessibility and Screen Recording TCC decisions for Thaw so the

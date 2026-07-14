@@ -24,7 +24,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
     }
 
     /// A representation of a captured menu bar item image.
-    struct CapturedImage: Hashable {
+    struct CapturedImage: Hashable, @unchecked Sendable {
         private final class PresentationCache: @unchecked Sendable {
             var horizontallyTrimmedImage: NSImage?
         }
@@ -161,6 +161,14 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         label: "MenuBarItemImageCache",
         qos: .background
     )
+
+    /// False after the user requests a cache reset. Protected by a lock because
+    /// disk encoding runs on `queue` while the reset action runs on MainActor.
+    private let diskPersistenceState = OSAllocatedUnfairLock(initialState: true)
+
+    var isDiskPersistenceEnabled: Bool {
+        diskPersistenceState.withLock { $0 }
+    }
 
     /// Image capture options.
     private let captureOption: CGWindowImageOption = [
@@ -354,8 +362,22 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
 
     /// Path to the cache file in Caches directory.
     private static var cacheFileURL: URL? {
-        let cacheDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
-        return cacheDir?.appendingPathComponent("com.stonerl.thaw/imageCache.json")
+        guard let cacheDirectory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else {
+            return nil
+        }
+        return cacheFileURL(
+            cachesDirectory: cacheDirectory,
+            bundleIdentifier: Constants.bundleIdentifier
+        )
+    }
+
+    static nonisolated func cacheFileURL(
+        cachesDirectory: URL,
+        bundleIdentifier: String
+    ) -> URL {
+        cachesDirectory
+            .appending(path: bundleIdentifier, directoryHint: .isDirectory)
+            .appending(path: "imageCache.json", directoryHint: .notDirectory)
     }
 
     /// Maximum age of disk cache before it's considered stale (30 seconds).
@@ -367,13 +389,15 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
 
     /// Saves the image cache to disk for faster restart.
     func saveToDisk() {
+        guard isDiskPersistenceEnabled else { return }
         guard !images.isEmpty else { return }
 
         guard let url = Self.cacheFileURL else { return }
 
         let snapshot = images
 
-        Task.detached(priority: .background) {
+        queue.async { [weak self] in
+            guard let self, self.isDiskPersistenceEnabled else { return }
             let cacheData = snapshot.map { tag, image -> (String, Data)? in
                 let nsImage = NSImage(cgImage: image.cgImage, size: image.scaledSize)
                 guard let tiffData = nsImage.tiffRepresentation,
@@ -386,6 +410,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
             }.compactMap(\.self)
 
             guard cacheData.count == snapshot.count else { return }
+            guard self.isDiskPersistenceEnabled else { return }
 
             do {
                 let directoryURL = url.deletingLastPathComponent()
@@ -404,6 +429,24 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                 MenuBarItemImageCache.diagLog.error("Failed to save image cache to disk: \(error)")
             }
         }
+    }
+
+    /// Prevents queued or future disk saves from recreating the cache while a
+    /// maintenance action deletes it. Waiting for `queue` establishes a barrier
+    /// after any save that had already started.
+    func suspendDiskPersistenceForReset() async {
+        diskPersistenceState.withLock { $0 = false }
+        await withCheckedContinuation { continuation in
+            self.queue.async {
+                continuation.resume()
+            }
+        }
+    }
+
+    /// Restores normal persistence when cache deletion fails and the app stays
+    /// running to present the maintenance error.
+    func resumeDiskPersistenceAfterFailedReset() {
+        diskPersistenceState.withLock { $0 = true }
     }
 
     /// Loads cached images from disk.
