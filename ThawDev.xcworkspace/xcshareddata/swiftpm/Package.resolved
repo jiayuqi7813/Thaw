@@ -1,6 +1,15 @@
 {
-  "originHash" : "7370dceb7d3f5bf68c97820665790739f480b5bc788b62aee7bdda627c6500e3",
+  "originHash" : "a900078c0f3c9adf769dc1e1212450317b2f4493f213d8e52c9a8529520a1195",
   "pins" : [
+    {
+      "identity" : "axswift6",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/thaw-app/AXSwift6",
+      "state" : {
+        "revision" : "7b3bce4dde264aab5255793c1b1dfd74caea6554",
+        "version" : "0.4.0"
+      }
+    },
     {
       "identity" : "compactslider",
       "kind" : "remoteSourceControl",
@@ -26,6 +35,15 @@
       "state" : {
         "revision" : "a04ec1c363be3627734f6dad757d82f5d4fa8fcc",
         "version" : "1.1.0"
+      }
+    },
+    {
+      "identity" : "prk-bin",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/thaw-app/prk-bin",
+      "state" : {
+        "revision" : "92cb46833cdc50da0bd99e70d42601849ff07f14",
+        "version" : "0.0.3"
       }
     },
     {

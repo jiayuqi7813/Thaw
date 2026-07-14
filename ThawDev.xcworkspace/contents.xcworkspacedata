@@ -16,7 +16,4 @@
    <FileRef
       location = "group:.swiftpm-overrides/prk-bin">
    </FileRef>
-   <FileRef
-      location = "group:.swiftpm-overrides/AXSwift6">
-   </FileRef>
 </Workspace>

@@ -20,10 +20,10 @@
 #   ./scripts/thaw-devrun.sh
 #   ./scripts/thaw-devrun.sh --skip-packages
 #
-# The development workspace includes the sibling `../PlatformRuntimeKit`
-# checkout as Xcode's local override for the public `prk-bin` dependency. This
-# keeps the checked-in project on the distributable binary package while local
-# builds see current source changes that have not been published yet.
+# The development workspace can override the public `prk-bin` dependency with a
+# sibling `../PlatformRuntimeKit` checkout via a symlink under
+# `.swiftpm-overrides/`. When that sibling is missing, this script builds with
+# `Thaw.xcodeproj` and the published packages as-is.
 #
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -33,10 +33,11 @@ CONFIG="Debug"
 DEST="/Applications/Thaw Debug.app"
 DEBUG_BUNDLE_ID="com.stonerl.Thaw.debug"
 WORKSPACE="ThawDev.xcworkspace"
+PROJECT="Thaw.xcodeproj"
 PRK_SOURCE="../PlatformRuntimeKit"
 PRK_OVERRIDE_DIR=".swiftpm-overrides"
 PRK_OVERRIDE="$PRK_OVERRIDE_DIR/prk-bin"
-export MENU_BAR_MODEL_PATH="$PWD/MenuBarModel"
+USE_LOCAL_PRK=0
 export MENU_BAR_MODEL_PATH="$PWD/MenuBarModel"
 PACKAGE_RESOLUTION_ARGS=(-onlyUsePackageVersionsFromResolvedFile)
 
@@ -48,7 +49,7 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         -h | --help)
-            sed -n '1,22p' "$0" | tail -n +2
+            sed -n '2,28p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *)
@@ -61,34 +62,45 @@ done
 say() { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
 
 prepare_local_package_override() {
-    if [[ ! -f "$PRK_SOURCE/Package.swift" ]]; then
-        echo "Sibling PlatformRuntimeKit checkout not found at $PRK_SOURCE" >&2
-        echo "Clone it beside Thaw before running this development script." >&2
-        exit 1
+    # Symlink sibling PlatformRuntimeKit when present — no rsync copy. Workspace
+    # FileRefs stay under `.swiftpm-overrides/` so ThawDev.xcworkspace paths
+    # remain stable. Targets are relative to the symlink location (one level
+    # deeper than the Thaw root), so siblings need `../..`.
+    if [[ -f "$PRK_SOURCE/Package.swift" ]]; then
+        mkdir -p "$PRK_OVERRIDE_DIR"
+        # Remove a prior copy or symlink first; otherwise ln targets inside a dir.
+        rm -rf "$PRK_OVERRIDE"
+        ln -sfn ../../PlatformRuntimeKit "$PRK_OVERRIDE"
+        USE_LOCAL_PRK=1
+        say "Using local PlatformRuntimeKit ($PRK_SOURCE)"
+    else
+        USE_LOCAL_PRK=0
+        if [[ -e "$PRK_OVERRIDE" || -L "$PRK_OVERRIDE" ]]; then
+            rm -rf "$PRK_OVERRIDE"
+        fi
+        say "No local PlatformRuntimeKit at $PRK_SOURCE — using published prk-bin"
     fi
-
-    mkdir -p "$PRK_OVERRIDE_DIR"
-    if [[ -L "$PRK_OVERRIDE" ]]; then
-        rm "$PRK_OVERRIDE"
-    fi
-    mkdir -p "$PRK_OVERRIDE"
-    rsync -a --delete \
-        --exclude .build \
-        --exclude .git \
-        --exclude .swiftpm \
-        --exclude dist \
-        "$PRK_SOURCE/" "$PRK_OVERRIDE/"
 }
 
 resolve_swift_packages() {
     say "Resolving Swift packages…"
     xcodebuild -resolvePackageDependencies \
-        -workspace "$WORKSPACE" \
+        "${XCODE_ROOT_ARGS[@]}" \
         -scheme "$SCHEME" \
         "${PACKAGE_RESOLUTION_ARGS[@]}"
 }
 
 prepare_local_package_override
+if [[ "$USE_LOCAL_PRK" -eq 1 ]]; then
+    XCODE_ROOT_ARGS=(-workspace "$WORKSPACE")
+    # Keep ThawDev Package.resolved aligned with the project remotes before a
+    # pinned resolve; the workspace file historically lagged prk-bin / AX pins.
+    cp -f \
+        "Thaw.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved" \
+        "ThawDev.xcworkspace/xcshareddata/swiftpm/Package.resolved"
+else
+    XCODE_ROOT_ARGS=(-project "$PROJECT")
+fi
 if [[ "$SKIP_PACKAGES" -eq 0 ]]; then
     resolve_swift_packages
 fi
@@ -117,10 +129,10 @@ quit_thaw_debug() {
 }
 
 say "Building ${CONFIG}…"
-xcodebuild -workspace "$WORKSPACE" -scheme "$SCHEME" -configuration "$CONFIG" \
+xcodebuild "${XCODE_ROOT_ARGS[@]}" -scheme "$SCHEME" -configuration "$CONFIG" \
     -destination 'platform=macOS' "${PACKAGE_RESOLUTION_ARGS[@]}" build
 
-PRODUCTS_DIR=$(xcodebuild -workspace "$WORKSPACE" -scheme "$SCHEME" -configuration "$CONFIG" \
+PRODUCTS_DIR=$(xcodebuild "${XCODE_ROOT_ARGS[@]}" -scheme "$SCHEME" -configuration "$CONFIG" \
     "${PACKAGE_RESOLUTION_ARGS[@]}" -showBuildSettings 2>/dev/null | awk -F' = ' '/ BUILT_PRODUCTS_DIR /{print $2; exit}')
 APP="${PRODUCTS_DIR}/Thaw.app"
 [ -d "$APP" ] || { echo "Build product not found: $APP"; exit 1; }

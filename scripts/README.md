@@ -4,24 +4,36 @@ Helper scripts for local Thaw development and Claude Code tooling.
 
 ## `thaw-build-dmg.sh`
 
-Local-only mirror of the **Build DMG** workflow. Set the Team ID and Apple ID
-defaults for your machine before running it. The notarization password lives in
-your login keychain via `notarytool` (never commit app-specific passwords).
+Local-only mirror of the **Build DMG** workflow. It reads signing and
+notarization configuration from the environment, so a clean checkout needs no
+tracked-file edits. The notarization password lives in your login keychain via
+`notarytool` (never commit app-specific passwords).
 
 One-time:
 
 ```bash
-xcrun notarytool store-credentials thaw-notary \
-  --apple-id "APPLE_ID" \
-  --team-id "TEAM_ID" \
+export THAW_TEAM_ID="YOUR_TEAM_ID"
+export THAW_APPLE_ID="you@example.com"
+export THAW_NOTARY_PROFILE="thaw-notary"
+export THAW_SIGN_IDENTITY="Developer ID Application: Your Name (YOUR_TEAM_ID)"
+
+xcrun notarytool store-credentials "$THAW_NOTARY_PROFILE" \
+  --apple-id "$THAW_APPLE_ID" \
+  --team-id "$THAW_TEAM_ID" \
   --password "<app-specific-password>"
 ```
+
+Add the four `export` lines to an untracked local shell profile if desired.
+`--skip-notarize` does not require `THAW_APPLE_ID` or
+`THAW_NOTARY_PROFILE`; signing still requires `THAW_TEAM_ID` and
+`THAW_SIGN_IDENTITY`.
 
 Then:
 
 ```bash
 ./scripts/thaw-build-dmg.sh
 ./scripts/thaw-build-dmg.sh --skip-notarize   # sign only
+./scripts/thaw-build-dmg.sh --dmg-name Thaw-test.dmg
 ```
 
 Requires a **Developer ID Application** certificate. Output: `build/Thaw-dev.dmg`.
@@ -32,11 +44,27 @@ Builds the **Debug** configuration and runs it from `/Applications/Thaw Debug.ap
 
 On macOS 27, menu bar items need a clean code identity and a canonical `/Applications` install path. Running straight from DerivedData can cause Thaw’s own icon to disappear when items are hidden. This script:
 
-1. Resolves Swift package dependencies (`xcodebuild -resolvePackageDependencies`)
-2. Builds the Debug scheme (uses your Xcode project signing settings)
-3. Quits any running Thaw Debug instance (app + XPC service)
-4. Replaces `/Applications/Thaw Debug.app` with the fresh build
-5. Launches it
+1. Optionally symlinks sibling local packages into `.swiftpm-overrides/` (falls back to published packages when absent)
+2. Resolves Swift package dependencies (`xcodebuild -resolvePackageDependencies`)
+3. Builds the Debug scheme (uses your Xcode project signing settings)
+4. Quits any running Thaw Debug instance (app + XPC service)
+5. Replaces `/Applications/Thaw Debug.app` with the fresh build
+6. Launches it
+
+### Local package overrides
+
+When `../PlatformRuntimeKit` exists, the script symlinks it to
+`.swiftpm-overrides/prk-bin`, syncs `ThawDev.xcworkspace`’s `Package.resolved`
+from the project, and builds via the workspace (local kit override). When the
+sibling is missing, the script removes any stale override and builds via
+`Thaw.xcodeproj` with the **published** packages.
+
+| Sibling checkout | Override path | Behavior |
+|------------------|---------------|----------|
+| `../PlatformRuntimeKit` | `.swiftpm-overrides/prk-bin` → `../../PlatformRuntimeKit` | Optional — local kit if present, else published |
+
+`.swiftpm-overrides/` is gitignored. CI always uses published packages via
+`Thaw.xcodeproj`.
 
 Skip package resolution on repeat runs when dependencies are unchanged:
 
