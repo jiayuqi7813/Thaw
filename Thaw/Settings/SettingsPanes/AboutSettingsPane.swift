@@ -207,7 +207,7 @@ struct AboutSettingsPane: View {
     private var bottomBar: some View {
         HStack(spacing: 0) {
             Button("Quit \(Constants.displayName)") {
-                NSApp.terminate(nil)
+                ApplicationTermination.request()
             }
             .foregroundStyle(.red)
             .buttonStyle(.glass)

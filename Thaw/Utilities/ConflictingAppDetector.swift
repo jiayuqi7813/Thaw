@@ -62,7 +62,7 @@ enum ConflictingAppDetector {
 
         let response = alert.runModal()
         if response == .alertSecondButtonReturn {
-            NSApp.terminate(nil)
+            ApplicationTermination.request()
             return false
         }
         return true

@@ -1343,11 +1343,7 @@ final class ControlItem: NSObject {
     /// `MenuBarManager.quitFromSecondaryContextMenu`. Especially important on
     /// macOS 27, where this menu is the only way to quit.
     @objc private func quitFromMenu() {
-        RunLoop.main.perform(inModes: [.default]) {
-            MainActor.assumeIsolated {
-                NSApp.terminate(nil)
-            }
-        }
+        ApplicationTermination.request()
     }
 
     @objc private func restartFromMenu() {

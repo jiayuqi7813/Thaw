@@ -778,11 +778,7 @@ final class MenuBarManager: ObservableObject {
         // Scheduling in .default only ensures the block runs after popUp tracking
         // unwinds and the enclosing Task completes, so terminate's wait loop can
         // drain the restore and timeout Tasks scheduled by applicationShouldTerminate.
-        RunLoop.main.perform(inModes: [.default]) {
-            MainActor.assumeIsolated {
-                NSApp.terminate(nil)
-            }
-        }
+        ApplicationTermination.request()
     }
 
     @objc private func restartFromSecondaryContextMenu() {
