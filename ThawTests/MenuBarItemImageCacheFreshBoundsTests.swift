@@ -220,6 +220,81 @@ final class MenuBarItemImageCacheFreshBoundsTests: XCTestCase {
     }
 
     @available(macOS 27, *)
+    func testPlausibleHostingCaptureAcceptsMatchingPixelSize() {
+        XCTAssertTrue(
+            MenuBarItemImageCache.isPlausibleHostingCapture(
+                imageWidth: 2560,
+                imageHeight: 60,
+                windowFrame: CGRect(x: 0, y: 0, width: 1280, height: 30),
+                scale: 2
+            )
+        )
+    }
+
+    @available(macOS 27, *)
+    func testPlausibleHostingCaptureRejectsScaleMismatch() {
+        // 3840×30 image for a 3840×30pt window at reported scale 2 is impossible.
+        XCTAssertFalse(
+            MenuBarItemImageCache.isPlausibleHostingCapture(
+                imageWidth: 3840,
+                imageHeight: 30,
+                windowFrame: CGRect(x: 0, y: 0, width: 3840, height: 30),
+                scale: 2
+            )
+        )
+    }
+
+    @available(macOS 27, *)
+    func testPlausibleItemCaptureBoundsRejectsNearFullBarFrame() {
+        let window = CGRect(x: 0, y: 0, width: 1280, height: 30)
+        XCTAssertFalse(
+            MenuBarItemImageCache.isPlausibleItemCaptureBounds(
+                CGRect(x: 0, y: 3, width: 900, height: 24),
+                windowFrame: window
+            )
+        )
+        XCTAssertTrue(
+            MenuBarItemImageCache.isPlausibleItemCaptureBounds(
+                CGRect(x: 1100, y: 3, width: 24, height: 24),
+                windowFrame: window
+            )
+        )
+        // Formerly allowed via 0.35 × window width; must stay rejected.
+        XCTAssertFalse(
+            MenuBarItemImageCache.isPlausibleItemCaptureBounds(
+                CGRect(x: 100, y: 3, width: 400, height: 24),
+                windowFrame: window
+            )
+        )
+    }
+
+    @available(macOS 27, *)
+    func testStatusItemCaptureBandRejectsApplicationMenuFrames() {
+        let window = CGRect(x: 0, y: 0, width: 1280, height: 30)
+        XCTAssertFalse(
+            MenuBarItemImageCache.isInStatusItemCaptureBand(
+                bounds: CGRect(x: 80, y: 3, width: 24, height: 24),
+                windowFrame: window,
+                applicationMenuMaxX: 420
+            )
+        )
+        XCTAssertTrue(
+            MenuBarItemImageCache.isInStatusItemCaptureBand(
+                bounds: CGRect(x: 430, y: 3, width: 24, height: 24),
+                windowFrame: window,
+                applicationMenuMaxX: 420
+            )
+        )
+        XCTAssertFalse(
+            MenuBarItemImageCache.isInStatusItemCaptureBand(
+                bounds: CGRect(x: 900, y: 3, width: 24, height: 24),
+                windowFrame: window,
+                applicationMenuMaxX: nil
+            )
+        )
+    }
+
+    @available(macOS 27, *)
     func testStableCaptureBoundsAllowSubpixelAXJitter() {
         XCTAssertTrue(
             MenuBarItemImageCache.hasStableCaptureBounds(

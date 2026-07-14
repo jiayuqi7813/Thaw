@@ -331,6 +331,9 @@ final class MenuBarItemManager: ObservableObject {
     /// false re-sort triggers during an in-flight sort.
     private(set) var isApplyingProfileLayout = false
 
+    /// Debounce for macOS 27 overflow rebalance (assignment backends skip legacy Phase 4).
+    private var lastMacOS27OverflowRebalance: Date?
+
     /// Persisted mapping of item tag identifiers to their original section name for
     /// temporarily shown items whose apps quit before they could be rehidden. When
     /// the app relaunches, this allows us to move the item back to its original section.
@@ -2061,6 +2064,19 @@ extension MenuBarItemManager {
             }
         }
         MenuBarItemManager.diagLog.debug("Updated menu bar item cache: visible=\(context.cache[.visible].count), hidden=\(context.cache[.hidden].count), alwaysHidden=\(context.cache[.alwaysHidden].count)")
+
+        // Spawner-style floods arrive outside profile apply. Assignment backends
+        // never hit legacy Phase 4, so rebalance here when overflow is enabled.
+        if MenuBarBackendProvider.current.profileLayoutStrategy == .assignmentApply,
+           appState?.settings.advanced.enableMenuBarItemOverflow == true
+        {
+            Task { [weak self] in
+                guard let self else { return }
+                if await self.rebalanceMacOS27OverflowIfNeeded() {
+                    await self.cacheItemsRegardless(skipRecentMoveCheck: true)
+                }
+            }
+        }
     }
 
     /// Whether a startup or profile-apply settling period is currently active.
@@ -6556,6 +6572,201 @@ extension MenuBarItemManager {
         }
     }
 
+    /// Moves visible items into Hidden when they exceed the app-menu→Control
+    /// Center budget on macOS 27.
+    ///
+    /// The legacy Phase 4 overflow path never runs on `.assignmentApply`
+    /// backends (`applyProfileLayout` returns early), so without this helper
+    /// `enableMenuBarItemOverflow` is a no-op: Hidden stays empty and ThawBar
+    /// opens with `items=0`.
+    @MainActor
+    @discardableResult
+    func rebalanceMacOS27OverflowIfNeeded(
+        items liveItems: [MenuBarItem]? = nil,
+        force: Bool = false
+    ) async -> Bool {
+        guard MenuBarBackendProvider.current.profileLayoutStrategy == .assignmentApply else {
+            return false
+        }
+        guard let appState,
+              appState.settings.advanced.enableMenuBarItemOverflow,
+              let controller = appState.menuBarManager.sectionController
+        else {
+            return false
+        }
+
+        if !force,
+           let last = lastMacOS27OverflowRebalance,
+           Date().timeIntervalSince(last) < 1.0
+        {
+            return false
+        }
+
+        let items: [MenuBarItem]
+        if let liveItems {
+            items = liveItems
+        } else {
+            items = (await MenuBarItem.getMenuBarItems(option: .activeSpace))
+                .filter { !$0.isSystemClone }
+        }
+        guard let screen = NSScreen.screenWithActiveMenuBar ?? NSScreen.main else {
+            return false
+        }
+
+        let experimentalSystemItemHiding = appState.settings.advanced.enableExperimentalSystemItemHiding
+        let ccItem = items.first(where: { $0.tag == .controlCenter })
+        let rightBoundary = ccItem.map(\.bounds.minX) ?? screen.frame.maxX
+        let notch = screen.frameOfNotch
+        let applicationMenuFrame = screen.getApplicationMenuFrame()
+        let leftVisibleBoundary: CGFloat = if let notch {
+            notch.maxX
+        } else if let applicationMenuFrame, applicationMenuFrame.width > 0 {
+            applicationMenuFrame.maxX
+        } else {
+            screen.frame.minX
+        }
+        var availableWidth: CGFloat = if let notch {
+            rightBoundary - (notch.maxX + MenuBarSection.notchGap)
+        } else {
+            rightBoundary - leftVisibleBoundary
+        }
+
+        func isProfileItem(_ item: MenuBarItem) -> Bool {
+            !item.isControlItem
+                && MenuBarSectionController.canAssign(
+                    item,
+                    to: .hidden,
+                    experimentalSystemItemHiding: experimentalSystemItemHiding
+                )
+        }
+
+        let transientTags: [MenuBarItemTag] = [
+            .audioVideoModule,
+            .faceTime,
+            .screenCaptureUI,
+            .gameMode,
+        ]
+        var nonProfileFootprint: CGFloat = 0
+        for item in items where !isProfileItem(item) {
+            guard item.bounds.minX >= leftVisibleBoundary,
+                  item.bounds.maxX <= rightBoundary
+            else { continue }
+            if transientTags.contains(where: {
+                $0.namespace == item.tag.namespace && $0.title == item.tag.title
+            }) || item.isTransientControlCenterItem {
+                continue
+            }
+            nonProfileFootprint += item.bounds.width
+        }
+        availableWidth -= nonProfileFootprint
+
+        let visibleCtrl = items.first(where: { $0.tag == .visibleControlItem })
+        let hiddenCtrl = items.first(where: { $0.tag == .hiddenControlItem })
+        let ahCtrl = items.first(where: { $0.tag == .alwaysHiddenControlItem })
+
+        if let visibleCtrl,
+           visibleCtrl.bounds.minX >= leftVisibleBoundary,
+           visibleCtrl.bounds.maxX <= rightBoundary
+        {
+            availableWidth -= visibleCtrl.bounds.width
+        }
+
+        let visibleLive = items
+            .filter { item in
+                !item.isControlItem
+                    && controller.section(for: item) == .visible
+                    && isProfileItem(item)
+            }
+            .sorted { lhs, rhs in
+                if lhs.bounds.midX == rhs.bounds.midX {
+                    return lhs.uniqueIdentifier < rhs.uniqueIdentifier
+                }
+                return lhs.bounds.midX < rhs.bounds.midX
+            }
+
+        let hiddenLive = items.filter { controller.section(for: $0) == .hidden && !$0.isControlItem }
+        let alwaysHiddenLive = items.filter {
+            controller.section(for: $0) == .alwaysHidden && !$0.isControlItem
+        }
+
+        var desiredFiltered = visibleLive.map(\.uniqueIdentifier)
+        if let uid = visibleCtrl?.uniqueIdentifier {
+            desiredFiltered.append(uid)
+        }
+        guard let hiddenCtrlUID = hiddenCtrl?.uniqueIdentifier else {
+            return false
+        }
+        desiredFiltered.append(hiddenCtrlUID)
+        desiredFiltered.append(contentsOf: hiddenLive.map(\.uniqueIdentifier))
+        if let ahCtrlUID = ahCtrl?.uniqueIdentifier {
+            desiredFiltered.append(ahCtrlUID)
+            desiredFiltered.append(contentsOf: alwaysHiddenLive.map(\.uniqueIdentifier))
+        }
+
+        var sectionMap = [String: String]()
+        for item in visibleLive {
+            sectionMap[item.uniqueIdentifier] = MenuBarSection.Name.visible.rawValue
+        }
+        for item in hiddenLive {
+            sectionMap[item.uniqueIdentifier] = MenuBarSection.Name.hidden.rawValue
+        }
+        for item in alwaysHiddenLive {
+            sectionMap[item.uniqueIdentifier] = MenuBarSection.Name.alwaysHidden.rawValue
+        }
+
+        let savedVisible = Set(
+            MenuBarItemTag.canonicalPersistentIdentifiers(savedSectionOrder["visible"] ?? [])
+        )
+        let unmanagedUIDs = visibleLive
+            .map(\.uniqueIdentifier)
+            .filter { !savedVisible.contains(MenuBarItemTag.canonicalPersistentIdentifier($0)) }
+
+        var uidWidths = [String: CGFloat]()
+        for item in visibleLive {
+            uidWidths[item.uniqueIdentifier] = item.bounds.width
+        }
+        if let visibleCtrl {
+            uidWidths[visibleCtrl.uniqueIdentifier] = visibleCtrl.bounds.width
+        }
+
+        MenuBarItemManager.diagLog.debug(
+            """
+            macOS 27 overflow budget: leftVisibleBoundary=\(leftVisibleBoundary) \
+            rightBoundary=\(rightBoundary) availableWidth=\(availableWidth) \
+            visibleCount=\(visibleLive.count) unmanagedCount=\(unmanagedUIDs.count)
+            """
+        )
+
+        let overflowResult = LayoutSolver.planNotchOverflow(
+            desiredFiltered: desiredFiltered,
+            unmanagedUIDs: unmanagedUIDs,
+            controlUIDs: ControlUIDs(
+                visible: visibleCtrl?.uniqueIdentifier,
+                hidden: hiddenCtrlUID,
+                alwaysHidden: ahCtrl?.uniqueIdentifier
+            ),
+            sectionMap: sectionMap,
+            uidWidths: uidWidths,
+            availableWidth: availableWidth
+        )
+
+        lastMacOS27OverflowRebalance = Date()
+
+        guard !overflowResult.overflowUIDs.isEmpty else {
+            return false
+        }
+
+        let overflowSet = Set(overflowResult.overflowUIDs)
+        let toHide = visibleLive.filter { overflowSet.contains($0.uniqueIdentifier) }
+        guard !toHide.isEmpty else { return false }
+
+        MenuBarItemManager.diagLog.info(
+            "macOS 27 overflow: moving \(toHide.count) item(s) from visible to hidden"
+        )
+        controller.setSection(.hidden, items: toHide)
+        return true
+    }
+
     /// macOS 27 profile/saved-order apply: writes section membership and order
     /// through ``MenuBarSectionController`` instead of the legacy bulk-move pipeline.
     private func applyProfileLayoutMacOS27(
@@ -6596,6 +6807,10 @@ extension MenuBarItemManager {
         }
 
         let items = await MenuBarItem.getMenuBarItems(option: .activeSpace)
+        // Assignment backends return before legacy Phase 4 overflow; rebalance
+        // here so "Move items that don't fit into Hidden" fills Hidden/ThawBar.
+        _ = await rebalanceMacOS27OverflowIfNeeded(items: items, force: true)
+
         MenuBarItemManager.diagLog.info(
             "applyProfileLayout (macOS 27): applied \(controller.sectionAssignment.count) assignment(s)"
         )
@@ -7729,18 +7944,28 @@ extension MenuBarItemManager {
         if appState.settings.advanced.enableMenuBarItemOverflow,
            let screen = activeScreen
         {
-            // Available space: from notch gap (or screen left edge) to
-            // Control Center's left edge.
+            // Available space: from the notch gap (notched) or the trailing edge
+            // of the application menu (non-notched) to Control Center's left edge.
+            // Using screen.minX on non-notched displays used to count the Finder
+            // menu band as free status-item space, so Spawner floods never
+            // overflowed into Hidden despite native overcrowding.
             let ccItem = items.first(where: { $0.tag == .controlCenter })
             let rightBoundary = ccItem.map(\.bounds.minX) ?? screen.frame.maxX
             let notch = screen.frameOfNotch
-            let leftVisibleBoundary = notch?.maxX ?? screen.frame.minX
+            let applicationMenuFrame = screen.getApplicationMenuFrame()
+            let leftVisibleBoundary: CGFloat = if let notch {
+                notch.maxX
+            } else if let applicationMenuFrame, applicationMenuFrame.width > 0 {
+                applicationMenuFrame.maxX
+            } else {
+                screen.frame.minX
+            }
             var availableWidth: CGFloat
             if let notch {
                 let notchGap = MenuBarSection.notchGap
                 availableWidth = rightBoundary - (notch.maxX + notchGap)
             } else {
-                availableWidth = rightBoundary
+                availableWidth = rightBoundary - leftVisibleBoundary
             }
 
             // NSStatusItemSpacing is recorded here for diagnostic logging
@@ -7818,7 +8043,8 @@ extension MenuBarItemManager {
             MenuBarItemManager.diagLog.debug(
                 """
                 Notch overflow budget: screen.maxX=\(screen.frame.maxX) notch=\(notchLog) \
-                rightBoundary=\(rightBoundary) availableWidth=\(availableWidth) userSpacing=\(userSpacing) \
+                leftVisibleBoundary=\(leftVisibleBoundary) rightBoundary=\(rightBoundary) \
+                availableWidth=\(availableWidth) userSpacing=\(userSpacing) \
                 visibleUIDs.count=\(visibleUIDs.count) \
                 nonProfileCount=\(nonProfileCount) nonProfileFootprint=\(nonProfileFootprint) \
                 chevronFootprint=\(chevronFootprint) \

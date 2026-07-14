@@ -220,6 +220,12 @@ final class LayoutBarItemView: LayoutBarArrangedView {
         guard let appState, let section = (superview as? LayoutBarContainer)?.section else {
             return false
         }
+        // Oversized captures are almost always poisoned (near-full-bar / menu-chrome
+        // crops). Prefer the app icon instead of stretching Finder menus across
+        // the layout row while the image cache invalidates them.
+        if let cachedDrawImage, cachedDrawImage.size.width > Metrics.maxWidth {
+            return OverflowFallbackIcon.supportsMissingCaptureFallback(for: section)
+        }
         return OverflowFallbackIcon.shouldPreferAppIcon(
             for: section,
             appState: appState,
@@ -227,11 +233,10 @@ final class LayoutBarItemView: LayoutBarArrangedView {
         )
     }
 
-    /// Draws the owning app's icon in place of the captured glyph for concealed
-    /// native-overflow items, whose macOS 27 crops can render distorted. Falls
-    /// back to the generic box placeholder when no icon resolves (e.g. Thaw's
-    /// own control items). See ``OverflowFallbackIcon``. Interim until the crop
-    /// geometry is fixed.
+    /// Draws the owning app's icon when no usable capture exists (macOS 27
+    /// incomplete hosting-window crops / native hide). Falls back to the
+    /// generic box placeholder when no icon resolves (e.g. Thaw's own control
+    /// items). See ``OverflowFallbackIcon``.
     private func drawOverflowFallback() {
         guard
             !item.isControlItem,
@@ -294,7 +299,11 @@ final class LayoutBarItemView: LayoutBarArrangedView {
         image: MenuBarItemImageCache.CapturedImage?
     ) -> CGSize {
         if let image {
-            return image.scaledSize
+            // Clamp so a poisoned near-full-bar crop cannot dominate the
+            // Visible layout strip (Finder menu chrome spanning the row).
+            let width = image.scaledSize.width.clamped(to: Metrics.minWidth ... Metrics.maxWidth)
+            let height = max(image.scaledSize.height, Metrics.minHeight)
+            return CGSize(width: width, height: height)
         }
 
         let width = item.bounds.width.clamped(to: Metrics.minWidth ... Metrics.maxWidth)

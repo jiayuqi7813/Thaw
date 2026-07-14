@@ -12,28 +12,34 @@ import XCTest
 
 @MainActor
 final class OverflowFallbackIconTests: XCTestCase {
-    func testSupportsMissingCaptureFallbackOnlyForConcealedSections() throws {
+    func testSupportsMissingCaptureFallbackOnMacOS27ForAnySection() throws {
         guard #available(macOS 27, *) else {
-            throw XCTSkip("Concealed-section app-icon fallback is macOS 27-specific")
+            throw XCTSkip("App-icon fallback is macOS 27-specific")
         }
 
         XCTAssertTrue(OverflowFallbackIcon.supportsMissingCaptureFallback(for: .hidden))
         XCTAssertTrue(OverflowFallbackIcon.supportsMissingCaptureFallback(for: .alwaysHidden))
-        XCTAssertFalse(OverflowFallbackIcon.supportsMissingCaptureFallback(for: .visible))
+        XCTAssertTrue(OverflowFallbackIcon.supportsMissingCaptureFallback(for: .visible))
         XCTAssertFalse(OverflowFallbackIcon.supportsMissingCaptureFallback(for: nil))
     }
 
-    func testShouldPreferAppIconWhenCaptureMissingWithoutOverflowToggle() throws {
+    func testShouldPreferAppIconOnlyWhenCaptureMissing() throws {
         guard #available(macOS 27, *) else {
-            throw XCTSkip("Concealed-section app-icon fallback is macOS 27-specific")
+            throw XCTSkip("App-icon fallback is macOS 27-specific")
         }
 
         let appState = AppState()
-        appState.settings.advanced.enableExperimentalOverflowPrevention = false
 
         XCTAssertTrue(
             OverflowFallbackIcon.shouldPreferAppIcon(
                 for: .alwaysHidden,
+                appState: appState,
+                cachedImage: nil
+            )
+        )
+        XCTAssertTrue(
+            OverflowFallbackIcon.shouldPreferAppIcon(
+                for: .visible,
                 appState: appState,
                 cachedImage: nil
             )
@@ -43,24 +49,6 @@ final class OverflowFallbackIconTests: XCTestCase {
                 for: .alwaysHidden,
                 appState: appState,
                 cachedImage: NSImage(size: NSSize(width: 16, height: 16))
-            )
-        )
-    }
-
-    func testShouldPreferAppIconAlwaysWhenOverflowToggleEnabled() throws {
-        guard #available(macOS 27, *) else {
-            throw XCTSkip("Concealed-section app-icon fallback is macOS 27-specific")
-        }
-
-        let appState = AppState()
-        appState.settings.advanced.enableExperimentalOverflowPrevention = true
-        let cached = NSImage(size: NSSize(width: 16, height: 16))
-
-        XCTAssertTrue(
-            OverflowFallbackIcon.shouldPreferAppIcon(
-                for: .hidden,
-                appState: appState,
-                cachedImage: cached
             )
         )
     }

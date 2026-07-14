@@ -1222,6 +1222,53 @@ final class MenuBarSectionController: ObservableObject {
         }
     }
 
+    /// Assigns several items to `section` in one write (single persist + refresh).
+    /// Used by macOS 27 overflow rebalance so Spawner floods do not pay N
+    /// restriction pulses.
+    func setSection(_ section: MenuBarSection.Name, items: [MenuBarItem]) {
+        guard !items.isEmpty else { return }
+
+        if section == .alwaysHidden,
+           let advanced = appState?.settings.advanced
+        {
+            if !advanced.enableAlwaysHiddenSection {
+                advanced.enableAlwaysHiddenSection = true
+            }
+            if !advanced.useOptionClickToShowAlwaysHiddenSection {
+                advanced.useOptionClickToShowAlwaysHiddenSection = true
+            }
+        }
+
+        let experimentalSystemItemHiding = appState?.settings.advanced.enableExperimentalSystemItemHiding ?? false
+        var moved = [String]()
+        for item in items {
+            let cannotHideHere = !Self.canAssign(
+                item,
+                to: section,
+                experimentalSystemItemHiding: experimentalSystemItemHiding
+            )
+            if Self.isProtectedAssignmentItem(
+                item,
+                experimentalSystemItemHiding: experimentalSystemItemHiding
+            ) || cannotHideHere {
+                continue
+            }
+            let identifier = MenuBarItemTag.canonicalPersistentIdentifier(item.uniqueIdentifier)
+            removeFromOrder(identifier: identifier)
+            if section != .visible {
+                sectionItemOrder[section, default: []].append(identifier)
+            }
+            moved.append(identifier)
+        }
+        guard !moved.isEmpty else { return }
+        rebuildSectionAssignmentFromOrder()
+        persistOrder()
+        diagLog.info(
+            "setSection(\(section.rawValue)) batch \(moved.count) item(s); \(sectionAssignment.count) assigned"
+        )
+        refresh()
+    }
+
     /// Assigns a live item to a section, rejecting items that can never be
     /// safely concealed on macOS 27. Use this overload when a caller has the
     /// `MenuBarItem`; it can identify Thaw-owned generic `Item-0` entries even

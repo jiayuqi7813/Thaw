@@ -10,14 +10,13 @@ import Cocoa
 
 // MARK: - OverflowFallbackIcon
 
-/// Interim fallback that renders concealed menu bar items using their owning
-/// app's icon instead of the live screenshot crop when captured glyphs are
-/// unavailable.
+/// Interim fallback that renders menu bar items using their owning app's icon
+/// instead of the live screenshot crop when captured glyphs are unavailable.
 ///
-/// On macOS 27 the per-item reveal/capture used for concealed sections can
-/// miss glyphs during MenuBarAgent reflows. Until a capture succeeds, the
-/// app-icon fallback keeps the IceBar and layout editor from showing blank
-/// slots.
+/// On macOS 27 native hiding / overflow often produces incomplete hosting-window
+/// crops. When the image cache clears those failed captures, this fallback keeps
+/// IceBar and the layout editor from showing blank slots until a complete
+/// capture succeeds.
 enum OverflowFallbackIcon {
     /// The shared Control Center icon, reused for system-owned items whose
     /// `sourceApplication` resolves to a system agent rather than a real app.
@@ -26,17 +25,15 @@ enum OverflowFallbackIcon {
         .first?
         .icon
 
-    /// Whether concealed sections on macOS 27 may render app icons when live
-    /// captures are missing or unreliable.
+    /// Whether macOS 27 may render app icons when live captures are missing.
     @MainActor
     static func supportsMissingCaptureFallback(for section: MenuBarSection.Name?) -> Bool {
         guard #available(macOS 27, *) else { return false }
-        guard let section, section != .visible else { return false }
-        return true
+        return section != nil
     }
 
-    /// Whether concealed items in `section` should fall back to the app icon
-    /// when no captured glyph exists.
+    /// Whether items in `section` should fall back to the app icon when no
+    /// captured glyph exists.
     @MainActor
     static func shouldPreferAppIcon(
         for section: MenuBarSection.Name?,

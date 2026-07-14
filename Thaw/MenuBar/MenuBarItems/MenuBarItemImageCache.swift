@@ -119,6 +119,12 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
 
         /// The menu bar items excluded from the capture.
         var excluded = [MenuBarItem]()
+
+        /// Tags whose prior cache entry must be dropped because this pass proved
+        /// there is no usable glyph (incomplete crop / off-window). Cleared
+        /// entries let ``OverflowFallbackIcon`` show the app icon instead of a
+        /// stale screenshot.
+        var invalidatedTags = Set<MenuBarItemTag>()
     }
 
     /// The cached item images, keyed by their corresponding tags.
@@ -385,7 +391,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
 
     /// Bump when the capture/display semantics change enough that old images
     /// can be misleading.
-    private static let cacheVersion = 2
+    private static let cacheVersion = 3
 
     /// Saves the image cache to disk for faster restart.
     func saveToDisk() {
@@ -1201,6 +1207,80 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
             && expected.maxY - clamped.maxY <= edgeTolerance
     }
 
+    /// Rejects hosting-window screenshots whose pixel size does not match
+    /// `windowFrame * scale`. BetterDisplay / display-mode flips can leave
+    /// AppKit scale and ScreenCaptureKit `pointPixelScale` disagreeing; crops
+    /// from those frames land on empty or wrong regions and used to stick as
+    /// stale LayoutBar thumbnails (including Finder menu chrome).
+    @available(macOS 27, *)
+    static nonisolated func isPlausibleHostingCapture(
+        imageWidth: Int,
+        imageHeight: Int,
+        windowFrame: CGRect,
+        scale: CGFloat,
+        tolerance: CGFloat = 2
+    ) -> Bool {
+        guard scale > 0, scale.isFinite,
+              windowFrame.width > 0, windowFrame.height > 0,
+              windowFrame.width.isFinite, windowFrame.height.isFinite,
+              imageWidth > 0, imageHeight > 0
+        else {
+            return false
+        }
+
+        let expectedWidth = windowFrame.width * scale
+        let expectedHeight = windowFrame.height * scale
+        return abs(CGFloat(imageWidth) - expectedWidth) <= tolerance
+            && abs(CGFloat(imageHeight) - expectedHeight) <= tolerance
+    }
+
+    /// Rejects AX frames that are too wide to be a single status glyph.
+    /// Oversized frames poison the image cache with near-full-bar bitmaps that
+    /// LayoutBar then draws as one continuous Finder menu strip.
+    @available(macOS 27, *)
+    static nonisolated func isPlausibleItemCaptureBounds(
+        _ bounds: CGRect,
+        windowFrame: CGRect,
+        maxWidthPoints: CGFloat = 200
+    ) -> Bool {
+        guard !bounds.isNull, !bounds.isEmpty,
+              bounds.width.isFinite, bounds.height.isFinite,
+              bounds.width > 0, bounds.height > 0
+        else {
+            return false
+        }
+
+        // Keep a hard point cap. Do not scale with window width — that used to
+        // re-admit app-menu-wide frames (~0.35 × bar) under Spawner floods.
+        _ = windowFrame
+        return bounds.width <= maxWidthPoints
+    }
+
+    /// Status-item glyphs live to the right of the application menu. Frames that
+    /// sit in the Finder/File/Edit band still crop “successfully” from a full-
+    /// width bar bitmap (or a poisoned prior) and paint menu chrome into
+    /// LayoutBar — exactly the Spawner overcrowding repro.
+    @available(macOS 27, *)
+    static nonisolated func isInStatusItemCaptureBand(
+        bounds: CGRect,
+        windowFrame: CGRect,
+        applicationMenuMaxX: CGFloat?,
+        leadingTolerance: CGFloat = 2
+    ) -> Bool {
+        guard !bounds.isNull, !bounds.isEmpty else { return false }
+
+        if let applicationMenuMaxX, applicationMenuMaxX.isFinite {
+            return bounds.minX >= applicationMenuMaxX - leadingTolerance
+        }
+
+        // A percentage of the display is not a safe substitute: Finder's menu
+        // band can exceed it, while a short-menu app can leave valid status
+        // items farther left. Prefer a clean miss until AX supplies the actual
+        // boundary, so application-menu text can never enter the glyph cache.
+        _ = windowFrame
+        return false
+    }
+
     @available(macOS 27, *)
     static nonisolated func hasStableCaptureBounds(
         before: CGRect,
@@ -1222,19 +1302,73 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
     ) async -> CaptureResult {
         guard !itemsWithBounds.isEmpty else { return CaptureResult() }
 
+        let captureBand = await MainActor.run { () -> (frame: CGRect, menuMaxX: CGFloat?) in
+            guard let screen = NSScreen.screens.first(where: { $0.displayID == displayID }) else {
+                return (.zero, nil)
+            }
+            let menuMaxX = screen.getApplicationMenuFrame().flatMap { frame in
+                frame.width > 0 ? frame.maxX : nil
+            }
+            return (screen.frame, menuMaxX)
+        }
+
+        // Reject known application-menu or oversized frames before asking
+        // ScreenCaptureKit for a GPU-backed screenshot. Besides preventing
+        // Finder chrome from entering the cache, this avoids an expensive frame
+        // capture when a reflow pass contains no trustworthy status-item bounds.
+        var result = CaptureResult()
+        let captureCandidates = itemsWithBounds.filter { candidate in
+            let item = candidate.item
+            let bounds = candidate.bounds
+            let isPlausible = Self.isPlausibleItemCaptureBounds(
+                bounds,
+                windowFrame: captureBand.frame
+            ) && Self.isInStatusItemCaptureBand(
+                bounds: bounds,
+                windowFrame: captureBand.frame,
+                applicationMenuMaxX: captureBand.menuMaxX
+            )
+            if !isPlausible {
+                result.excluded.append(item)
+                result.invalidatedTags.insert(item.tag)
+            }
+            return isPlausible
+        }
+        guard !captureCandidates.isEmpty else {
+            MenuBarItemImageCache.diagLog.debug(
+                "axBoundsCapture: no trustworthy status-item bounds; skipping hosting screenshot"
+            )
+            return result
+        }
+
         guard let capture = await ScreenCapture.captureMenuBarHostingWindowAsync(displayID: displayID) else {
             MenuBarItemImageCache.diagLog.warning(
-                "axBoundsCapture: captureMenuBarHostingWindowAsync failed for \(itemsWithBounds.count) items"
+                "axBoundsCapture: captureMenuBarHostingWindowAsync failed for \(captureCandidates.count) items"
             )
-            var fail = CaptureResult()
-            fail.excluded = itemsWithBounds.map(\.item)
-            return fail
+            result.excluded.append(contentsOf: captureCandidates.map(\.item))
+            return result
         }
 
         let composite = capture.image
         let windowFrame = capture.windowFrame
         let scale = capture.scale
         let imageBounds = CGRect(x: 0, y: 0, width: composite.width, height: composite.height)
+
+        guard Self.isPlausibleHostingCapture(
+            imageWidth: composite.width,
+            imageHeight: composite.height,
+            windowFrame: windowFrame,
+            scale: scale
+        ) else {
+            MenuBarItemImageCache.diagLog.warning(
+                "axBoundsCapture: rejecting implausible hosting capture " +
+                    "\(composite.width)×\(composite.height)px windowFrame=\(windowFrame) scale=\(scale)"
+            )
+            result.excluded.append(contentsOf: captureCandidates.map(\.item))
+            // Clear priors so LayoutBar does not keep drawing stale strip/menu chrome.
+            result.invalidatedTags.formUnion(captureCandidates.map(\.item.tag))
+            return result
+        }
 
         let postCaptureBoundsByID: [String: CGRect]
         if validateFreshBounds {
@@ -1249,12 +1383,10 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
 
         MenuBarItemImageCache.diagLog.debug(
             "axBoundsCapture: hosting window \(composite.width)×\(composite.height)px, " +
-                "cropping \(itemsWithBounds.count) items"
+                "cropping \(captureCandidates.count) items"
         )
 
-        var result = CaptureResult()
-
-        for (item, bounds) in itemsWithBounds {
+        for (item, bounds) in captureCandidates {
             if shouldSkipCapture(for: item) {
                 result.excluded.append(item)
                 continue
@@ -1275,16 +1407,17 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
             // A concealed / off-screen item reports phantom bounds far below
             // the bar (macOS 27 parks them at y≈1428, well outside the ~30pt
             // hosting window even though they're still within the screen). Such
-            // bounds would crop to an empty rect; exclude them WITHOUT recording
-            // a capture failure so they aren't blacklisted and keep their last
-            // good image. `windowFrame` shares the item's coordinate space (see
-            // the crop math below), so a plain intersection check suffices.
+            // bounds would crop to an empty rect; exclude without blacklisting,
+            // and drop any prior image so UI falls back to the app icon.
+            // `windowFrame` shares the item's coordinate space (see the crop
+            // math below), so a plain intersection check suffices.
             if !windowFrame.intersects(bounds) {
                 MenuBarItemImageCache.diagLog.debug(
                     "axBoundsCapture: \(item.logString) bounds \(bounds) outside hosting " +
-                        "window \(windowFrame); keeping prior image"
+                        "window \(windowFrame); clearing prior image for app-icon fallback"
                 )
                 result.excluded.append(item)
+                result.invalidatedTags.insert(item.tag)
                 continue
             }
 
@@ -1307,11 +1440,17 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
             let cropRect = expectedCropRect.intersection(imageBounds)
 
             guard Self.isCompleteCrop(expected: expectedCropRect, clamped: cropRect) else {
+                // Native-hidden / overflowed items sit mostly outside the hosting
+                // window, so the clamped crop is a sliver. Keeping a prior glyph
+                // here blocked the app-icon fallback and left stale previews in
+                // Hidden / Always Hidden / IceBar. Treat incomplete as no capture.
                 MenuBarItemImageCache.diagLog.debug(
                     "axBoundsCapture: incomplete hosting-window frame for \(item.logString) " +
-                        "rawCropRect=\(rawCropRect) expected=\(expectedCropRect) clamped=\(cropRect); keeping prior image"
+                        "rawCropRect=\(rawCropRect) expected=\(expectedCropRect) clamped=\(cropRect); " +
+                        "clearing prior image for app-icon fallback"
                 )
                 result.excluded.append(item)
+                result.invalidatedTags.insert(item.tag)
                 continue
             }
 
@@ -1347,21 +1486,26 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                 // in the hosting-window composite is empty and crops to blank.
                 // That is expected, not a capture failure: recording it would
                 // blacklist the item for 30 s and leave a grey box in the layout
-                // bar. Keep the last good image captured while it was on-screen
-                // (the section controller's snapshot) and recover on reveal.
+                // bar. Drop the prior capture so IceBar / layout show the app
+                // icon until the item is revealed and captured again.
                 if !item.isOnScreen {
                     MenuBarItemImageCache.diagLog.debug(
                         "axBoundsCapture: blank image for off-screen \(item.logString); " +
-                            "keeping prior image (position-hidden)"
+                            "clearing prior image for app-icon fallback (position-hidden)"
                     )
                     result.excluded.append(item)
+                    result.invalidatedTags.insert(item.tag)
                     continue
                 }
+                // On-screen blanks during display-scale / MenuBarAgent reflows used
+                // to keep stale priors — including Finder menu-chrome crops from
+                // bad geometry. Clear so LayoutBar falls back to the app icon.
                 MenuBarItemImageCache.diagLog.debug(
-                    "axBoundsCapture: blank image for \(item.logString)"
+                    "axBoundsCapture: blank image for \(item.logString); " +
+                        "clearing prior image for app-icon fallback"
                 )
-                recordCaptureFailure(for: item)
                 result.excluded.append(item)
+                result.invalidatedTags.insert(item.tag)
                 continue
             }
 
@@ -1688,13 +1832,12 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         }
     }
 
-    /// Captures the images of the menu bar items in the given section and returns
-    /// a dictionary containing the images, keyed by their menu bar item tags.
+    /// Captures the images of the menu bar items in the given section.
     private func captureImages(
         for section: MenuBarSection.Name,
         scale: CGFloat,
         appState: AppState
-    ) async -> [MenuBarItemTag: CapturedImage] {
+    ) async -> CaptureResult {
         let items = await appState.itemManager.itemCache.managedItems(
             for: section
         )
@@ -1723,7 +1866,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                 "captureImages: \(captureResult.excluded.count) items failed capture"
             )
         }
-        return captureResult.images
+        return captureResult
     }
 
     // MARK: Failed Capture Management
@@ -2042,7 +2185,8 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
 
         // Concealed macOS 27 sections have only stale snapshot bounds, so crop
         // them only while MenuBarSectionController has actually revealed their live AX
-        // elements. Their last-good captures remain cached after they hide.
+        // elements. Incomplete / off-window crops clear the prior entry so the
+        // app-icon fallback can take over until a complete capture succeeds.
         let sectionsToCapture = MenuBarBackendProvider.current.capturableSections(
             from: sections,
             revealedSection: appState.menuBarManager.sectionController?.revealedSection
@@ -2050,6 +2194,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
 
         MenuBarItemImageCache.diagLog.notice("updateCacheWithoutChecks: displayID=\(screen.displayID) backingScaleFactor=\(Double(scale)) hasNotch=\(screen.hasNotch) menuBarHeight=\(Double(screen.getMenuBarHeightEstimate())) sections=\(sectionsToCapture.map(\.logString))")
         var newImages = [MenuBarItemTag: CapturedImage]()
+        var invalidatedTags = Set<MenuBarItemTag>()
 
         for section in sectionsToCapture {
             guard !Task.isCancelled else {
@@ -2061,7 +2206,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                 continue
             }
 
-            let sectionImages = await captureImages(
+            let sectionResult = await captureImages(
                 for: section,
                 scale: scale,
                 appState: appState
@@ -2076,7 +2221,9 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                 return
             }
 
-            guard !sectionImages.isEmpty else {
+            invalidatedTags.formUnion(sectionResult.invalidatedTags)
+
+            guard !sectionResult.images.isEmpty else {
                 // Expected for off-screen sections (e.g. hidden): live refresh
                 // (refreshImages) handles those items. Only a real concern for
                 // the visible section — check compositeCapture logs for details.
@@ -2086,7 +2233,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                 continue
             }
 
-            newImages.merge(sectionImages) { _, new in new }
+            newImages.merge(sectionResult.images) { _, new in new }
         }
 
         // Do NOT check Task.isCancelled here: if any captures succeeded (e.g.
@@ -2094,7 +2241,9 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         // even when the parent task was cancelled mid-settle (user re-clicked the
         // IceBar before the settle delay expired). The per-section guard above
         // already prevents starting new captures when cancelled.
-        guard !newImages.isEmpty else { return }
+        // Also apply when we only have invalidations (incomplete native-hidden
+        // crops) so stale priors are cleared for the app-icon fallback.
+        guard !newImages.isEmpty || !invalidatedTags.isEmpty else { return }
 
         // Get the set of valid item tags from all sections to clean up stale entries
         let allValidTags = Set(
@@ -2107,8 +2256,21 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         // here and show a blank Hidden slot after a visible→hidden move.
         let assignedSnapshotTags = appState.menuBarManager.sectionController?.assignedSnapshotTags ?? []
 
-        await MainActor.run { [newImages, allValidTags, assignedSnapshotTags] in
+        await MainActor.run { [newImages, invalidatedTags, allValidTags, assignedSnapshotTags] in
             let beforeCount = images.count
+
+            // Drop priors that this pass proved unusable (incomplete crop /
+            // off-window). Do this before merge so a successful recapture of
+            // the same tag still wins.
+            for tag in invalidatedTags {
+                images.removeValue(forKey: tag)
+                accessTimestamps.removeValue(forKey: tag)
+            }
+            if !invalidatedTags.isEmpty {
+                MenuBarItemImageCache.diagLog.debug(
+                    "updateCacheWithoutChecks: cleared \(invalidatedTags.count) prior image(s) for app-icon fallback"
+                )
+            }
 
             // Tags with recent capture failures should keep their cached images
             // even if the item temporarily left the item cache (e.g. a transient
@@ -2247,6 +2409,49 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         return false
     }
 
+    /// Waits only as long as MenuBarAgent needs to publish the precise reveal.
+    /// The old fixed 800 ms sleep made an N-item prewarm take N × 800 ms even
+    /// when the live AX item was available almost immediately.
+    @available(macOS 27, *)
+    private func waitForRevealedItem(
+        matching item: MenuBarItem,
+        displayID: CGDirectDisplayID
+    ) async -> MenuBarItem? {
+        let maxAttempts = 8
+        var previousLiveItem: MenuBarItem?
+        for attempt in 0 ..< maxAttempts {
+            guard !Task.isCancelled else { return nil }
+
+            let liveItems = await MenuBarItem.getMenuBarItems(
+                on: displayID,
+                option: [.onScreen, .activeSpace]
+            )
+            if let liveItem = liveItems.first(where: {
+                $0.hasSameIdentity(as: item) || $0.uniqueIdentifier == item.uniqueIdentifier
+            }) {
+                // AX can publish the item before MenuBarAgent has finished
+                // recompositing its glyph. Require one stable poll interval so
+                // we keep the speedup without racing that partial first state.
+                if let previousLiveItem,
+                   Self.hasStableCaptureBounds(
+                       before: previousLiveItem.bounds,
+                       after: liveItem.bounds
+                   )
+                {
+                    return liveItem
+                }
+                previousLiveItem = liveItem
+            } else {
+                previousLiveItem = nil
+            }
+
+            if attempt < maxAttempts - 1 {
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+        }
+        return nil
+    }
+
     /// Briefly reveals concealed macOS 27 sections so their live glyphs can be
     /// captured before the assertion hides them again.
     @available(macOS 27, *)
@@ -2369,15 +2574,10 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                         controller.concealTemporarilyRevealedItem(item.uniqueIdentifier)
                     }
 
-                    try? await Task.sleep(for: Constants.MenuBarTuning.layoutPrewarmCaptureSettle)
-
-                    let liveItems = await MenuBarItem.getMenuBarItems(
-                        on: displayID,
-                        option: [.onScreen, .activeSpace]
-                    )
-                    guard let liveItem = liveItems.first(where: {
-                        $0.hasSameIdentity(as: item) || $0.uniqueIdentifier == item.uniqueIdentifier
-                    }) else {
+                    guard let liveItem = await self.waitForRevealedItem(
+                        matching: item,
+                        displayID: displayID
+                    ) else {
                         continue
                     }
 
@@ -2392,6 +2592,10 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                         displayID: displayID,
                         validateFreshBounds: true
                     )
+                    for tag in captureResult.invalidatedTags {
+                        self.images.removeValue(forKey: tag)
+                        self.accessTimestamps.removeValue(forKey: tag)
+                    }
                     guard let image = captureResult.images[liveItem.tag] else {
                         continue
                     }
