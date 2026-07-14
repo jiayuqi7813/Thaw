@@ -26,32 +26,6 @@ struct SecondsLabel: View {
     }
 }
 
-@available(macOS 27, *)
-struct IconPreviewSettingsSection: View {
-    @ObservedObject var settings: AdvancedSettings
-    @ObservedObject var navigationState: AppNavigationState
-    @State private var isExpanded = false
-
-    static let defaultsExpanded = false
-
-    var body: some View {
-        IceSection {
-            DisclosureGroup("Icon previews", isExpanded: $isExpanded) {
-                Toggle("Use live icon capture", isOn: $settings.useContinuousMenuBarCapture)
-                    .annotation("Live capture can keep animated previews up to date, but may show the screen recording indicator and reflow the menu bar.")
-                    .padding(.top, 10)
-            }
-        }
-        .onChange(of: navigationState.requestedSettingsDisclosure, initial: true) { _, _ in
-            guard SettingsSearchNavigation.consumeDisclosure(
-                .iconPreviews,
-                navigationState: navigationState
-            ) else { return }
-            isExpanded = true
-        }
-    }
-}
-
 struct AdvancedSettingsPane: View {
     @EnvironmentObject var appState: AppState
     @ObservedObject var settings: AdvancedSettings
@@ -74,20 +48,12 @@ struct AdvancedSettingsPane: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
-            IceSection("Other") {
-                enableMenuBarItemOverflow
-                useLCSSortingOnNotchedDisplays
+            IceSection("Menu bar behavior") {
                 hideApplicationMenus
                 enableSecondaryContextMenu
                 if settings.enableSecondaryContextMenu {
                     enableSecondaryContextMenuQuit
                 }
-            }
-            if #available(macOS 27, *) {
-                IconPreviewSettingsSection(
-                    settings: settings,
-                    navigationState: appState.navigationState
-                )
             }
             IceSection("Permissions") {
                 allPermissions
@@ -180,43 +146,6 @@ struct AdvancedSettingsPane: View {
         var order = settings.searchSectionOrder
         order.swapAt(index, otherIndex)
         settings.searchSectionOrder = order
-    }
-
-    private var enableMenuBarItemOverflow: some View {
-        Toggle(
-            "Move items that don't fit into Hidden",
-            isOn: $settings.enableMenuBarItemOverflow
-        )
-        .annotation {
-            Text(
-                """
-                Move menu bar items from the visible section into the hidden \
-                section when they don't fit beside the notch on a notched \
-                display. Disable to keep the saved profile layout exactly as \
-                authored even when items would otherwise be pushed under the \
-                notch. This is separate from Layout's macOS overflow prevention.
-                """
-            )
-            .padding(.trailing, 75)
-        }
-    }
-
-    private var useLCSSortingOnNotchedDisplays: some View {
-        Toggle(
-            "Use LCS sorting on notched displays",
-            isOn: $settings.useLCSSortingOnNotchedDisplays
-        )
-        .annotation {
-            Text(
-                """
-                Use the faster LCS (Longest Common Subsequence) algorithm for \
-                profile sorting on notched displays instead of the full sort. \
-                LCS minimises the number of moves but may be less reliable on \
-                notched displays with smaller resolutions.
-                """
-            )
-            .padding(.trailing, 75)
-        }
     }
 
     private var hideApplicationMenus: some View {

@@ -70,7 +70,7 @@ final class SearchIndexTests: XCTestCase {
         let liveCapture = try XCTUnwrap(SearchIndex.entries.first { $0.id == "advanced.useContinuousMenuBarCapture" })
 
         XCTAssertEqual(liveCapture.titleText, "Use live icon capture")
-        XCTAssertEqual(liveCapture.pane, .advanced)
+        XCTAssertEqual(liveCapture.pane, .menuBarLayout)
         XCTAssertEqual(liveCapture.disclosure, .iconPreviews)
     }
 
@@ -82,21 +82,28 @@ final class SearchIndexTests: XCTestCase {
         XCTAssertNil(refreshRate.disclosure)
     }
 
-    @available(macOS 27, *)
     func testLayoutControlsResolveAdvancedDisclosure() throws {
-        let timeout = try XCTUnwrap(SearchIndex.entries.first { $0.id == "advanced.menuBarOrderFulfillmentTimeout" })
-        let overflow = try XCTUnwrap(SearchIndex.entries.first { $0.id == "advanced.enableExperimentalOverflowPrevention" })
+        let itemOverflow = try XCTUnwrap(SearchIndex.entries.first { $0.id == "advanced.enableMenuBarItemOverflow" })
+        let lcsSorting = try XCTUnwrap(SearchIndex.entries.first { $0.id == "advanced.useLCSSortingOnNotchedDisplays" })
 
-        XCTAssertEqual(timeout.titleText, "Reorder timeout")
-        XCTAssertEqual(overflow.titleText, "Keep visible items out of macOS overflow")
-        XCTAssertEqual(timeout.disclosure, .advancedLayoutControls)
-        XCTAssertEqual(overflow.disclosure, .advancedLayoutControls)
+        XCTAssertEqual(itemOverflow.pane, .menuBarLayout)
+        XCTAssertEqual(lcsSorting.pane, .menuBarLayout)
+        XCTAssertEqual(itemOverflow.disclosure, .advancedLayoutControls)
+        XCTAssertEqual(lcsSorting.disclosure, .advancedLayoutControls)
+
+        if #available(macOS 27, *) {
+            let timeout = try XCTUnwrap(SearchIndex.entries.first { $0.id == "advanced.menuBarOrderFulfillmentTimeout" })
+            let nativeOverflow = try XCTUnwrap(SearchIndex.entries.first { $0.id == "advanced.enableExperimentalOverflowPrevention" })
+            XCTAssertEqual(timeout.titleText, "Reorder timeout")
+            XCTAssertEqual(timeout.disclosure, .advancedLayoutControls)
+            XCTAssertEqual(nativeOverflow.titleText, "Keep visible items out of macOS overflow")
+            XCTAssertEqual(nativeOverflow.disclosure, .advancedLayoutControls)
+        }
     }
 
-    @available(macOS 27, *)
     func testDisclosuresDefaultCollapsed() {
         XCTAssertFalse(LayoutAdvancedControls.defaultsExpanded)
-        XCTAssertFalse(IconPreviewSettingsSection.defaultsExpanded)
+        XCTAssertFalse(LayoutIconPreviewControls.defaultsExpanded)
     }
 
     // MARK: - Relevance Sort

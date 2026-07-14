@@ -49,7 +49,10 @@ struct SearchEntry: Identifiable, @unchecked Sendable {
 
     var disclosure: AppNavigationState.SettingsDisclosure? {
         switch id {
-        case "advanced.enableExperimentalOverflowPrevention", "advanced.menuBarOrderFulfillmentTimeout":
+        case "advanced.enableExperimentalOverflowPrevention",
+             "advanced.enableMenuBarItemOverflow",
+             "advanced.menuBarOrderFulfillmentTimeout",
+             "advanced.useLCSSortingOnNotchedDisplays":
             .advancedLayoutControls
         case "advanced.useContinuousMenuBarCapture":
             .iconPreviews
@@ -106,7 +109,7 @@ enum SearchIndex {
             titleKey: "Use live icon capture",
             titleText: "Use live icon capture",
             descriptionText: "Keeps animated previews up to date, but may show the screen recording indicator and reflow the menu bar.",
-            pane: .advanced,
+            pane: .menuBarLayout,
             sectionKey: "Icon previews",
             sectionText: "Icon previews",
             keywords: ["capture", "live", "menu bar icons", "screen recording", "refresh", "stream"],
@@ -547,9 +550,9 @@ enum SearchIndex {
             titleKey: "Move items that don't fit into Hidden",
             titleText: "Move items that don't fit into Hidden",
             descriptionText: "Move menu bar items from the visible section into the hidden section when they don't fit beside the notch on a notched display.",
-            pane: .advanced,
-            sectionKey: "Other",
-            sectionText: "Other",
+            pane: .menuBarLayout,
+            sectionKey: "Advanced layout controls",
+            sectionText: "Advanced layout controls",
             keywords: ["overflow", "notch", "fit", "visible", "hidden"],
             property: .advanced("enableMenuBarItemOverflow")
         ),
@@ -558,9 +561,9 @@ enum SearchIndex {
             titleKey: "Use LCS sorting on notched displays",
             titleText: "Use LCS sorting on notched displays",
             descriptionText: "Use the faster LCS algorithm for profile sorting on notched displays instead of the full sort.",
-            pane: .advanced,
-            sectionKey: "Other",
-            sectionText: "Other",
+            pane: .menuBarLayout,
+            sectionKey: "Advanced layout controls",
+            sectionText: "Advanced layout controls",
             keywords: ["lcs", "sorting", "notch", "profile", "sort"],
             property: .advanced("useLCSSortingOnNotchedDisplays")
         ),
@@ -570,8 +573,8 @@ enum SearchIndex {
             titleText: "Hide app menus when showing menu bar items",
             descriptionText: "Make more room in the menu bar by hiding the current app menus if needed.",
             pane: .advanced,
-            sectionKey: "Other",
-            sectionText: "Other",
+            sectionKey: "Menu bar behavior",
+            sectionText: "Menu bar behavior",
             keywords: ["app menus", "hide", "application", "menu bar"],
             property: .advanced("hideApplicationMenus")
         ),
@@ -581,8 +584,8 @@ enum SearchIndex {
             titleText: "Enable secondary context menu",
             descriptionText: "Right-click in an empty area of the menu bar to display a minimal version of \(Constants.displayName)'s menu.",
             pane: .advanced,
-            sectionKey: "Other",
-            sectionText: "Other",
+            sectionKey: "Menu bar behavior",
+            sectionText: "Menu bar behavior",
             keywords: ["context menu", "right click", "secondary"],
             property: .advanced("enableSecondaryContextMenu")
         ),
@@ -592,8 +595,8 @@ enum SearchIndex {
             titleText: "Enable secondary context menu quit",
             descriptionText: "Add a Quit \(Constants.displayName) item to the bottom of the secondary context menu.",
             pane: .advanced,
-            sectionKey: "Other",
-            sectionText: "Other",
+            sectionKey: "Menu bar behavior",
+            sectionText: "Menu bar behavior",
             keywords: ["context menu", "quit", "secondary"],
             property: .advanced("enableSecondaryContextMenuQuit")
         ),

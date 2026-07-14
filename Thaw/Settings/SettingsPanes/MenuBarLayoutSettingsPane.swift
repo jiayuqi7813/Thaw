@@ -32,27 +32,41 @@ struct MenuBarLayoutSettingsPane: View {
     }
 
     var body: some View {
+        let hasScreenRecordingPermission = ScreenCapture.cachedCheckPermissions()
+        let canArrangeLayout = hasScreenRecordingPermission
+            && !appState.menuBarManager.isMenuBarHiddenBySystemUserDefaults
+
         IceForm(spacing: 20) {
+            if !hasScreenRecordingPermission {
+                MissingLayoutPermissionView()
+            } else if !canArrangeLayout {
+                CannotArrangeLayoutView()
+            } else {
+                LayoutBarsSection(itemManager: itemManager)
+            }
+
             LayoutSectionOptions(
                 settings: appState.settings.advanced,
                 isHidingUnavailable: isHidingUnavailable
             )
-            LayoutIconRefreshControl(settings: appState.settings.advanced)
+            LayoutIconPreviewControls(
+                settings: appState.settings.advanced,
+                navigationState: appState.navigationState
+            )
 
-            if !ScreenCapture.cachedCheckPermissions() {
-                MissingLayoutPermissionView()
-            } else if appState.menuBarManager.isMenuBarHiddenBySystemUserDefaults {
-                CannotArrangeLayoutView()
-            } else {
-                LayoutBarsSection(itemManager: itemManager)
+            if canArrangeLayout {
                 if #available(macOS 27, *) {
                     LayoutSystemItemControl(isEnabled: systemItemHidingBinding)
-                    LayoutAdvancedControls(
-                        navigationState: appState.navigationState,
-                        reorderTimeout: reorderTimeoutBinding,
-                        preventsOverflow: overflowPreventionBinding
-                    )
                 }
+            }
+
+            LayoutAdvancedControls(
+                settings: appState.settings.advanced,
+                navigationState: appState.navigationState,
+                preventsOverflow: overflowPreventionBinding
+            )
+
+            if canArrangeLayout {
                 LayoutResetControls(
                     itemManager: itemManager,
                     controlItemsDisabled: itemManager.areControlItemsMissing,
@@ -80,13 +94,6 @@ struct MenuBarLayoutSettingsPane: View {
         )
     }
 
-    private var reorderTimeoutBinding: Binding<TimeInterval> {
-        Binding(
-            get: { appState.settings.advanced.menuBarOrderFulfillmentTimeout },
-            set: { appState.settings.advanced.menuBarOrderFulfillmentTimeout = $0 }
-        )
-    }
-
     private var overflowPreventionBinding: Binding<Bool> {
         Binding(
             get: { appState.settings.advanced.enableExperimentalOverflowPrevention },
@@ -98,9 +105,13 @@ struct MenuBarLayoutSettingsPane: View {
     }
 }
 
-private struct LayoutIconRefreshControl: View {
+struct LayoutIconPreviewControls: View {
     @ObservedObject var settings: AdvancedSettings
+    @ObservedObject var navigationState: AppNavigationState
     @State private var labelWidth: CGFloat = 0
+    @State private var isExpanded = false
+
+    static let defaultsExpanded = false
 
     private var fpsBinding: Binding<Double> {
         Binding(
@@ -126,6 +137,21 @@ private struct LayoutIconRefreshControl: View {
                     }
             }
             .annotation("How often animated menu bar icons are refreshed in panels. Higher values are smoother but use more CPU.")
+
+            if #available(macOS 27, *) {
+                DisclosureGroup("Advanced capture options", isExpanded: $isExpanded) {
+                    Toggle("Use live icon capture", isOn: $settings.useContinuousMenuBarCapture)
+                        .annotation("Live capture can keep animated previews up to date, but may show the screen recording indicator and reflow the menu bar.")
+                        .padding(.top, 10)
+                }
+            }
+        }
+        .onChange(of: navigationState.requestedSettingsDisclosure, initial: true) { _, _ in
+            guard SettingsSearchNavigation.consumeDisclosure(
+                .iconPreviews,
+                navigationState: navigationState
+            ) else { return }
+            isExpanded = true
         }
     }
 }
@@ -293,10 +319,9 @@ private struct LayoutSystemItemControl: View {
     }
 }
 
-@available(macOS 27, *)
 struct LayoutAdvancedControls: View {
+    @ObservedObject var settings: AdvancedSettings
     @ObservedObject var navigationState: AppNavigationState
-    @Binding var reorderTimeout: TimeInterval
     @Binding var preventsOverflow: Bool
     @State private var isExpanded = false
     @State private var hasConnectedNotchedDisplay = NSScreen.managedScreens.contains(where: \.hasNotch)
@@ -306,31 +331,61 @@ struct LayoutAdvancedControls: View {
     var body: some View {
         IceSection {
             DisclosureGroup("Advanced layout controls", isExpanded: $isExpanded) {
-                VStack(alignment: .leading, spacing: 16) {
-                    LabeledContent("Reorder timeout") {
-                        IceSlider(value: $reorderTimeout, in: 1 ... 15, step: 0.5) {
-                            SecondsLabel(value: reorderTimeout)
+                VStack(alignment: .leading, spacing: 18) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Overflow handling")
+                            .font(.headline)
+
+                        Toggle(
+                            "Move items that don't fit into Hidden",
+                            isOn: $settings.enableMenuBarItemOverflow
+                        )
+                        .annotation(
+                            "Move menu bar items from Visible into Hidden when they don't fit beside the notch. Disable to keep the saved profile layout exactly as authored."
+                        )
+
+                        if #available(macOS 27, *), hasConnectedNotchedDisplay {
+                            Toggle(isOn: $preventsOverflow) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack(spacing: 6) {
+                                        Text("Keep visible items out of macOS overflow")
+                                            .font(.headline)
+                                        Text("Experimental")
+                                            .font(.caption2.weight(.semibold))
+                                            .foregroundStyle(.secondary)
+                                            .padding(.horizontal, 5)
+                                            .padding(.vertical, 2)
+                                            .background(.quaternary, in: Capsule())
+                                    }
+                                    Text("When a notched menu bar is full, prefer hiding already-hidden items behind macOS's overflow chevron so visible items remain on screen.")
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
                         }
                     }
-                    .annotation("How long Thaw waits for macOS to apply a menu bar reorder before continuing with any remaining layout work.")
 
-                    if hasConnectedNotchedDisplay {
-                        Toggle(isOn: $preventsOverflow) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                HStack(spacing: 6) {
-                                    Text("Keep visible items out of macOS overflow")
-                                        .font(.headline)
-                                    Text("Experimental")
-                                        .font(.caption2.weight(.semibold))
-                                        .foregroundStyle(.secondary)
-                                        .padding(.horizontal, 5)
-                                        .padding(.vertical, 2)
-                                        .background(.quaternary, in: Capsule())
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Compatibility and performance")
+                            .font(.headline)
+
+                        Toggle(
+                            "Use LCS sorting on notched displays",
+                            isOn: $settings.useLCSSortingOnNotchedDisplays
+                        )
+                        .annotation(
+                            "Use the faster LCS algorithm for profile sorting on notched displays. It minimises moves but may be less reliable at smaller resolutions."
+                        )
+
+                        if #available(macOS 27, *) {
+                            LabeledContent("Reorder timeout") {
+                                IceSlider(value: $settings.menuBarOrderFulfillmentTimeout, in: 1 ... 15, step: 0.5) {
+                                    SecondsLabel(value: settings.menuBarOrderFulfillmentTimeout)
                                 }
-                                Text("When a notched menu bar is full, prefer hiding already-hidden items behind macOS's overflow chevron so visible items remain on screen.")
-                                    .font(.footnote)
-                                    .foregroundStyle(.secondary)
                             }
+                            .annotation("How long Thaw waits for macOS to apply a menu bar reorder before continuing with any remaining layout work.")
                         }
                     }
                 }
