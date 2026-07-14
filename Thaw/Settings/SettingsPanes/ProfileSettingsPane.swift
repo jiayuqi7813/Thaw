@@ -78,7 +78,7 @@ struct ProfileSettingsPane: View {
                 Button("Done") {
                     commitRename(id: profile.id)
                 }
-                .buttonStyle(.glass)
+                .buttonStyle(.settingsGlass)
             } else {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(.green)
@@ -101,7 +101,7 @@ struct ProfileSettingsPane: View {
                 Button("Apply") {
                     applyProfile(id: profile.id)
                 }
-                .buttonStyle(.glass)
+                .buttonStyle(.settingsGlass)
                 .disabled(isApplying || profile.id == profileManager.activeProfileID)
 
                 Menu {
@@ -187,7 +187,7 @@ struct ProfileSettingsPane: View {
             Button("Save Current") {
                 createProfile()
             }
-            .buttonStyle(.glass)
+            .buttonStyle(.settingsGlass)
             .disabled(newProfileName.trimmingCharacters(in: .whitespaces).isEmpty)
         }
 
@@ -202,7 +202,7 @@ struct ProfileSettingsPane: View {
                     Text("Import Profile(s)")
                 }
             }
-            .buttonStyle(.glass)
+            .buttonStyle(.settingsGlass)
 
             if !profileManager.profiles.isEmpty {
                 Button {
@@ -214,7 +214,7 @@ struct ProfileSettingsPane: View {
                         Text("Export Profile(s)")
                     }
                 }
-                .buttonStyle(.glass)
+                .buttonStyle(.settingsGlass)
             }
         }
     }
@@ -242,7 +242,7 @@ struct ProfileSettingsPane: View {
                         NSWorkspace.shared.open(url)
                     }
                 }
-                .buttonStyle(.glass)
+                .buttonStyle(.settingsGlass)
             }
         }
     }

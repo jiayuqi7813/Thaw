@@ -1175,7 +1175,7 @@ final class ControlItem: NSObject {
         let menu = NSMenu(title: Bundle.main.displayName)
 
         let settingsItem = NSMenuItem(
-            title: String(localized: "\(Constants.displayName) Settings…"),
+            title: String(localized: "Settings"),
             action: #selector(AppDelegate.openSettingsWindow),
             keyEquivalent: ","
         )
@@ -1186,7 +1186,7 @@ final class ControlItem: NSObject {
         menu.addItem(.separator())
 
         let searchItem = NSMenuItem(
-            title: String(localized: "Search Menu Bar Items"),
+            title: String(localized: "Search Items"),
             action: #selector(showSearchPanel),
             keyEquivalent: ""
         )

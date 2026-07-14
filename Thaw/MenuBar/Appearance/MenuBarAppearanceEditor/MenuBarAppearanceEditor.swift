@@ -47,7 +47,7 @@ struct MenuBarAppearanceEditor: View {
     }
 
     private var panelHeading: some View {
-        Text("Menu Bar Appearance")
+        Text("Appearance")
             .font(.title2.weight(.semibold))
             .frame(maxWidth: .infinity, alignment: .center)
             .padding(.horizontal, 20)
@@ -131,7 +131,7 @@ struct MenuBarAppearanceEditor: View {
                         Button("Reset Appearance", role: .destructive) {
                             isResetPromptPresented = true
                         }
-                        .alert("Reset Menu Bar Appearance", isPresented: $isResetPromptPresented) {
+                        .alert("Reset Appearance", isPresented: $isResetPromptPresented) {
                             Button("Cancel", role: .cancel) {
                                 isResetPromptPresented = false
                             }
@@ -167,7 +167,7 @@ struct MenuBarAppearanceEditor: View {
                 Button("Reset") {
                     isResetPromptPresented = true
                 }
-                .alert("Reset Menu Bar Appearance", isPresented: $isResetPromptPresented) {
+                .alert("Reset Appearance", isPresented: $isResetPromptPresented) {
                     Button("Cancel", role: .cancel) {
                         isResetPromptPresented = false
                     }

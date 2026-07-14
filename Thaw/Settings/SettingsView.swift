@@ -12,6 +12,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
 
     let appState: AppState
     @ObservedObject var navigationState: AppNavigationState
@@ -20,23 +21,16 @@ struct SettingsView: View {
         NavigationSplitView {
             sidebar
         } detail: {
-            VStack(alignment: .leading, spacing: 0) {
-                SettingsPaneHeader(title: navigationState.settingsNavigationIdentifier.localized)
-                    .padding(.top, 24)
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 8)
-
-                settingsPane
-                    .id(navigationState.settingsNavigationIdentifier)
-                    .transition(paneTransition)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .ignoresSafeArea(.container, edges: .top)
-            .glassEffect(.regular, in: Rectangle())
+            settingsPane
+                .id(navigationState.settingsNavigationIdentifier)
+                .transition(paneTransition)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .buttonStyle(.settingsGlass)
+                .glassEffect(paneGlass, in: Rectangle())
+                .scrollEdgeEffectStyle(.soft, for: .top)
         }
-        .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
-        .buttonBorderShape(.roundedRectangle(radius: 8))
+        .navigationTitle(navigationState.settingsNavigationIdentifier.localized)
+        .toolbarBackgroundVisibility(.visible, for: .windowToolbar)
         .transaction { transaction in
             if reduceMotion {
                 transaction.animation = nil
@@ -47,6 +41,10 @@ struct SettingsView: View {
 
     private var paneTransition: AnyTransition {
         reduceMotion ? .identity : .opacity.animation(.easeOut(duration: 0.14))
+    }
+
+    private var paneGlass: Glass {
+        colorScheme == .dark ? .identity : .regular
     }
 
     @ViewBuilder
@@ -89,14 +87,22 @@ struct SettingsView: View {
     }
 }
 
-private struct SettingsPaneHeader: View {
-    let title: LocalizedStringKey
+struct SettingsGlassButtonStyle: PrimitiveButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Button(role: configuration.role) {
+            configuration.trigger()
+        } label: {
+            configuration.label
+                .padding(.horizontal, 16)
+        }
+        .buttonStyle(.glass)
+        .buttonBorderShape(.roundedRectangle(radius: 16))
+    }
+}
 
-    var body: some View {
-        Text(title)
-            .font(.largeTitle.weight(.bold))
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityAddTraits(.isHeader)
+extension PrimitiveButtonStyle where Self == SettingsGlassButtonStyle {
+    static var settingsGlass: SettingsGlassButtonStyle {
+        .init()
     }
 }
 

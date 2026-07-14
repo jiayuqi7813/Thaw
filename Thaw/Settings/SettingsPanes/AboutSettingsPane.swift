@@ -191,7 +191,7 @@ struct AboutSettingsPane: View {
             Button("Check for Updates") {
                 updatesManager.checkForUpdates()
             }
-            .buttonStyle(.glass)
+            .buttonStyle(.settingsGlass)
             .disabled(!updatesManager.canCheckForUpdates)
 
             Spacer()
@@ -209,8 +209,8 @@ struct AboutSettingsPane: View {
             Button("Quit \(Constants.displayName)") {
                 ApplicationTermination.request()
             }
+            .buttonStyle(.settingsGlass)
             .foregroundStyle(.red)
-            .buttonStyle(.glass)
 
             Spacer()
 
@@ -226,7 +226,7 @@ struct AboutSettingsPane: View {
                     openURL(Constants.donateURL)
                 }
             }
-            .buttonStyle(.glass)
+            .buttonStyle(.settingsGlass)
         }
     }
 }

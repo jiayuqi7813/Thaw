@@ -381,7 +381,7 @@ private struct LayoutResetControls: View {
                             Text("Reset Layout…")
                         }
                     }
-                    .buttonStyle(.glass)
+                    .buttonStyle(.settingsGlass)
                     .disabled(isResetting || controlItemsDisabled)
                 }
 
@@ -398,7 +398,7 @@ private struct LayoutResetControls: View {
                             }
                             Button("Cancel", role: .cancel) { isConfirming = false }
                         }
-                        .buttonStyle(.glass)
+                        .buttonStyle(.settingsGlass)
                     }
                     .transition(resetTransition)
                 }

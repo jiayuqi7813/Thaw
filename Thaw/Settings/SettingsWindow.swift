@@ -16,15 +16,6 @@ struct SettingsWindow: Scene {
     var body: some Scene {
         IceWindow(id: .settings, appState: appState) {
             SettingsView(appState: appState, navigationState: appState.navigationState)
-                .onWindowChange { window in
-                    guard let window else {
-                        return
-                    }
-                    window.styleMask.insert(.fullSizeContentView)
-                    window.titleVisibility = .hidden
-                    window.titlebarAppearsTransparent = true
-                    window.titlebarSeparatorStyle = .none
-                }
                 .sheet(isPresented: $appState.isUpdateConsentPresented) {
                     UpdateConsentSheet { autoDownload in
                         appState.isUpdateConsentPresented = false
@@ -51,7 +42,8 @@ struct SettingsWindow: Scene {
         }
         .windowResizability(.contentSize)
         .defaultSize(width: 950, height: 650)
-        .windowStyle(.hiddenTitleBar)
+        .windowStyle(.titleBar)
+        .windowToolbarStyle(.unified)
         .environmentObject(appState)
         .environmentObject(appState.permissions)
     }

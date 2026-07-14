@@ -26,7 +26,7 @@ enum ThawTourSlide: Int, CaseIterable, Identifiable {
         switch self {
         case .welcome: String(localized: "Welcome to your menu bar")
         case .menuBarManagement: String(localized: "Menu Bar Management")
-        case .menuBarAppearance: String(localized: "Menu Bar Appearance")
+        case .menuBarAppearance: String(localized: "Appearance")
         case .hotkeysAutomation: String(localized: "Hotkeys & Automation")
         case .profiles: String(localized: "Profiles")
         case .integrations: String(localized: "Works With Your Tools")

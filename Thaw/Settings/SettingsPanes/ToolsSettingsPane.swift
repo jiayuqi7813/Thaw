@@ -176,7 +176,7 @@ struct ToolsSettingsPane: View {
             }
             Spacer(minLength: 12)
             Button(buttonTitle, role: role, action: action)
-                .buttonStyle(.glass)
+                .buttonStyle(.settingsGlass)
         }
     }
 

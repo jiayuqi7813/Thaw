@@ -489,7 +489,7 @@ private struct HookRow: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 Button("Choose Script…") { chooseScript() }
-                    .buttonStyle(.glass)
+                    .buttonStyle(.settingsGlass)
 
                 Button(role: .destructive) {
                     hook = nil

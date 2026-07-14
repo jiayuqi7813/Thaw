@@ -37,7 +37,7 @@ struct UpdateConsentSheet: View {
                     onDisable()
                 }
                 .disabled(isProcessing)
-                .buttonStyle(.glass)
+                .buttonStyle(.settingsGlass)
                 Button("Check Automatically") {
                     guard !isProcessing else { return }
                     isProcessing = true
@@ -45,7 +45,7 @@ struct UpdateConsentSheet: View {
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(isProcessing)
-                .buttonStyle(.glassProminent)
+                .buttonStyle(.settingsGlass)
             }
         }
         .padding(20)
