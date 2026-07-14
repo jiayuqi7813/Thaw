@@ -2,28 +2,28 @@
 #
 # thaw-build-dmg.sh — Local-only mirror of `.github/workflows/build-dmg.yml`.
 #
-# Hardcoded for this machine. Do not use in CI (CI keeps secrets in GitHub Actions).
+# Configured through environment variables. Do not use in CI (CI keeps secrets
+# in GitHub Actions).
 #
 # One-time notarization setup (stores app-specific password in login keychain):
-#   xcrun notarytool store-credentials thaw-notary \
-#     --apple-id "APPLE_ID" \
-#     --team-id "TEAM_ID" \
+#   xcrun notarytool store-credentials "$THAW_NOTARY_PROFILE" \
+#     --apple-id "$THAW_APPLE_ID" \
+#     --team-id "$THAW_TEAM_ID" \
 #     --password "<app-specific-password>"
 #
 # Usage:
 #   ./scripts/thaw-build-dmg.sh
 #   ./scripts/thaw-build-dmg.sh --skip-notarize
+#   ./scripts/thaw-build-dmg.sh --dmg-name Thaw-test.dmg
 #   ./scripts/thaw-build-dmg.sh --open
 #
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# ── Local-only defaults ──────────────────────────────────────────────────────
-TEAM_ID="TEAM_ID"
-APPLE_ID="APPLE_ID"
-NOTARY_PROFILE="thaw-notary"
-SIGN_IDENTITY="Developer ID Application"
-# ─────────────────────────────────────────────────────────────────────────────
+TEAM_ID="${THAW_TEAM_ID:-}"
+APPLE_ID="${THAW_APPLE_ID:-}"
+NOTARY_PROFILE="${THAW_NOTARY_PROFILE:-}"
+SIGN_IDENTITY="${THAW_SIGN_IDENTITY:-}"
 
 APP_NAME="Thaw.app"
 DMG_NAME="Thaw-dev.dmg"
@@ -44,7 +44,7 @@ say() { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
 die() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 
 usage() {
-    sed -n '3,16p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '3,19p' "$0" | sed 's/^# \{0,1\}//'
     exit 0
 }
 
@@ -52,12 +52,60 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --skip-notarize) SKIP_NOTARIZE=1; shift ;;
         --skip-archive) SKIP_ARCHIVE=1; shift ;;
-        --dmg-name) DMG_NAME="${2:?}"; shift 2 ;;
+        --dmg-name)
+            [[ $# -ge 2 ]] || die "--dmg-name requires a value"
+            DMG_NAME="$2"
+            shift 2
+            ;;
         --open) OPEN_DMG=1; shift ;;
         -h | --help) usage ;;
         *) die "Unknown option: $1 (try --help)" ;;
     esac
 done
+
+validate_dmg_name() {
+    [[ "$DMG_NAME" != "." && "$DMG_NAME" != ".." ]] || die "--dmg-name must be a .dmg basename"
+    [[ "$DMG_NAME" != */* ]] || die "--dmg-name must not contain path separators"
+    [[ "$DMG_NAME" == *.dmg && "$DMG_NAME" != ".dmg" ]] || die "--dmg-name must be a basename ending in .dmg"
+}
+
+require_config_value() {
+    local variable_name="$1"
+    local value="$2"
+    local placeholder="$3"
+    [[ -n "$value" && "$value" != "$placeholder" ]] || die "$variable_name must be set to a non-placeholder value"
+}
+
+validate_team_id() {
+    [[ "$TEAM_ID" =~ ^[A-Z0-9]{10}$ ]] || die "THAW_TEAM_ID must be a 10-character Apple Team ID, not a placeholder"
+}
+
+validate_apple_id() {
+    [[ "$APPLE_ID" == *@* && "$APPLE_ID" != *@example.com ]] || die "THAW_APPLE_ID must be a non-placeholder Apple ID email address"
+}
+
+validate_signing_identity() {
+    case "$SIGN_IDENTITY" in
+        "Developer ID Application" | *"YOUR_TEAM_ID"* | *"Your Name"*)
+            die "THAW_SIGN_IDENTITY must be the full non-placeholder signing identity"
+            ;;
+    esac
+}
+
+validate_configuration() {
+    require_config_value THAW_TEAM_ID "$TEAM_ID" TEAM_ID
+    require_config_value THAW_SIGN_IDENTITY "$SIGN_IDENTITY" SIGN_IDENTITY
+    validate_team_id
+    validate_signing_identity
+    if [[ "$SKIP_NOTARIZE" -eq 0 ]]; then
+        require_config_value THAW_APPLE_ID "$APPLE_ID" APPLE_ID
+        require_config_value THAW_NOTARY_PROFILE "$NOTARY_PROFILE" NOTARY_PROFILE
+        validate_apple_id
+    fi
+}
+
+validate_dmg_name
+validate_configuration
 
 cleanup() {
     if [[ -n "$TEMP_DIR" && -d "$TEMP_DIR" ]]; then
@@ -89,8 +137,8 @@ require_tools() {
     [[ -f "$BACKGROUND" ]] || die "DMG background missing: $BACKGROUND"
     [[ -d "$PROJECT" ]] || die "Project not found: $PROJECT"
 
-    if ! security find-identity -v -p codesigning 2>/dev/null | grep -qF 'Developer ID Application'; then
-        die "No 'Developer ID Application' identity in your keychain.
+    if ! security find-identity -v -p codesigning 2>/dev/null | grep -qF "$SIGN_IDENTITY"; then
+        die "No '$SIGN_IDENTITY' identity in your keychain.
 Download the .cer from developer.apple.com, double-click to install into login,
 then confirm with: security find-identity -v -p codesigning"
     fi
