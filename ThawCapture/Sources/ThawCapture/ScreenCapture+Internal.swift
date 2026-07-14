@@ -165,7 +165,9 @@ final class FrameCaptor: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked 
     /// single capture. One shared context amortizes it across the whole app.
     static let sharedCIContext = CIContext()
 
-    private var ciContext: CIContext { FrameCaptor.sharedCIContext }
+    private var ciContext: CIContext {
+        FrameCaptor.sharedCIContext
+    }
 
     private let lock = OSAllocatedUnfairLock<(continuation: CheckedContinuation<CGImage?, Never>?, bufferedImage: CGImage?)>(initialState: (nil, nil))
 

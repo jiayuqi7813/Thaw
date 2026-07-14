@@ -1419,8 +1419,7 @@ final class MenuBarSectionController: ObservableObject {
     private func refreshSignature(
         allItems: [MenuBarItem],
         experimentalSystemItemHiding: Bool,
-        experimentalWindowHiding: Bool,
-        experimentalOverflowPrevention: Bool
+        experimentalWindowHiding: Bool
     ) -> String {
         [
             "assignment=\(sectionAssignment.map { "\($0.key)=\($0.value.rawValue)" }.sorted().joined(separator: ","))",
@@ -1429,7 +1428,6 @@ final class MenuBarSectionController: ObservableObject {
             "items=\(allItems.map(\.uniqueIdentifier).sorted().joined(separator: ","))",
             "system=\(experimentalSystemItemHiding)",
             "window=\(experimentalWindowHiding)",
-            "overflow=\(experimentalOverflowPrevention)",
         ].joined(separator: "|")
     }
 
@@ -1439,7 +1437,6 @@ final class MenuBarSectionController: ObservableObject {
         guard let appState else { return }
         let experimentalSystemItemHiding = appState.settings.advanced.enableExperimentalSystemItemHiding
         let experimentalWindowHiding = appState.settings.advanced.enablePositionHiding
-        let experimentalOverflowPrevention = appState.settings.advanced.enableExperimentalOverflowPrevention
         let allItems = appState.itemManager.itemCache.managedItems
         let invalidAssignmentIDs = Self.invalidAssignmentIdentifiers(
             sectionAssignment: sectionAssignment,
@@ -1458,8 +1455,7 @@ final class MenuBarSectionController: ObservableObject {
         let signature = refreshSignature(
             allItems: allItems,
             experimentalSystemItemHiding: experimentalSystemItemHiding,
-            experimentalWindowHiding: experimentalWindowHiding,
-            experimentalOverflowPrevention: experimentalOverflowPrevention
+            experimentalWindowHiding: experimentalWindowHiding
         )
 
         // Low-frequency safety pass for apps that rewrite their own preferred
@@ -1609,14 +1605,12 @@ final class MenuBarSectionController: ObservableObject {
         backend.apply(sectionAssignment: [:], allItems: [])
     }
 
-    /// Experimental: pushes hidden items' position weights to extreme values
+    /// Pushes hidden items' position weights to extreme values
     /// (50000+) in `TrailingItemPreferredPositions` so the native macOS 27 menu
     /// bar overflow on notched displays collapses them before visible items.
     /// Items moved back to visible get their weights restored.
     private func applyExperimentalOverflowPreventionIfEnabled(allItems: [MenuBarItem]) {
-        guard let appState,
-              appState.settings.advanced.enableExperimentalOverflowPrevention
-        else { return }
+        guard let appState else { return }
         guard !appState.menuBarManager.shouldDeferMacOS27MenuBarMutation else {
             diagLog.debug("Skipping experimental overflow prevention: native menu bar unavailable/transitioning")
             return

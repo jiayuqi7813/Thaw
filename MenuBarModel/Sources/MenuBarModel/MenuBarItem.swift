@@ -349,8 +349,8 @@ public struct MenuBarItem: CustomStringConvertible, Sendable {
 
 // MARK: - MenuBarItem Init
 
-extension MenuBarItem {
-    public init(tag: MenuBarItemTag, windowID: CGWindowID, ownerPID: pid_t, sourcePID: pid_t?, bounds: CGRect, title: String?, isOnScreen: Bool) {
+public extension MenuBarItem {
+    init(tag: MenuBarItemTag, windowID: CGWindowID, ownerPID: pid_t, sourcePID: pid_t?, bounds: CGRect, title: String?, isOnScreen: Bool) {
         self.tag = tag
         self.windowID = windowID
         self.ownerPID = ownerPID

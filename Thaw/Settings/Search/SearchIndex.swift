@@ -49,8 +49,7 @@ struct SearchEntry: Identifiable, @unchecked Sendable {
 
     var disclosure: AppNavigationState.SettingsDisclosure? {
         switch id {
-        case "advanced.enableExperimentalOverflowPrevention",
-             "advanced.enableMenuBarItemOverflow",
+        case "advanced.enableMenuBarItemOverflow",
              "advanced.menuBarOrderFulfillmentTimeout",
              "advanced.useLCSSortingOnNotchedDisplays":
             .advancedLayoutControls
@@ -81,17 +80,6 @@ enum SearchIndex {
             sectionText: nil,
             keywords: ["system items", "clock", "control center", "siri", "hide", "macOS"],
             property: .advanced("enableExperimentalSystemItemHiding")
-        ),
-        SearchEntry(
-            id: "advanced.enableExperimentalOverflowPrevention",
-            titleKey: "Keep visible items out of macOS overflow",
-            titleText: "Keep visible items out of macOS overflow",
-            descriptionText: "When a notched menu bar is full, prefer hiding already-hidden items behind macOS's overflow chevron so visible items remain on screen.",
-            pane: .menuBarLayout,
-            sectionKey: "Advanced layout controls",
-            sectionText: "Advanced layout controls",
-            keywords: ["overflow", "native", "chevron", "notch", "experimental", "prevent"],
-            property: .advanced("enableExperimentalOverflowPrevention")
         ),
         SearchEntry(
             id: "advanced.menuBarOrderFulfillmentTimeout",
@@ -139,7 +127,6 @@ enum SearchIndex {
     private static let macOS27AdvancedNonSearchableProperties: Set<SettingsProperty> = [
         .advanced("enableExperimentalWindowHiding"),
         .advanced("enableExperimentalSystemItemHiding"),
-        .advanced("enableExperimentalOverflowPrevention"),
         .advanced("useContinuousMenuBarCapture"),
         .advanced("menuBarOrderFulfillmentTimeout"),
     ]

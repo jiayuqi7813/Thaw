@@ -62,8 +62,7 @@ struct MenuBarLayoutSettingsPane: View {
 
             LayoutAdvancedControls(
                 settings: appState.settings.advanced,
-                navigationState: appState.navigationState,
-                preventsOverflow: overflowPreventionBinding
+                navigationState: appState.navigationState
             )
 
             if canArrangeLayout {
@@ -89,16 +88,6 @@ struct MenuBarLayoutSettingsPane: View {
             get: { appState.settings.advanced.enableExperimentalSystemItemHiding },
             set: { newValue in
                 appState.settings.advanced.enableExperimentalSystemItemHiding = newValue
-                appState.menuBarManager.sectionController?.refresh()
-            }
-        )
-    }
-
-    private var overflowPreventionBinding: Binding<Bool> {
-        Binding(
-            get: { appState.settings.advanced.enableExperimentalOverflowPrevention },
-            set: { newValue in
-                appState.settings.advanced.enableExperimentalOverflowPrevention = newValue
                 appState.menuBarManager.sectionController?.refresh()
             }
         )
@@ -322,7 +311,6 @@ private struct LayoutSystemItemControl: View {
 struct LayoutAdvancedControls: View {
     @ObservedObject var settings: AdvancedSettings
     @ObservedObject var navigationState: AppNavigationState
-    @Binding var preventsOverflow: Bool
     @State private var isExpanded = false
     @State private var hasConnectedNotchedDisplay = NSScreen.managedScreens.contains(where: \.hasNotch)
 
@@ -343,26 +331,6 @@ struct LayoutAdvancedControls: View {
                         .annotation(
                             "Move menu bar items from Visible into Hidden when they don't fit beside the notch. Disable to keep the saved profile layout exactly as authored."
                         )
-
-                        if #available(macOS 27, *), hasConnectedNotchedDisplay {
-                            Toggle(isOn: $preventsOverflow) {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    HStack(spacing: 6) {
-                                        Text("Keep visible items out of macOS overflow")
-                                            .font(.headline)
-                                        Text("Experimental")
-                                            .font(.caption2.weight(.semibold))
-                                            .foregroundStyle(.secondary)
-                                            .padding(.horizontal, 5)
-                                            .padding(.vertical, 2)
-                                            .background(.quaternary, in: Capsule())
-                                    }
-                                    Text("When a notched menu bar is full, prefer hiding already-hidden items behind macOS's overflow chevron so visible items remain on screen.")
-                                        .font(.footnote)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                        }
                     }
 
                     Divider()

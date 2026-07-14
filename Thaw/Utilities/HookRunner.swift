@@ -10,9 +10,9 @@ import Foundation
 import MenuBarModel
 import Subprocess
 #if canImport(System)
-import System
+    import System
 #else
-import SystemPackage
+    import SystemPackage
 #endif
 
 /// Executes user-supplied profile-apply hooks with a wall-clock timeout
@@ -207,10 +207,9 @@ enum HookRunner {
         case let .completed(result):
             let stdout = (result.standardOutput ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             let stderr = (result.standardError ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            let exitStatus: Int32
-            switch result.terminationStatus {
-            case let .exited(code): exitStatus = code
-            case let .signaled(code): exitStatus = code
+            let exitStatus: Int32 = switch result.terminationStatus {
+            case let .exited(code): code
+            case let .signaled(code): code
             }
             guard result.terminationStatus.isSuccess else {
                 throw HookError.nonZeroExit(exitStatus)

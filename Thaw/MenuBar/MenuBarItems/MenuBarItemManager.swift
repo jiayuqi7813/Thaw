@@ -1592,7 +1592,7 @@ final class MenuBarItemManager: ObservableObject {
                 }
                 Task {
                     guard let imageCache = self.appState?.imageCache else { return }
-                    if #available(macOS 27, *), self.appState?.settings.advanced.enableExperimentalOverflowPrevention == true {
+                    if #available(macOS 27, *) {
                         await imageCache.prewarmConcealedImagesMacOS27(
                             sections: MenuBarSection.Name.allCases,
                             onlyMissingImages: false
@@ -1618,7 +1618,7 @@ final class MenuBarItemManager: ObservableObject {
                 }
                 Task {
                     guard let imageCache = self.appState?.imageCache else { return }
-                    if #available(macOS 27, *), self.appState?.settings.advanced.enableExperimentalOverflowPrevention == true {
+                    if #available(macOS 27, *) {
                         await imageCache.prewarmConcealedImagesMacOS27(
                             sections: MenuBarSection.Name.allCases,
                             onlyMissingImages: false
@@ -5482,11 +5482,6 @@ extension MenuBarItemManager {
         // want a different menu) fall through to the synthetic path below.
         let identifier = item.uniqueIdentifier
         if mouseButton == .left, pressItemViaAccessibility(item) {
-            if appState?.settings.advanced.enableExperimentalOverflowPrevention != true {
-                controller.revealItemTemporarily(identifier)
-                await eventSleep(for: Constants.MenuBarTuning.iceBarPostClickSettle)
-                controller.scheduleTemporaryItemConceal(identifier)
-            }
             MenuBarItemManager.diagLog.info(
                 "clickConcealedItem: opened \(item.logString) via AX press"
             )

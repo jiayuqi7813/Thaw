@@ -1,12 +1,12 @@
 {
-  "originHash" : "a900078c0f3c9adf769dc1e1212450317b2f4493f213d8e52c9a8529520a1195",
+  "originHash" : "cecc52585e6dea7e18580f37c351ae028e17d93729f8cdc239f158c51f598ee1",
   "pins" : [
     {
       "identity" : "axswift6",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/thaw-app/AXSwift6",
       "state" : {
-        "revision" : "7b3bce4dde264aab5255793c1b1dfd74caea6554",
+        "revision" : "5ffa0911c66ee343366ebac6ffe5b23c524ceba7",
         "version" : "0.4.0"
       }
     },

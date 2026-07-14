@@ -8,8 +8,8 @@
 
 import CoreGraphics
 import Foundation
-import PlatformRuntimeKit
 import MenuBarModel
+import PlatformRuntimeKit
 
 /// An identifier for a menu bar item. Extracted to
 /// `MenuBarModel.MenuBarItemTag`.

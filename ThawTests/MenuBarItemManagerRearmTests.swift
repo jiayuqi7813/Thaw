@@ -7,8 +7,8 @@
 //  Licensed under the GNU GPLv3
 
 import CoreGraphics
-@testable import Thaw
 import PlatformRuntimeKit
+@testable import Thaw
 import XCTest
 
 /// Verifies the cache-refresh contract of rearmActiveProfileLayout, the half

@@ -36,6 +36,7 @@ public enum Constants {
 
     /// Label for the macOS 27 preview build shown in About.
     public static let macOS27PreviewName = "macOS 27 Preview 5"
+
     // MARK: - Thaw-owned menu bar identity
 
     /// Bundle identifiers that can own Thaw's menu bar control surface.

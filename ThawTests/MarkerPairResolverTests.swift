@@ -7,8 +7,8 @@
 //  Licensed under the GNU GPLv3
 
 import CoreGraphics
-@testable import Thaw
 import MenuBarModel
+@testable import Thaw
 import XCTest
 
 /// Characterization tests for MarkerPairResolver, the helper that

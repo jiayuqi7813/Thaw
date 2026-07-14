@@ -7,9 +7,9 @@
 //  Licensed under the GNU GPLv3
 
 import CoreGraphics
-@testable import Thaw
 import MenuBarHost
 import PlatformRuntimeKit
+@testable import Thaw
 import XCTest
 
 /// Characterizes the OS-specific layout policy that moved out of

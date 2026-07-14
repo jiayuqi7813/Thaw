@@ -7,9 +7,9 @@
 //  Licensed under the GNU GPLv3
 
 import Cocoa
-import PlatformRuntimeKit
-import os.lock
 import MenuBarModel
+import os.lock
+import PlatformRuntimeKit
 
 /// A structural representation of a menu bar item. Extracted to
 /// `MenuBarModel.MenuBarItem`.

@@ -6,8 +6,8 @@
 //  Copyright (Thaw) © 2026 Toni Förster
 //  Licensed under the GNU GPLv3
 
-@testable import Thaw
 import MenuBarModel
+@testable import Thaw
 import XCTest
 
 final class WindowInfoTests: XCTestCase {

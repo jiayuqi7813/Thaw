@@ -9,8 +9,8 @@
 import AXSwift6
 import Cocoa
 import Combine
-import os
 import MenuBarModel
+import os
 
 /// A cache for the source process identifiers for menu bar item windows.
 ///

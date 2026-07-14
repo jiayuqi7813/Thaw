@@ -99,13 +99,13 @@ public struct WindowInfo: Sendable {
 
 // MARK: - Window List
 
-extension WindowInfo {
+public extension WindowInfo {
     private static let diagLog = DiagLog(category: "WindowInfo")
 
     /// Creates a list of windows from the given list of window identifiers.
     ///
     /// - Parameter windowIDs: A list of window identifiers.
-    public static func createWindows(from windowIDs: [CGWindowID]) -> [WindowInfo] {
+    static func createWindows(from windowIDs: [CGWindowID]) -> [WindowInfo] {
         guard let array = Bridging.createCGWindowArray(with: windowIDs) else {
             diagLog.warning("createWindows: createCGWindowArray returned nil for \(windowIDs.count) window IDs")
             return []
@@ -125,7 +125,7 @@ extension WindowInfo {
     ///
     /// - Parameter option: Options that filter the returned list.
     ///   Pass an empty option set to return all available windows.
-    public static func createWindows(option: Bridging.WindowListOption = []) -> [WindowInfo] {
+    static func createWindows(option: Bridging.WindowListOption = []) -> [WindowInfo] {
         createWindows(from: Bridging.getWindowList(option: option))
     }
 
@@ -134,17 +134,17 @@ extension WindowInfo {
     ///
     /// - Parameter option: Options that filter the returned list.
     ///   Pass an empty option set to return all available windows.
-    public static func createMenuBarWindows(option: Bridging.MenuBarWindowListOption = []) -> [WindowInfo] {
+    static func createMenuBarWindows(option: Bridging.MenuBarWindowListOption = []) -> [WindowInfo] {
         createWindows(from: Bridging.getMenuBarWindowList(option: option))
     }
 }
 
 // MARK: - Specific Windows
 
-extension WindowInfo {
+public extension WindowInfo {
     /// Returns the wallpaper window for the given display from the
     /// given list of windows.
-    public static func wallpaperWindow(from windows: [WindowInfo], for display: CGDirectDisplayID) -> WindowInfo? {
+    static func wallpaperWindow(from windows: [WindowInfo], for display: CGDirectDisplayID) -> WindowInfo? {
         let displayBounds = CGDisplayBounds(display)
         return windows.first { window in
             // The wallpaper (desktop picture) window belongs to the Dock on
@@ -162,7 +162,7 @@ extension WindowInfo {
     }
 
     /// Creates and returns the wallpaper window for the given display.
-    public static func wallpaperWindow(for display: CGDirectDisplayID) -> WindowInfo? {
+    static func wallpaperWindow(for display: CGDirectDisplayID) -> WindowInfo? {
         wallpaperWindow(from: createWindows(option: .onScreen), for: display)
     }
 
@@ -170,7 +170,7 @@ extension WindowInfo {
 
     /// Returns the menu bar window for the given display from the
     /// given list of windows.
-    public static func menuBarWindow(from windows: [WindowInfo], for display: CGDirectDisplayID) -> WindowInfo? {
+    static func menuBarWindow(from windows: [WindowInfo], for display: CGDirectDisplayID) -> WindowInfo? {
         let displayBounds = CGDisplayBounds(display)
         return windows.first { window in
             // The menu bar backdrop window is owned by WindowServer on macOS 26 and
@@ -191,7 +191,7 @@ extension WindowInfo {
     }
 
     /// Creates and returns the menu bar window for the given display.
-    public static func menuBarWindow(for display: CGDirectDisplayID) -> WindowInfo? {
+    static func menuBarWindow(for display: CGDirectDisplayID) -> WindowInfo? {
         menuBarWindow(from: createMenuBarWindows(option: .onScreen), for: display)
     }
 }

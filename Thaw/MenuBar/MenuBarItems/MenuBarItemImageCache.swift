@@ -2350,92 +2350,64 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                     return
                 }
 
-                if appState.settings.advanced.enableExperimentalOverflowPrevention {
-                    // Per-item precise reveal: capture one concealed glyph at a
-                    // time instead of the whole section, so a dynamic-title
-                    // neighbor (e.g. iStat Menus) doesn't flicker or vanish
-                    // while this item's real glyph is being captured.
-                    let displayID = appState.itemManager.itemCache.displayID
-                        ?? windowServer.activeMenuBarDisplayID()
-                        ?? CGMainDisplayID()
-                    let scale = NSScreen.screens.first { $0.displayID == displayID }?.backingScaleFactor
-                        ?? NSScreen.main?.backingScaleFactor
-                        ?? 2
+                // Per-item precise reveal: capture one concealed glyph at a
+                // time instead of the whole section, so a dynamic-title
+                // neighbor (e.g. iStat Menus) doesn't flicker or vanish
+                // while this item's real glyph is being captured.
+                let displayID = appState.itemManager.itemCache.displayID
+                    ?? windowServer.activeMenuBarDisplayID()
+                    ?? CGMainDisplayID()
+                let scale = NSScreen.screens.first { $0.displayID == displayID }?.backingScaleFactor
+                    ?? NSScreen.main?.backingScaleFactor
+                    ?? 2
 
-                    for item in itemsToCapture {
-                        guard !Task.isCancelled else { return }
+                for item in itemsToCapture {
+                    guard !Task.isCancelled else { return }
 
-                        controller.revealItemTemporarily(item.uniqueIdentifier)
-                        defer {
-                            controller.concealTemporarilyRevealedItem(item.uniqueIdentifier)
-                        }
-
-                        try? await Task.sleep(for: Constants.MenuBarTuning.layoutPrewarmCaptureSettle)
-
-                        let liveItems = await MenuBarItem.getMenuBarItems(
-                            on: displayID,
-                            option: [.onScreen, .activeSpace]
-                        )
-                        guard let liveItem = liveItems.first(where: {
-                            $0.hasSameIdentity(as: item) || $0.uniqueIdentifier == item.uniqueIdentifier
-                        }) else {
-                            continue
-                        }
-
-                        // Capture against the resolved displayID directly rather
-                        // than captureImages(appState:), which re-resolves the
-                        // "active" display internally and can crop bounds from
-                        // one display against another display's hosting-window
-                        // screenshot on multi-display setups.
-                        let captureResult = await self.axBoundsCapture(
-                            [(item: liveItem, bounds: liveItem.bounds)],
-                            scale: scale,
-                            displayID: displayID,
-                            validateFreshBounds: true
-                        )
-                        guard let image = captureResult.images[liveItem.tag] else {
-                            continue
-                        }
-                        if let cachedImage = self.images[item.tag],
-                           image.scaledSize.width < cachedImage.scaledSize.width * 0.75
-                        {
-                            continue
-                        }
-
-                        if !CapturedImage.isVisuallyEqual(self.images[item.tag], image) {
-                            self.images[item.tag] = image
-                            self.accessCounter += 1
-                            self.accessTimestamps[item.tag] = self.accessCounter
-                        }
-                    }
-                    self.saveToDisk()
-                } else {
-                    let previousRevealedSection = controller.revealedSection
-                    controller.show(section, reconcileBoundary: false)
+                    controller.revealItemTemporarily(item.uniqueIdentifier)
                     defer {
-                        switch Self.PrewarmRevealRestorationAction.resolve(
-                            previous: previousRevealedSection,
-                            currentAfterShow: controller.revealedSection
-                        ) {
-                        case .hide:
-                            controller.hideRevealedSections()
-                        case .noOp:
-                            break
-                        case let .show(section):
-                            controller.show(section, reconcileBoundary: false)
-                        }
+                        controller.concealTemporarilyRevealedItem(item.uniqueIdentifier)
                     }
-                    guard controller.revealedSection == section else {
-                        MenuBarItemImageCache.diagLog.debug(
-                            "prewarmConcealedImagesMacOS27: section not revealed for \(section.logString)"
-                        )
-                        return
+
+                    try? await Task.sleep(for: Constants.MenuBarTuning.layoutPrewarmCaptureSettle)
+
+                    let liveItems = await MenuBarItem.getMenuBarItems(
+                        on: displayID,
+                        option: [.onScreen, .activeSpace]
+                    )
+                    guard let liveItem = liveItems.first(where: {
+                        $0.hasSameIdentity(as: item) || $0.uniqueIdentifier == item.uniqueIdentifier
+                    }) else {
+                        continue
                     }
-                    try? await Task.detached {
-                        try await Task.sleep(for: Constants.MenuBarTuning.iceBarCaptureSettle)
-                    }.value
-                    await self.updateCacheWithoutChecks(sections: [section])
+
+                    // Capture against the resolved displayID directly rather
+                    // than captureImages(appState:), which re-resolves the
+                    // "active" display internally and can crop bounds from
+                    // one display against another display's hosting-window
+                    // screenshot on multi-display setups.
+                    let captureResult = await self.axBoundsCapture(
+                        [(item: liveItem, bounds: liveItem.bounds)],
+                        scale: scale,
+                        displayID: displayID,
+                        validateFreshBounds: true
+                    )
+                    guard let image = captureResult.images[liveItem.tag] else {
+                        continue
+                    }
+                    if let cachedImage = self.images[item.tag],
+                       image.scaledSize.width < cachedImage.scaledSize.width * 0.75
+                    {
+                        continue
+                    }
+
+                    if !CapturedImage.isVisuallyEqual(self.images[item.tag], image) {
+                        self.images[item.tag] = image
+                        self.accessCounter += 1
+                        self.accessTimestamps[item.tag] = self.accessCounter
+                    }
                 }
+                self.saveToDisk()
             }.value
         }
     }

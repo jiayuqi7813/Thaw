@@ -6,9 +6,9 @@
 //  Copyright (Thaw) © 2026 Toni Förster
 //  Licensed under the GNU GPLv3
 
-@testable import Thaw
 import MenuBarModel
 import PlatformRuntimeKit
+@testable import Thaw
 import XCTest
 
 /// Characterization suite for ``SystemMenuBarModuleCatalog``. These lock in the

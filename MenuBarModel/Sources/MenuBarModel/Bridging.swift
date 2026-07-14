@@ -77,7 +77,7 @@ extension Bridging {
 
 // MARK: - CGDisplay / CGSDisplay
 
-extension Bridging {
+public extension Bridging {
     // MARK: Private Display Helpers
 
     /// A display to exclude from Thaw's display enumeration while it exists.
@@ -94,7 +94,7 @@ extension Bridging {
     /// and the off-MainActor readers (the nonisolated image-capture tasks reach
     /// it through getActiveMenuBarDisplayID) would otherwise race on this
     /// non-atomic optional.
-    public static var excludedDisplayID: CGDirectDisplayID? {
+    static var excludedDisplayID: CGDirectDisplayID? {
         get { excludedDisplayIDStorage.withLock { $0 } }
         set { excludedDisplayIDStorage.withLock { $0 = newValue } }
     }
@@ -140,7 +140,7 @@ extension Bridging {
     /// Returns the UUID string for a given display ID.
     /// - Parameter displayID: The display identifier.
     /// - Returns: The UUID string for display, or nil if unavailable.
-    public static func getDisplayUUIDString(for displayID: CGDirectDisplayID) -> String? {
+    static func getDisplayUUIDString(for displayID: CGDirectDisplayID) -> String? {
         guard let uuid = getDisplayUUID(for: displayID) else {
             return nil
         }
@@ -150,7 +150,7 @@ extension Bridging {
     /// Returns the display ID for a given UUID string.
     /// - Parameter uuidString: The UUID string of the display.
     /// - Returns: The display ID, or nil if not found.
-    public static func getDisplayID(for uuidString: String) -> CGDirectDisplayID? {
+    static func getDisplayID(for uuidString: String) -> CGDirectDisplayID? {
         guard let uuid = CFUUIDCreateFromString(nil, uuidString as CFString) else {
             return nil
         }
@@ -164,7 +164,7 @@ extension Bridging {
 
     /// Returns the UUID string for the display with active menu bar.
     /// - Returns: The UUID string of the active menu bar display, or nil if unavailable.
-    public static func getActiveMenuBarDisplayUUID() -> String? {
+    static func getActiveMenuBarDisplayUUID() -> String? {
         guard let displayID = getActiveMenuBarDisplayID() else {
             return nil
         }
@@ -172,7 +172,7 @@ extension Bridging {
     }
 
     /// Returns the identifier of the display with the active menu bar.
-    public static func getActiveMenuBarDisplayID() -> CGDirectDisplayID? {
+    static func getActiveMenuBarDisplayID() -> CGDirectDisplayID? {
         guard
             let string = cgsCopyActiveMenuBarDisplayIdentifier(getMainConnection()),
             let uuid = CFUUIDCreateFromString(nil, string.takeRetainedValue()),
@@ -191,12 +191,12 @@ extension Bridging {
 
 // MARK: - CGSEvent
 
-extension Bridging {
+public extension Bridging {
     /// Returns a Boolean value indicating whether the given process
     /// is unresponsive.
     ///
     /// - Parameter pid: An identifier for a process.
-    public static func isProcessUnresponsive(_ pid: pid_t) -> Bool {
+    static func isProcessUnresponsive(_ pid: pid_t) -> Bool {
         var psn = ProcessSerialNumber()
         let result = getProcessForPID(pid, &psn)
         guard result == noErr else {
@@ -209,7 +209,7 @@ extension Bridging {
     /// Sets the timeout used to determine if a process is unresponsive.
     ///
     /// - Parameter timeout: An amount of time in seconds.
-    public static func setProcessUnresponsiveTimeout(_ timeout: TimeInterval) {
+    static func setProcessUnresponsiveTimeout(_ timeout: TimeInterval) {
         let result = cgsEventSetAppIsUnresponsiveNotificationTimeout(getMainConnection(), timeout)
         if result != .success {
             diagLog.error("cgsEventSetAppIsUnresponsiveNotificationTimeout failed with error \(result.logString)")
@@ -219,9 +219,9 @@ extension Bridging {
 
 // MARK: - CGSSpace
 
-extension Bridging {
+public extension Bridging {
     /// Returns the identifier for the active space.
-    public static func getActiveSpaceID() -> CGSSpaceID {
+    static func getActiveSpaceID() -> CGSSpaceID {
         cgsGetActiveSpace(getMainConnection())
     }
 
@@ -229,7 +229,7 @@ extension Bridging {
     /// display.
     ///
     /// - Parameter displayID: An identifier for a display.
-    public static func getCurrentSpaceID(for displayID: CGDirectDisplayID) -> CGSSpaceID? {
+    static func getCurrentSpaceID(for displayID: CGDirectDisplayID) -> CGSSpaceID? {
         guard let uuid = getDisplayUUID(for: displayID) else {
             return nil
         }
@@ -247,7 +247,7 @@ extension Bridging {
     ///   - windowID: An identifier for a window.
     ///   - visibleSpacesOnly: A Boolean value that determines whether
     ///     the returned list should only include visible spaces.
-    public static func getSpaceList(for windowID: CGWindowID, visibleSpacesOnly: Bool = false) -> [CGSSpaceID] {
+    static func getSpaceList(for windowID: CGWindowID, visibleSpacesOnly: Bool = false) -> [CGSSpaceID] {
         let mask: CGSSpaceMask = visibleSpacesOnly ? .allVisibleSpacesMask : .allSpacesMask
         guard let spaces = cgsCopySpacesForWindows(getMainConnection(), mask, [windowID] as CFArray) else {
             diagLog.error("cgsCopySpacesForWindows returned nil")
@@ -264,7 +264,7 @@ extension Bridging {
     /// is fullscreen.
     ///
     /// - Parameter spaceID: An identifier for a space.
-    public static func isSpaceFullscreen(_ spaceID: CGSSpaceID) -> Bool {
+    static func isSpaceFullscreen(_ spaceID: CGSSpaceID) -> Bool {
         let type = cgsSpaceGetType(getMainConnection(), spaceID)
         return type == .fullscreen
     }
@@ -272,11 +272,11 @@ extension Bridging {
 
 // MARK: - CGSWindow
 
-extension Bridging {
+public extension Bridging {
     /// Returns the bounds for the given window.
     ///
     /// - Parameter windowID: An identifier for a window.
-    public static func getWindowBounds(for windowID: CGWindowID) -> CGRect? {
+    static func getWindowBounds(for windowID: CGWindowID) -> CGRect? {
         var bounds = CGRect.zero
         let result = cgsGetScreenRectForWindow(getConnectionForThread(), windowID, &bounds)
         guard result == .success else {
@@ -290,7 +290,7 @@ extension Bridging {
     /// MenuBarAgent. On macOS 27 individual item windows (if they exist as CG
     /// windows) are owned by the system process, not by the third-party app.
     /// Call this once during startup to understand the window architecture.
-    public static func logSystemMenuBarWindows() {
+    static func logSystemMenuBarWindows() {
         let bundleIDs = ["com.apple.systemuiserver", "com.apple.MenuBarAgent"]
         for bid in bundleIDs {
             guard let pid = NSRunningApplication.runningApplications(withBundleIdentifier: bid).first?.processIdentifier else {
@@ -318,7 +318,7 @@ extension Bridging {
     /// connection cannot be resolved.
     ///
     /// - Parameter pid: The owning process identifier.
-    public static func getMenuBarWindowIDs(forProcess pid: pid_t, skipWidthFilter: Bool = false) -> [CGWindowID] {
+    static func getMenuBarWindowIDs(forProcess pid: pid_t, skipWidthFilter: Bool = false) -> [CGWindowID] {
         var psn = ProcessSerialNumber()
         guard getProcessForPID(pid, &psn) == noErr else {
             diagLog.debug("getMenuBarWindowIDs: pid \(pid) → no PSN")
@@ -385,7 +385,7 @@ extension Bridging {
     ///   - windowID: An identifier for a window.
     ///   - origin: The new top-left origin, in global (Y-down) coordinates.
     @discardableResult
-    public static func moveWindow(_ windowID: CGWindowID, to origin: CGPoint) -> Bool {
+    static func moveWindow(_ windowID: CGWindowID, to origin: CGPoint) -> Bool {
         var point = origin
         let result = cgsMoveWindow(getConnectionForThread(), windowID, &point)
         guard result == .success else {
@@ -398,7 +398,7 @@ extension Bridging {
     /// Returns the level for the given window.
     ///
     /// - Parameter windowID: An identifier for a window.
-    public static func getWindowLevel(for windowID: CGWindowID) -> CGWindowLevel? {
+    static func getWindowLevel(for windowID: CGWindowID) -> CGWindowLevel? {
         var level: CGWindowLevel = 0
         let result = cgsGetWindowLevel(getMainConnection(), windowID, &level)
         guard result == .success else {
@@ -414,7 +414,7 @@ extension Bridging {
     /// - Parameters:
     ///   - windowID: An identifier for a window.
     ///   - spaceID: An identifier for a space.
-    public static func isWindowOnSpace(_ windowID: CGWindowID, _ spaceID: CGSSpaceID) -> Bool {
+    static func isWindowOnSpace(_ windowID: CGWindowID, _ spaceID: CGSSpaceID) -> Bool {
         let list = getSpaceList(for: windowID, visibleSpacesOnly: false)
         return list.contains(spaceID)
     }
@@ -425,7 +425,7 @@ extension Bridging {
     /// - Parameters:
     ///   - windowID: An identifier for a window.
     ///   - displayBounds: The bounds of a display.
-    public static func windowIntersectsDisplayBounds(_ windowID: CGWindowID, _ displayBounds: CGRect) -> Bool {
+    static func windowIntersectsDisplayBounds(_ windowID: CGWindowID, _ displayBounds: CGRect) -> Bool {
         if let windowBounds = getWindowBounds(for: windowID) {
             return displayBounds.intersects(windowBounds)
         }
@@ -438,7 +438,7 @@ extension Bridging {
     /// - Parameters:
     ///   - windowID: An identifier for a window.
     ///   - displayID: An identifier for a display.
-    public static func isWindowOnDisplay(_ windowID: CGWindowID, _ displayID: CGDirectDisplayID) -> Bool {
+    static func isWindowOnDisplay(_ windowID: CGWindowID, _ displayID: CGDirectDisplayID) -> Bool {
         let displayBounds = CGDisplayBounds(displayID)
         return windowIntersectsDisplayBounds(windowID, displayBounds)
     }
@@ -447,7 +447,7 @@ extension Bridging {
     /// is on screen.
     ///
     /// - Parameter windowID: An identifier for a window.
-    public static func isWindowOnScreen(_ windowID: CGWindowID) -> Bool {
+    static func isWindowOnScreen(_ windowID: CGWindowID) -> Bool {
         // On screen window list could potentially include menu bar
         // items hidden via drag-and-drop (seems like a bug in macOS?).
         //
@@ -534,7 +534,7 @@ extension Bridging {
     // MARK: Public Window List API
 
     /// Options that specify the identifiers in a window list.
-    public struct WindowListOption: OptionSet, Sendable {
+    struct WindowListOption: OptionSet, Sendable {
         public let rawValue: Int
 
         public init(rawValue: Int) {
@@ -549,7 +549,7 @@ extension Bridging {
     }
 
     /// Options that specify the identifiers in a menu bar window list.
-    public struct MenuBarWindowListOption: OptionSet, Sendable {
+    struct MenuBarWindowListOption: OptionSet, Sendable {
         public let rawValue: Int
 
         public init(rawValue: Int) {
@@ -570,7 +570,7 @@ extension Bridging {
     ///
     /// - Parameter option: Options that filter the returned list.
     ///   Pass an empty option set to return all available windows.
-    public static func getWindowList(option: WindowListOption = []) -> [CGWindowID] {
+    static func getWindowList(option: WindowListOption = []) -> [CGWindowID] {
         let list = if option.contains(.onScreen) {
             getOnScreenWindowList()
         } else {
@@ -590,7 +590,7 @@ extension Bridging {
     ///
     /// - Parameter option: Options that filter the returned list.
     ///   Pass an empty option set to return all available windows.
-    public static func getMenuBarWindowList(option: MenuBarWindowListOption = []) -> [CGWindowID] {
+    static func getMenuBarWindowList(option: MenuBarWindowListOption = []) -> [CGWindowID] {
         var predicates = [(CGWindowID) -> Bool]()
 
         if option.contains(.onScreen) {
@@ -640,7 +640,7 @@ extension Bridging {
     /// - Returns: An `NSArray` where each element is a memory address
     ///   with a bit pattern that matches an element from `windowIDs`,
     ///   or `nil` if the array cannot be created.
-    public static func createCGWindowArray(with windowIDs: [CGWindowID]) -> NSArray? {
+    static func createCGWindowArray(with windowIDs: [CGWindowID]) -> NSArray? {
         var pointers: [UnsafeRawPointer?] = windowIDs.compactMap { windowID in
             UnsafeRawPointer(bitPattern: UInt(windowID))
         }
@@ -661,7 +661,7 @@ extension Bridging {
 
 // MARK: - SkyLight Window Capture
 
-extension Bridging {
+public extension Bridging {
     /// Captures a composite image of an array of windows using SkyLight's private API.
     ///
     /// This is the replacement for the deprecated `CGWindowListCreateImageFromArray` API,
@@ -674,7 +674,7 @@ extension Bridging {
     ///     Pass `nil` to capture the minimum rectangle that encloses the windows.
     ///   - options: Options that specify which parts of the windows are captured.
     /// - Returns: The captured image, or `nil` if capture failed.
-    public static func captureWindowsImage(
+    static func captureWindowsImage(
         windowIDs: [CGWindowID],
         screenBounds: CGRect? = nil,
         options: CGWindowImageOption = []
@@ -706,7 +706,7 @@ extension Bridging {
 
 // MARK: - ScreenCaptureKit Window Capture
 
-extension Bridging {
+public extension Bridging {
     /// Captures a composite image of an array of windows using ScreenCaptureKit.
     ///
     /// Async, leak-free replacement for captureWindowsImage. Use this for any
@@ -724,7 +724,7 @@ extension Bridging {
     ///   - options: Capture options. boundsIgnoreFraming maps to
     ///     ignoreShadowsDisplay; nominalResolution forces 1x scale.
     /// - Returns: The captured image, or nil if capture failed.
-    public static func captureWindowsImageSCK(
+    static func captureWindowsImageSCK(
         windowIDs: [CGWindowID],
         screenBounds: CGRect? = nil,
         options: CGWindowImageOption = []

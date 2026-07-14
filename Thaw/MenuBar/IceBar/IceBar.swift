@@ -271,12 +271,10 @@ final class IceBarPanel: NSPanel {
             guard !Task.isCancelled else { return }
             await appState.itemManager.cacheItemsIfNeeded()
             guard !Task.isCancelled else { return }
-            // When the experimental overflow-prevention path is off, fall back
-            // to the legacy whole-section reveal so cold glyphs still populate
-            // on open. With it on, per-item prewarming elsewhere keeps the
-            // cache warm, so opening Thaw Bar no longer needs to flash the
-            // whole hidden section.
-            if #available(macOS 27, *), !appState.settings.advanced.enableExperimentalOverflowPrevention {
+            // Per-item prewarming elsewhere keeps the cache warm for concealed
+            // sections; additionally prewarm here on open so the bar never
+            // shows blank slots for items whose glyph hasn't been captured yet.
+            if #available(macOS 27, *) {
                 if let section = await MainActor.run(body: { self?.currentSection }) {
                     await appState.imageCache.prewarmConcealedImagesMacOS27(sections: [section])
                 }

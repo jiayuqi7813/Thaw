@@ -412,7 +412,7 @@ public struct MenuBarItemTag: Hashable, CustomStringConvertible, Sendable {
 
 // MARK: MenuBarItemTag Constants
 
-extension MenuBarItemTag {
+public extension MenuBarItemTag {
     // MARK: Special Item Lists
 
     /// Fixed items in the legacy Control Center-hosted layout. Keep this list
@@ -431,22 +431,22 @@ extension MenuBarItemTag {
     ///
     /// This list contains the "Clock", "Control Center", "Siri", and
     /// "Screen Sharing" (ssMenuAgent) items.
-    public static var immovableItems: [MenuBarItemTag] {
+    static var immovableItems: [MenuBarItemTag] {
         [clock, controlCenter, siri, ssMenuAgent]
     }
 
     /// An array of tags for items that can be moved, but cannot be hidden.
-    public static var nonHideableItems: [MenuBarItemTag] {
+    static var nonHideableItems: [MenuBarItemTag] {
         [visibleControlItem, audioVideoModule, faceTime, screenCaptureUI, gameMode]
     }
 
     /// An array of tags for items representing Ice's control items.
-    public static let controlItems = ControlItemIdentifier.allCases.map(\.tag)
+    static let controlItems = ControlItemIdentifier.allCases.map(\.tag)
 
     /// Apple modules observed under `com.apple.MenuBarAgent` on macOS 27 that
     /// behave as fixed trailing system controls. Other MenuBarAgent modules
     /// (Wi-Fi, Bluetooth, Sound, Focus, Now Playing, etc.) remain movable.
-    public static let menuBarAgentAnchoredModuleTitles: Set<String> = [
+    static let menuBarAgentAnchoredModuleTitles: Set<String> = [
         "Clock",
         "ControlCenter",
         "BentoBox-0",
@@ -466,13 +466,13 @@ extension MenuBarItemTag {
     // MARK: Control Items
 
     /// The tag for Ice's control item for the "Visible" section.
-    public static let visibleControlItem = MenuBarItemTag(controlItem: .visible)
+    static let visibleControlItem = MenuBarItemTag(controlItem: .visible)
 
     /// The tag for Ice's control item for the "Hidden" section.
-    public static let hiddenControlItem = MenuBarItemTag(controlItem: .hidden)
+    static let hiddenControlItem = MenuBarItemTag(controlItem: .hidden)
 
     /// The tag for Ice's control item for the "Always-Hidden" section.
-    public static let alwaysHiddenControlItem = MenuBarItemTag(controlItem: .alwaysHidden)
+    static let alwaysHiddenControlItem = MenuBarItemTag(controlItem: .alwaysHidden)
 
     // MARK: Other Special Items
 
@@ -489,56 +489,56 @@ extension MenuBarItemTag {
 
     /// The tag for the system item that appears in the menu bar
     /// during screen or audio capture.
-    public static var audioVideoModule: MenuBarItemTag {
+    static var audioVideoModule: MenuBarItemTag {
         MenuBarItemTag(namespace: systemHostNamespace, title: "AudioVideoModule")
     }
 
     /// The tag for the system "Clock" item.
-    public static var clock: MenuBarItemTag {
+    static var clock: MenuBarItemTag {
         MenuBarItemTag(namespace: systemHostNamespace, title: "Clock")
     }
 
     /// The tag for the system "Control Center" item.
-    public static var controlCenter: MenuBarItemTag {
+    static var controlCenter: MenuBarItemTag {
         MenuBarItemTag(namespace: systemHostNamespace, title: "BentoBox-0")
     }
 
     /// The tag for the system "FaceTime" item.
-    public static var faceTime: MenuBarItemTag {
+    static var faceTime: MenuBarItemTag {
         MenuBarItemTag(namespace: systemHostNamespace, title: "FaceTime")
     }
 
     /// The tag for the system "Music Recognition" item.
-    public static var musicRecognition: MenuBarItemTag {
+    static var musicRecognition: MenuBarItemTag {
         MenuBarItemTag(namespace: systemHostNamespace, title: "MusicRecognition")
     }
 
     /// The tag for the system item that appears in the menu bar
     /// during recordings started by the macOS "Screenshot" tool.
-    public static let screenCaptureUI = MenuBarItemTag(namespace: .screenCaptureUI, title: "Item-0")
+    static let screenCaptureUI = MenuBarItemTag(namespace: .screenCaptureUI, title: "Item-0")
 
     /// The tag for the system "Siri" item.
-    public static let siri = MenuBarItemTag(namespace: .systemUIServer, title: "Siri")
+    static let siri = MenuBarItemTag(namespace: .systemUIServer, title: "Siri")
 
     /// The tag for the system "SSMenuAgent" item (Screen Sharing menu extra).
     ///
     /// macOS prevents this item from being repositioned via Command+drag.
     /// The item visually follows the cursor during the drag, but springs
     /// back to its original position on mouse-up.
-    public static let ssMenuAgent = MenuBarItemTag(namespace: .ssMenuAgent, title: "Item-0")
+    static let ssMenuAgent = MenuBarItemTag(namespace: .ssMenuAgent, title: "Item-0")
 
     /// The tag for the system "Time Machine" item.
-    public static let timeMachine = MenuBarItemTag(namespace: .systemUIServer, title: "com.apple.menuextra.TimeMachine")
+    static let timeMachine = MenuBarItemTag(namespace: .systemUIServer, title: "com.apple.menuextra.TimeMachine")
 
     /// The tag for the system "Game Mode" item.
-    public static let gameMode = MenuBarItemTag(namespace: .gamePolicyAgent, title: "Item-0")
+    static let gameMode = MenuBarItemTag(namespace: .gamePolicyAgent, title: "Item-0")
 }
 
 // MARK: - MenuBarItemTag.Namespace
 
-extension MenuBarItemTag {
+public extension MenuBarItemTag {
     /// A type that represents a menu bar item namespace.
-    public enum Namespace: Hashable, CustomStringConvertible, Sendable {
+    enum Namespace: Hashable, CustomStringConvertible, Sendable {
         /// The `null` namespace.
         case null
         /// A namespace represented by a string.
@@ -610,34 +610,34 @@ extension MenuBarItemTag {
 
 // MARK: MenuBarItemTag.Namespace Constants
 
-extension MenuBarItemTag.Namespace {
+public extension MenuBarItemTag.Namespace {
     /// The namespace for the "Thaw" process.
-    public static let thaw = string(Constants.bundleIdentifier)
+    static let thaw = string(Constants.bundleIdentifier)
 
     /// The namespace for the "Control Center" process.
-    public static let controlCenter = string("com.apple.controlcenter")
+    static let controlCenter = string("com.apple.controlcenter")
 
     /// The namespace for the "MenuBarAgent" process (macOS 27+).
-    public static let menuBarAgent = string("com.apple.MenuBarAgent")
+    static let menuBarAgent = string("com.apple.MenuBarAgent")
 
     /// The namespace for the "PasswordsMenuBarExtra" process.
-    public static let passwords = string("com.apple.Passwords.MenuBarExtra")
+    static let passwords = string("com.apple.Passwords.MenuBarExtra")
 
     /// The namespace for the "screencaptureui" process.
-    public static let screenCaptureUI = string("com.apple.screencaptureui")
+    static let screenCaptureUI = string("com.apple.screencaptureui")
 
     /// The namespace for the "SystemUIServer" process.
-    public static let systemUIServer = string("com.apple.systemuiserver")
+    static let systemUIServer = string("com.apple.systemuiserver")
 
     /// The namespace for the "TextInputMenuAgent" process.
-    public static let textInputMenuAgent = string("com.apple.TextInputMenuAgent")
+    static let textInputMenuAgent = string("com.apple.TextInputMenuAgent")
 
     /// The namespace for the "SSMenuAgent" process (Screen Sharing menu extra).
-    public static let ssMenuAgent = string("com.apple.SSMenuAgent")
+    static let ssMenuAgent = string("com.apple.SSMenuAgent")
 
     /// The namespace for the "GamePolicyAgent" process (Game Mode).
-    public static let gamePolicyAgent = string("GamePolicyAgent")
+    static let gamePolicyAgent = string("GamePolicyAgent")
 
     /// The namespace for the "WeatherMenu" process.
-    public static let weather = string("com.apple.weather.menu")
+    static let weather = string("com.apple.weather.menu")
 }

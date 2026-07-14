@@ -10,9 +10,9 @@ import Cocoa
 import MenuBarModel
 import Subprocess
 #if canImport(System)
-import System
+    import System
 #else
-import SystemPackage
+    import SystemPackage
 #endif
 
 /// Manager for menu bar item spacing.
@@ -110,10 +110,9 @@ final class MenuBarItemSpacingManager {
         }
 
         guard result.terminationStatus.isSuccess else {
-            let exitStatus: Int32
-            switch result.terminationStatus {
-            case let .exited(code): exitStatus = code
-            case let .signaled(code): exitStatus = code
+            let exitStatus: Int32 = switch result.terminationStatus {
+            case let .exited(code): code
+            case let .signaled(code): code
             }
             throw MenuBarItemSpacingError(
                 kind: .nonZeroExitStatus(exitStatus),

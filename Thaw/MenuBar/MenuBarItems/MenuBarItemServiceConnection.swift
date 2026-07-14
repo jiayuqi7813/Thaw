@@ -7,8 +7,8 @@
 //  Licensed under the GNU GPLv3
 
 import Foundation
-import os.lock
 import MenuBarModel
+import os.lock
 import XPC
 
 // MARK: - MenuBarItemService.Connection

@@ -7,9 +7,9 @@
 //  Licensed under the GNU GPLv3
 
 import Combine
+import MenuBarModel
 import os.lock
 import SwiftUI
-import MenuBarModel
 
 // MARK: - Bundle
 
@@ -928,7 +928,7 @@ extension NSMenuItem {
     private func applyPreferredImageVisibility(_ preferredVisibility: PreferredSymbolImageVisibility) {
         let setter = NSSelectorFromString("setPreferredImageVisibility:")
         guard responds(to: setter) else { return }
-        let rawValue: Int = switch preferredVisibility {
+        let rawValue = switch preferredVisibility {
         case .automatic: 0 // NSMenuItemImageVisibilityAutomatic
         case .visible: 1 // NSMenuItemImageVisibilityVisible
         case .hidden: 2 // NSMenuItemImageVisibilityHidden

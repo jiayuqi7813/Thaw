@@ -13,21 +13,21 @@
 /// generically on the app's own cache type (e.g. `MenuBarItemManager.ItemCache`)
 /// via retroactive conformance, without depending on the app target.
 public protocol MenuBarSectionBucketed {
-    subscript(section: MenuBarSectionName) -> [MenuBarItem] { get set }
+    subscript(_: MenuBarSectionName) -> [MenuBarItem] { get set }
 }
 
-extension MenuBarItem {
-    public static func sortByLeadingEdge(_ items: [MenuBarItem]) -> [MenuBarItem] {
+public extension MenuBarItem {
+    static func sortByLeadingEdge(_ items: [MenuBarItem]) -> [MenuBarItem] {
         items.sorted { $0.bounds.minX < $1.bounds.minX }
     }
 
-    public static func sortByVisualCenter(_ items: [MenuBarItem]) -> [MenuBarItem] {
+    static func sortByVisualCenter(_ items: [MenuBarItem]) -> [MenuBarItem] {
         items.sorted { $0.bounds.midX < $1.bounds.midX }
     }
 
     /// Visual-center order with a stable identifier tie-break for cache signatures
     /// where two items can share the same midX during transient reflows.
-    public static func sortByVisualCenterThenIdentifier(_ items: [MenuBarItem]) -> [MenuBarItem] {
+    static func sortByVisualCenterThenIdentifier(_ items: [MenuBarItem]) -> [MenuBarItem] {
         items.sorted { lhs, rhs in
             if lhs.bounds.midX == rhs.bounds.midX {
                 return lhs.uniqueIdentifier < rhs.uniqueIdentifier

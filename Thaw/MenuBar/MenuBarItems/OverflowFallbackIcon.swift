@@ -11,15 +11,13 @@ import Cocoa
 // MARK: - OverflowFallbackIcon
 
 /// Interim fallback that renders concealed menu bar items using their owning
-/// app's icon instead of the live screenshot crop, while the experimental
-/// native-overflow-prevention path is active.
+/// app's icon instead of the live screenshot crop when captured glyphs are
+/// unavailable.
 ///
 /// On macOS 27 the per-item reveal/capture used for concealed sections can
-/// produce distorted ("compressed") glyphs on notch displays, because the
-/// hosting-window crop geometry doesn't yet line up with the native overflow
-/// layout. Until that crop bug is fixed, we keep capturing (so the cache stays
-/// warm) but *display* the app icon instead. Remove this type once
-/// `axBoundsCapture` produces correct crops for native overflow.
+/// miss glyphs during MenuBarAgent reflows. Until a capture succeeds, the
+/// app-icon fallback keeps the IceBar and layout editor from showing blank
+/// slots.
 enum OverflowFallbackIcon {
     /// The shared Control Center icon, reused for system-owned items whose
     /// `sourceApplication` resolves to a system agent rather than a real app.
@@ -37,28 +35,15 @@ enum OverflowFallbackIcon {
         return true
     }
 
-    /// Whether concealed items in `section` should render the app-icon fallback
-    /// instead of their captured glyph.
-    @MainActor
-    static func isActive(for section: MenuBarSection.Name?, appState: AppState) -> Bool {
-        guard supportsMissingCaptureFallback(for: section) else { return false }
-        return appState.settings.advanced.enableExperimentalOverflowPrevention
-    }
-
-    /// Whether to prefer the app-icon fallback for a concealed item.
-    ///
-    /// The overflow-prevention toggle always prefers app icons (distorted native
-    /// overflow crops). Otherwise, fall back only when no captured glyph exists.
+    /// Whether concealed items in `section` should fall back to the app icon
+    /// when no captured glyph exists.
     @MainActor
     static func shouldPreferAppIcon(
         for section: MenuBarSection.Name?,
-        appState: AppState,
+        appState _: AppState,
         cachedImage: NSImage?
     ) -> Bool {
         guard supportsMissingCaptureFallback(for: section) else { return false }
-        if appState.settings.advanced.enableExperimentalOverflowPrevention {
-            return true
-        }
         return cachedImage == nil
     }
 
