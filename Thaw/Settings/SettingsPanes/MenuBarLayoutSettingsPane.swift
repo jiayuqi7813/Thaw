@@ -307,10 +307,12 @@ struct LayoutAdvancedControls: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)) { _ in
             hasConnectedNotchedDisplay = NSScreen.managedScreens.contains(where: \.hasNotch)
         }
-        .onChange(of: navigationState.requestedSettingsDisclosure, initial: true) { _, disclosure in
-            guard disclosure == .advancedLayoutControls else { return }
+        .onChange(of: navigationState.requestedSettingsDisclosure, initial: true) { _, _ in
+            guard SettingsSearchNavigation.consumeDisclosure(
+                .advancedLayoutControls,
+                navigationState: navigationState
+            ) else { return }
             isExpanded = true
-            navigationState.requestedSettingsDisclosure = nil
         }
     }
 }

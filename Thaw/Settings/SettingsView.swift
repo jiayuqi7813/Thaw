@@ -132,7 +132,11 @@ private struct SettingsSearchSidebar: View {
                     )
                 case .results:
                     SearchResultsList(groups: searchModel.displayedGroups) { entry in
-                        navigate(to: entry)
+                        SettingsSearchNavigation.selectSearchResult(
+                            entry,
+                            navigationState: navigationState,
+                            query: &searchModel.searchText
+                        )
                     }
                 case .empty:
                     SearchEmptyView()
@@ -143,16 +147,6 @@ private struct SettingsSearchSidebar: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .navigationSplitViewColumnWidth(ideal: 200, max: 240)
-    }
-
-    /// Switches the detail pane to `pane` and clears the search query so the
-    /// normal pane list returns with the new pane selected.
-    private func navigate(to entry: SearchEntry) {
-        navigationState.requestedSettingsDisclosure = entry.disclosure
-        if navigationState.settingsNavigationIdentifier != entry.pane {
-            navigationState.settingsNavigationIdentifier = entry.pane
-        }
-        searchModel.searchText = ""
     }
 
     private var contentTransition: AnyTransition {
@@ -176,12 +170,10 @@ private struct SettingsSidebarPaneList: View {
         let selection = Binding<SettingsNavigationIdentifier>(
             get: { navigationState.settingsNavigationIdentifier },
             set: { newValue in
-                if navigationState.settingsNavigationIdentifier != newValue {
-                    Task { @MainActor in
-                        navigationState.requestedSettingsDisclosure = nil
-                        navigationState.settingsNavigationIdentifier = newValue
-                    }
-                }
+                SettingsSearchNavigation.selectSidebarPane(
+                    newValue,
+                    navigationState: navigationState
+                )
             }
         )
 
