@@ -391,7 +391,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
 
     /// Bump when the capture/display semantics change enough that old images
     /// can be misleading.
-    private static let cacheVersion = 3
+    private static let cacheVersion = 4
 
     /// Saves the image cache to disk for faster restart.
     func saveToDisk() {
@@ -2409,9 +2409,13 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         return false
     }
 
-    /// Waits only as long as MenuBarAgent needs to publish the precise reveal.
-    /// The old fixed 800 ms sleep made an N-item prewarm take N × 800 ms even
-    /// when the live AX item was available almost immediately.
+    /// Waits only as long as MenuBarAgent needs to publish the precise AX reveal
+    /// bounds. The old fixed 800 ms sleep made an N-item prewarm take
+    /// N × 800 ms even when the live AX item was available almost immediately.
+    ///
+    /// Bounds stability does not imply the glyph is rendered — see the
+    /// ``Constants.MenuBarTuning/layoutPrewarmRenderSettle`` delay the caller
+    /// inserts before the SCK screenshot.
     @available(macOS 27, *)
     private func waitForRevealedItem(
         matching item: MenuBarItem,
@@ -2580,6 +2584,13 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                     ) else {
                         continue
                     }
+
+                    // AX bounds stabilize before MenuBarAgent finishes
+                    // recompositing the revealed glyph. Wait one short render
+                    // settle so the SCK screenshot captures the fully-rendered
+                    // icon instead of a partial, wonky crop.
+                    try? await Task.sleep(for: Constants.MenuBarTuning.layoutPrewarmRenderSettle)
+                    guard !Task.isCancelled else { continue }
 
                     // Capture against the resolved displayID directly rather
                     // than captureImages(appState:), which re-resolves the

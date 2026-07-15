@@ -114,6 +114,10 @@ public enum Constants {
         /// Slower layout-only prewarm; MenuBarAgent can publish partial AX
         /// bounds before the revealed glyph has finished recompositing.
         public static let layoutPrewarmCaptureSettle: Duration = .milliseconds(800)
+        /// Short render settle after AX bounds stabilize but before the SCK
+        /// screenshot, so MenuBarAgent finishes compositing the revealed glyph.
+        /// Without this the crop captures a partially-rendered icon.
+        public static let layoutPrewarmRenderSettle: Duration = .milliseconds(200)
 
         /// Interval between polls while waiting for MenuBarAgent to relaunch and
         /// re-sort after a preferred-position write (batch reorder or single

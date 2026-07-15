@@ -6579,6 +6579,21 @@ extension MenuBarItemManager {
         }
     }
 
+    static nonisolated func macOS27OverflowControlUIDs(
+        in items: [MenuBarItem]
+    ) -> ControlUIDs {
+        // ControlItemPair extracts the Hidden divider before managed items are
+        // cached. Overflow rebalances commonly consume that managed cache, so
+        // use the divider's stable tag identifier when no live item is present.
+        let hiddenUID = items.first(where: { $0.tag == .hiddenControlItem })?.uniqueIdentifier
+            ?? MenuBarItemTag.hiddenControlItem.tagIdentifier
+        return ControlUIDs(
+            visible: items.first(where: { $0.tag == .visibleControlItem })?.uniqueIdentifier,
+            hidden: hiddenUID,
+            alwaysHidden: items.first(where: { $0.tag == .alwaysHiddenControlItem })?.uniqueIdentifier
+        )
+    }
+
     /// Moves visible items into Hidden when they exceed the app-menu→Control
     /// Center budget on macOS 27.
     ///
@@ -6673,8 +6688,8 @@ extension MenuBarItemManager {
         }
         availableWidth -= nonProfileFootprint
 
+        let controlUIDs = Self.macOS27OverflowControlUIDs(in: items)
         let visibleCtrl = items.first(where: { $0.tag == .visibleControlItem })
-        let hiddenCtrl = items.first(where: { $0.tag == .hiddenControlItem })
         let ahCtrl = items.first(where: { $0.tag == .alwaysHiddenControlItem })
 
         if let visibleCtrl,
@@ -6715,9 +6730,7 @@ extension MenuBarItemManager {
         if let uid = visibleCtrl?.uniqueIdentifier {
             desiredFiltered.append(uid)
         }
-        guard let hiddenCtrlUID = hiddenCtrl?.uniqueIdentifier else {
-            return false
-        }
+        let hiddenCtrlUID = controlUIDs.hidden
         desiredFiltered.append(hiddenCtrlUID)
         desiredFiltered.append(contentsOf: hiddenLive.map(\.uniqueIdentifier))
         if let ahCtrlUID = ahCtrl?.uniqueIdentifier {
@@ -6768,11 +6781,7 @@ extension MenuBarItemManager {
         let overflowResult = LayoutSolver.planNotchOverflow(
             desiredFiltered: desiredFiltered,
             unmanagedUIDs: unmanagedUIDs,
-            controlUIDs: ControlUIDs(
-                visible: visibleCtrl?.uniqueIdentifier,
-                hidden: hiddenCtrlUID,
-                alwaysHidden: ahCtrl?.uniqueIdentifier
-            ),
+            controlUIDs: controlUIDs,
             sectionMap: sectionMap,
             uidWidths: uidWidths,
             availableWidth: availableWidth
