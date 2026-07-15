@@ -47,33 +47,7 @@ final class LayoutBarPaddingView: NSView {
     }
 
     private static func anchoredSystemItemsTrail(in items: [MenuBarItem]) -> [MenuBarItem] {
-        let trailingAnchors = items.filter(\.tag.isLayoutAnchoredSystemItem).sorted { lhs, rhs in
-            let lhsRank = anchoredSystemItemRank(lhs.tag)
-            let rhsRank = anchoredSystemItemRank(rhs.tag)
-            if lhsRank != rhsRank {
-                return lhsRank < rhsRank
-            }
-            return lhs.bounds.minX < rhs.bounds.minX
-        }
-        return items.filter { !$0.tag.isLayoutAnchoredSystemItem } + trailingAnchors
-    }
-
-    private static func anchoredSystemItemRank(_ tag: MenuBarItemTag) -> Int {
-        if tag.title == MenuBarItemTag.controlCenter.title ||
-            tag.title == "ControlCenter" ||
-            tag.title == "com.apple.menuextra.controlcenter"
-        {
-            return 0
-        }
-        if tag == .siri {
-            return 1
-        }
-        if tag.title == MenuBarItemTag.clock.title ||
-            tag.title == "com.apple.menuextra.clock"
-        {
-            return 2
-        }
-        return 3
+        MenuBarSectionController.anchoredSystemItemsTrail(in: items)
     }
 
     private func layoutWatchdogDuration() -> Duration? {

@@ -1107,17 +1107,20 @@ final class MenuBarSectionController: ObservableObject {
             return liveVisualOrder(items)
         }
 
-        guard !order.isEmpty else {
-            return items
+        let ranked: [MenuBarItem]
+        if order.isEmpty {
+            ranked = items
+        } else {
+            let canonicalOrder = MenuBarItemTag.canonicalPersistentIdentifiers(order)
+            let rank = Dictionary(canonicalOrder.enumerated().map { ($1, $0) }, uniquingKeysWith: { first, _ in first })
+            ranked = items.enumerated().sorted { lhs, rhs in
+                let lr = rank[lhs.element.uniqueIdentifier] ?? (canonicalOrder.count + lhs.offset)
+                let rr = rank[rhs.element.uniqueIdentifier] ?? (canonicalOrder.count + rhs.offset)
+                return lr < rr
+            }.map(\.element)
         }
 
-        let canonicalOrder = MenuBarItemTag.canonicalPersistentIdentifiers(order)
-        let rank = Dictionary(canonicalOrder.enumerated().map { ($1, $0) }, uniquingKeysWith: { first, _ in first })
-        return items.enumerated().sorted { lhs, rhs in
-            let lr = rank[lhs.element.uniqueIdentifier] ?? (canonicalOrder.count + lhs.offset)
-            let rr = rank[rhs.element.uniqueIdentifier] ?? (canonicalOrder.count + rhs.offset)
-            return lr < rr
-        }.map(\.element)
+        return Self.anchoredSystemItemsTrail(in: ranked)
     }
 
     /// Orders visible items for overflow decisions using the layout editor's
@@ -1165,6 +1168,26 @@ final class MenuBarSectionController: ObservableObject {
             }
             return lhs.bounds.midX < rhs.bounds.midX
         }
+    }
+
+    /// Moves anchored system items (Clock, Siri, Control Center) to the
+    /// trailing end of the array, sorted by their canonical rank. Non-anchored
+    /// items keep their existing relative order. This mirrors the sort
+    /// ``LayoutBarPaddingView.anchoredSystemItemsTrail`` applies during
+    /// drag-drop persistence, so the live cache and the layout UI always agree
+    /// on where pinned system extras sit — even when the persisted order was
+    /// authored by a profile import or cold-start migration that did not
+    /// strip or sort anchored identifiers.
+    static func anchoredSystemItemsTrail(in items: [MenuBarItem]) -> [MenuBarItem] {
+        let trailingAnchors = items.filter(\.tag.isLayoutAnchoredSystemItem).sorted { lhs, rhs in
+            let lhsRank = MenuBarItemTag.anchoredSystemItemRank(lhs.tag)
+            let rhsRank = MenuBarItemTag.anchoredSystemItemRank(rhs.tag)
+            if lhsRank != rhsRank {
+                return lhsRank < rhsRank
+            }
+            return lhs.bounds.minX < rhs.bounds.minX
+        }
+        return items.filter { !$0.tag.isLayoutAnchoredSystemItem } + trailingAnchors
     }
 
     static func isProtectedAssignmentItem(_ item: MenuBarItem) -> Bool {

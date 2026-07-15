@@ -1489,6 +1489,83 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
     }
 
     @MainActor
+    func testHiddenOrderingMovesAnchoredSystemItemsToTrail() throws {
+        guard #available(macOS 27, *) else {
+            throw XCTSkip("MenuBarAgent anchoring is macOS 27-specific")
+        }
+
+        let shottr = appItem(bundleID: "cc.ffitch.shottr", title: "Item-0", x: 0, windowID: 30)
+        let raycast = appItem(bundleID: "com.raycast-x.macos", title: "Item-0", x: 24, windowID: 31)
+        let controlCenter = systemItem(title: "com.apple.menuextra.controlcenter", x: 48, windowID: 32)
+        let siri = systemItem(title: "Siri", x: 72, windowID: 33)
+        let codex = appItem(bundleID: "com.steipete.codexbar", title: "CodexBar.StatusItem", x: 96, windowID: 34)
+        let clock = systemItem(title: "com.apple.menuextra.clock", x: 120, windowID: 35)
+        let proton = appItem(bundleID: "ch.protonmail.drive", title: "Proton Drive", x: 144, windowID: 36)
+
+        // Persisted order intersperses system items with third-party items
+        // (as can happen via profile import or cold-start migration).
+        let persistedOrder = [
+            shottr.uniqueIdentifier,
+            raycast.uniqueIdentifier,
+            controlCenter.uniqueIdentifier,
+            siri.uniqueIdentifier,
+            codex.uniqueIdentifier,
+            clock.uniqueIdentifier,
+            proton.uniqueIdentifier,
+        ]
+
+        let ordered = MenuBarSectionController.orderedItems(
+            [shottr, raycast, controlCenter, siri, codex, clock, proton],
+            in: .hidden,
+            using: persistedOrder
+        )
+
+        // Third-party items keep their persisted relative order;
+        // anchored system items sort to the trailing edge by canonical rank
+        // (ControlCenter < Siri < Clock).
+        XCTAssertEqual(
+            ordered.map(\.uniqueIdentifier),
+            [
+                shottr.uniqueIdentifier,
+                raycast.uniqueIdentifier,
+                codex.uniqueIdentifier,
+                proton.uniqueIdentifier,
+                controlCenter.uniqueIdentifier,
+                siri.uniqueIdentifier,
+                clock.uniqueIdentifier,
+            ]
+        )
+    }
+
+    @MainActor
+    func testHiddenOrderingMovesAnchoredSystemItemsToTrailWithoutSavedOrder() throws {
+        guard #available(macOS 27, *) else {
+            throw XCTSkip("MenuBarAgent anchoring is macOS 27-specific")
+        }
+
+        let shottr = appItem(bundleID: "cc.ffitch.shottr", title: "Item-0", x: 0, windowID: 40)
+        let controlCenter = systemItem(title: "com.apple.menuextra.controlcenter", x: 24, windowID: 41)
+        let clock = systemItem(title: "com.apple.menuextra.clock", x: 48, windowID: 42)
+
+        // No persisted order — items arrive in AX enumeration order with
+        // system items interspersed.
+        let ordered = MenuBarSectionController.orderedItems(
+            [shottr, controlCenter, clock],
+            in: .hidden,
+            using: []
+        )
+
+        XCTAssertEqual(
+            ordered.map(\.uniqueIdentifier),
+            [
+                shottr.uniqueIdentifier,
+                controlCenter.uniqueIdentifier,
+                clock.uniqueIdentifier,
+            ]
+        )
+    }
+
+    @MainActor
     func testPersistableVisibleOrderExcludesAnchoredSystemItems() throws {
         guard #available(macOS 27, *) else {
             throw XCTSkip("MenuBarAgent anchoring is macOS 27-specific")

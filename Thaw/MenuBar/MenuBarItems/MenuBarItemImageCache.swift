@@ -391,7 +391,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
 
     /// Bump when the capture/display semantics change enough that old images
     /// can be misleading.
-    private static let cacheVersion = 4
+    private static let cacheVersion = 5
 
     /// Saves the image cache to disk for faster restart.
     func saveToDisk() {
@@ -1207,6 +1207,17 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
             && expected.maxY - clamped.maxY <= edgeTolerance
     }
 
+    /// The item that already claimed these crop pixels in the current pass.
+    /// AX can temporarily assign identical frames to distinct macOS 27 items
+    /// while MenuBarAgent reflows an overflowed section.
+    @available(macOS 27, *)
+    static nonisolated func cropRectOwner(
+        _ cropRect: CGRect,
+        cropRectOwners: [CGRect: MenuBarItemTag]
+    ) -> MenuBarItemTag? {
+        cropRectOwners[cropRect]
+    }
+
     /// Rejects hosting-window screenshots whose pixel size does not match
     /// `windowFrame * scale`. BetterDisplay / display-mode flips can leave
     /// AppKit scale and ScreenCaptureKit `pointPixelScale` disagreeing; crops
@@ -1386,6 +1397,13 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                 "cropping \(captureCandidates.count) items"
         )
 
+        // Track crop rects already emitted in this pass. On macOS 27, concealed
+        // or overflow-collapsed items can share identical AX bounds; without
+        // dedup, the same hosting-window pixels get stored under each item's
+        // distinct tag, making the layout UI show one item's glyph for all of
+        // them ("last icon repeated multiple times").
+        var cropRectOwners = [CGRect: MenuBarItemTag]()
+
         for (item, bounds) in captureCandidates {
             if shouldSkipCapture(for: item) {
                 result.excluded.append(item)
@@ -1454,6 +1472,22 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                 continue
             }
 
+            // Reject candidates whose crop rect was already emitted for another
+            // item in this pass. On macOS 27, overflow-hidden items can share
+            // identical AX bounds, producing the same pixels under each tag.
+            // Neither crop is trustworthy, so both fall back to the app icon.
+            if let priorTag = Self.cropRectOwner(expectedCropRect, cropRectOwners: cropRectOwners) {
+                MenuBarItemImageCache.diagLog.debug(
+                    "axBoundsCapture: duplicate crop rect \(expectedCropRect) for " +
+                        "\(item.logString); clearing both items for app-icon fallback"
+                )
+                result.images.removeValue(forKey: priorTag)
+                result.invalidatedTags.insert(priorTag)
+                result.excluded.append(item)
+                result.invalidatedTags.insert(item.tag)
+                continue
+            }
+
             guard !cropRect.isNull, !cropRect.isEmpty, let croppedImage = composite.cropping(to: cropRect) else {
                 MenuBarItemImageCache.diagLog.debug(
                     "axBoundsCapture: cropping failed for \(item.logString) " +
@@ -1509,8 +1543,27 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                 continue
             }
 
+            let captured = CapturedImage(cgImage: croppedImage, scale: scale)
+
+            // On macOS 27, when overflow rebalance conceals items,
+            // MenuBarAgent collapses them into the native overflow chevron
+            // (»). The concealed items' AX bounds can still intersect that
+            // chevron region, producing a narrow, non-blank crop that sails
+            // through every validation above. Detect and reject it so the
+            // app-icon fallback takes over instead of showing "double arrows".
+            if bounds.width < 15, !item.tag.isLayoutAnchoredSystemItem {
+                MenuBarItemImageCache.diagLog.debug(
+                    "axBoundsCapture: rejecting suspiciously narrow crop " +
+                        "(\(bounds.width)pt) for \(item.logString); likely overflow chevron bleed"
+                )
+                result.excluded.append(item)
+                result.invalidatedTags.insert(item.tag)
+                continue
+            }
+
             recordCaptureSuccess(for: item)
-            result.images[item.tag] = CapturedImage(cgImage: croppedImage, scale: scale)
+            cropRectOwners[expectedCropRect] = item.tag
+            result.images[item.tag] = captured
         }
 
         return result
@@ -2608,6 +2661,12 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                         self.accessTimestamps.removeValue(forKey: tag)
                     }
                     guard let image = captureResult.images[liveItem.tag] else {
+                        // The capture result is keyed by the fresh AX item,
+                        // while the layout cache is keyed by the concealed
+                        // snapshot. Clear both identities so a failed reveal
+                        // cannot leave a stale duplicate thumbnail behind.
+                        self.images.removeValue(forKey: item.tag)
+                        self.accessTimestamps.removeValue(forKey: item.tag)
                         continue
                     }
                     if let cachedImage = self.images[item.tag],

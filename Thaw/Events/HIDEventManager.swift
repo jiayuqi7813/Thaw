@@ -383,6 +383,13 @@ final class HIDEventManager: ObservableObject {
         expireShowOnClickGuardIfNeeded()
 
         if event.type == .leftMouseUp, guardMouseUpState != .idle {
+            // Only swallow the mouse-up if it lands inside the guard region.
+            // A session-wide swallow deletes mouse-ups meant for other menu bar
+            // items (e.g. the Clock), preventing their menus from opening.
+            guard isPointInsideShowOnClickGuardRegion(NSEvent.mouseLocation) else {
+                guardMouseUpState = .idle
+                return event
+            }
             let priorState = guardMouseUpState
             guardMouseUpState = Self.nextGuardState(from: priorState, given: .mouseUp)
             if priorState == .swallowingThenDisarm {

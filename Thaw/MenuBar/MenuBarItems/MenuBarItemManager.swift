@@ -334,6 +334,11 @@ final class MenuBarItemManager: ObservableObject {
     /// Debounce for macOS 27 overflow rebalance (assignment backends skip legacy Phase 4).
     private var lastMacOS27OverflowRebalance: Date?
 
+    /// In-flight overflow rebalance task. Coalesces repeated post-cache rebalance
+    /// triggers so the assertion reflow from one rebalance cannot immediately
+    /// kick another, preventing the move→reflow→recache→move thrash cycle.
+    private var overflowRebalanceTask: Task<Void, Never>?
+
     /// Persisted mapping of item tag identifiers to their original section name for
     /// temporarily shown items whose apps quit before they could be rehidden. When
     /// the app relaunches, this allows us to move the item back to its original section.
@@ -2074,12 +2079,19 @@ extension MenuBarItemManager {
 
         // Spawner-style floods arrive outside profile apply. Assignment backends
         // never hit legacy Phase 4, so rebalance here when overflow is enabled.
+        // Coalesce behind a single in-flight task so the assertion reflow from
+        // one rebalance cannot immediately re-enter another (thrash fix).
         if MenuBarBackendProvider.current.profileLayoutStrategy == .assignmentApply,
            appState?.settings.advanced.enableMenuBarItemOverflow == true
         {
-            Task { [weak self] in
+            overflowRebalanceTask?.cancel()
+            overflowRebalanceTask = Task { [weak self] in
                 guard let self else { return }
+                try? await Task.sleep(for: .milliseconds(300))
+                guard !Task.isCancelled else { return }
                 if await self.rebalanceMacOS27OverflowIfNeeded() {
+                    try? await Task.sleep(for: .milliseconds(200))
+                    guard !Task.isCancelled else { return }
                     await self.cacheItemsRegardless(skipRecentMoveCheck: true)
                 }
             }
@@ -6622,9 +6634,8 @@ extension MenuBarItemManager {
         }
 
         if !force,
-           controller.overflowHiddenIdentifiers.isEmpty,
            let last = lastMacOS27OverflowRebalance,
-           Date().timeIntervalSince(last) < 1.0
+           Date().timeIntervalSince(last) < 2.0
         {
             return false
         }

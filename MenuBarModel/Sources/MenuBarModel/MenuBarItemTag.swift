@@ -463,6 +463,28 @@ public extension MenuBarItemTag {
         .ssMenuAgent,
     ]
 
+    /// Canonical sort rank for anchored system items at the trailing edge of
+    /// a hidden or always-hidden section. Lower values sort first (leftmost
+    /// among the trailing group). Non-anchored items return a value larger
+    /// than any anchored rank so they always precede anchored items.
+    static func anchoredSystemItemRank(_ tag: MenuBarItemTag) -> Int {
+        if tag.title == controlCenter.title
+            || tag.title == "ControlCenter"
+            || tag.title == "com.apple.menuextra.controlcenter"
+        {
+            return 0
+        }
+        if tag == .siri {
+            return 1
+        }
+        if tag.title == clock.title
+            || tag.title == "com.apple.menuextra.clock"
+        {
+            return 2
+        }
+        return 3
+    }
+
     // MARK: Control Items
 
     /// The tag for Ice's control item for the "Visible" section.

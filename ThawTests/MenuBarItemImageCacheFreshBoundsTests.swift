@@ -220,6 +220,26 @@ final class MenuBarItemImageCacheFreshBoundsTests: XCTestCase {
     }
 
     @available(macOS 27, *)
+    func testCropRectOwnerIdentifiesDuplicateCaptureCandidates() {
+        let cropRect = CGRect(x: 100, y: 0, width: 24, height: 22)
+        let tag = MenuBarItemTag.appItem(bundleID: "com.test.capture", title: "Capture")
+
+        XCTAssertNil(
+            MenuBarItemImageCache.cropRectOwner(
+                cropRect,
+                cropRectOwners: [:]
+            )
+        )
+        XCTAssertEqual(
+            MenuBarItemImageCache.cropRectOwner(
+                cropRect,
+                cropRectOwners: [cropRect: tag]
+            ),
+            tag
+        )
+    }
+
+    @available(macOS 27, *)
     func testPlausibleHostingCaptureAcceptsMatchingPixelSize() {
         XCTAssertTrue(
             MenuBarItemImageCache.isPlausibleHostingCapture(

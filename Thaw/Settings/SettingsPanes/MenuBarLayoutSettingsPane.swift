@@ -253,7 +253,7 @@ private struct LayoutBarsSection: View {
         if #available(macOS 27, *) {
             await appState.imageCache.prewarmConcealedImagesMacOS27(
                 sections: [.hidden, .alwaysHidden],
-                onlyMissingImages: true
+                onlyMissingImages: false
             )
             guard !Task.isCancelled else { return }
         }
