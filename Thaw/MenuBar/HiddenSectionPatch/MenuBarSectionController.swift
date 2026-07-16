@@ -186,6 +186,13 @@ final class MenuBarSectionController: ObservableObject {
     /// assertion).
     private let backend: RuntimeSessionControllering
 
+    /// Whether the assertion is intentionally suspended so the system Clock can
+    /// open Notification Center. Recovery and periodic refreshes must treat this
+    /// as healthy until the activation bridge restores the current assignment.
+    private(set) var isClockActivationBridgeActive = false
+    private var clockAssertionRestoreTask: Task<Void, Never>?
+    private var clockAssertionRestoreToken: UUID?
+
     /// Governs Apple Control Center modules (AirDrop / Focus / User / Now Playing
     /// / WiFi / Bluetooth) that the assessment-mode allowlist cannot hide. Items
     /// it owns are hidden via their Control Center preference and kept out of the
@@ -319,6 +326,7 @@ final class MenuBarSectionController: ObservableObject {
         prefsWatcher?.stop()
         assessmentStateMonitor?.stop()
         recoveryDriver?.stop()
+        clockAssertionRestoreTask?.cancel()
     }
 
     /// Starts the macOS 27 runtime-state observers: the `MenuBarAgent`
@@ -409,6 +417,7 @@ final class MenuBarSectionController: ObservableObject {
                 },
                 markTornDown: { [weak self] in
                     guard let self,
+                          !self.isClockActivationBridgeActive,
                           self.hasDesiredAssertionRestriction,
                           !self.backend.isHolding
                     else { return }
@@ -419,7 +428,7 @@ final class MenuBarSectionController: ObservableObject {
     }
 
     private var hasDesiredConcealment: Bool {
-        hasDesiredAssertionRestriction || positionHideBackend.hasManagedItems
+        (hasDesiredAssertionRestriction && !isClockActivationBridgeActive) || positionHideBackend.hasManagedItems
     }
 
     private var hasDesiredAssertionRestriction: Bool {
@@ -429,7 +438,7 @@ final class MenuBarSectionController: ObservableObject {
     }
 
     private var areConcealmentAuthoritiesHealthy: Bool {
-        let assertionHealthy = !hasDesiredAssertionRestriction || backend.isHolding
+        let assertionHealthy = isClockActivationBridgeActive || !hasDesiredAssertionRestriction || backend.isHolding
         let positionHealthy = !positionHideBackend.hasManagedItems || positionHideBackend.isInDesiredState
         return assertionHealthy && positionHealthy
     }
@@ -447,11 +456,12 @@ final class MenuBarSectionController: ObservableObject {
             )
         }
         let items = appState.itemManager.lastOnScreenMenuBarItems.0
-        let controlledIdentifiers = Set(
+        let assertionIdentifiers = isClockActivationBridgeActive ? Set<String>() : Set(
             assertionAssignmentInput().keys.filter {
                 !RuntimeModuleController.isGovernable(itemIdentifier: $0)
             }
-        ).union(positionHandledItemIdentifiers)
+        )
+        let controlledIdentifiers = assertionIdentifiers.union(positionHandledItemIdentifiers)
         return Self.makeRecoverySnapshot(
             items: items,
             controlledIdentifiers: controlledIdentifiers,
@@ -503,7 +513,10 @@ final class MenuBarSectionController: ObservableObject {
     }
 
     private func repulseAssertionForRecovery() -> Bool {
-        guard let appState, hasDesiredAssertionRestriction else { return false }
+        guard !isClockActivationBridgeActive,
+              let appState,
+              hasDesiredAssertionRestriction
+        else { return false }
         let assignment = assertionAssignmentInput()
         let didChange = backend.pulse(
             sectionAssignment: assignment,
@@ -560,7 +573,7 @@ final class MenuBarSectionController: ObservableObject {
     /// Rung 3: forces a full restriction rebuild. If the items are already
     /// visible, skip the reveal half to avoid an unnecessary visible toggle.
     private func doubleToggleRestrictionForRecovery() -> Bool {
-        guard let appState else { return false }
+        guard !isClockActivationBridgeActive, let appState else { return false }
         let assignment = assertionAssignmentInput()
         guard assignment.values.contains(where: { $0 == .hidden || $0 == .alwaysHidden }) else {
             return false
@@ -1623,10 +1636,17 @@ final class MenuBarSectionController: ObservableObject {
         )
 
         // Low-frequency safety pass for apps that rewrite their own preferred
-        // position about once per second (notably iStat). `reassert()` is
-        // idempotent and writes only when the dictionary has actually drifted;
-        // the preference watcher remains the faster event-driven path.
-        if experimentalWindowHiding, positionHideBackend.reassert() {
+        // position about once per second (notably iStat). Only re-park items
+        // when a hidden item has actually escaped the off-screen band; running
+        // reassert unconditionally on every 1 Hz tick writes on every benign
+        // MenuBarAgent renormalization, sustaining a write → reflow → write
+        // loop that visibly jitters visible items. The preference watcher
+        // remains the faster event-driven path for genuine external changes.
+        if experimentalWindowHiding,
+           positionHideBackend.hasManagedItems,
+           !positionHideBackend.isInDesiredState,
+           positionHideBackend.reassert()
+        {
             prefsWatcher?.noteSelfWrite()
         }
         // A forced pulse must still run when the assignment signature is
@@ -1682,6 +1702,15 @@ final class MenuBarSectionController: ObservableObject {
             allItems: allItems,
             backendAssignment: &backendAssignment
         )
+
+        // The Clock activation bridge intentionally releases the assertion
+        // while Notification Center is open. Keep processing non-assertion
+        // authorities above, but do not let the 1 Hz refresh or an assignment
+        // update immediately recreate the restriction underneath the panel.
+        guard !isClockActivationBridgeActive else {
+            diagLog.debug("skipping assertion apply during Clock activation bridge")
+            return
+        }
 
         logRestrictionProbeSnapshot(reason: "before-apply", items: allItems)
         let hasConcealedItems = backendAssignment.values.contains {
@@ -1770,12 +1799,100 @@ final class MenuBarSectionController: ObservableObject {
         backend.apply(sectionAssignment: [:], allItems: [])
     }
 
+    /// Whether a click on the system Clock needs the macOS 27 assertion bridge.
+    /// Position-only concealment does not suppress Notification Center and must
+    /// not incur an unnecessary reveal/reflow.
+    var shouldBridgeClockActivation: Bool {
+        guard #available(macOS 27, *) else { return false }
+        return !isClockActivationBridgeActive
+            && hasDesiredAssertionRestriction
+            && backend.isHolding
+    }
+
+    /// Temporarily releases the visibility restriction so Clock can open
+    /// Notification Center. Position-hidden items and Control Center preference
+    /// state remain untouched.
+    @discardableResult
+    func beginClockActivationBridge() -> Bool {
+        guard shouldBridgeClockActivation, let appState else { return false }
+
+        clockAssertionRestoreTask?.cancel()
+        clockAssertionRestoreTask = nil
+        clockAssertionRestoreToken = nil
+        isClockActivationBridgeActive = true
+        assessmentStateMonitor?.noteSelfChange()
+        let didChange = backend.apply(
+            sectionAssignment: [:],
+            allItems: appState.itemManager.itemCache.managedItems
+        )
+        guard didChange || !backend.isHolding else {
+            isClockActivationBridgeActive = false
+            return false
+        }
+
+        diagLog.info("temporarily released assertion for Clock activation")
+        return true
+    }
+
+    /// Restores the latest assertion assignment after Notification Center
+    /// closes. A pulse bypasses the anti-flap window that would otherwise reject
+    /// a quick restore to the configuration held before the temporary release.
+    func endClockActivationBridge() {
+        guard isClockActivationBridgeActive else { return }
+        isClockActivationBridgeActive = false
+        guard let appState, hasDesiredAssertionRestriction else { return }
+
+        assessmentStateMonitor?.noteSelfChange()
+        let didChange = backend.pulse(
+            sectionAssignment: assertionAssignmentInput(),
+            allItems: appState.itemManager.itemCache.managedItems
+        )
+        noteRecoveryRestrictionChange(didChange)
+        scheduleClockAssertionRestoreVerification()
+        diagLog.info("restored assertion after Clock activation")
+    }
+
+    private func scheduleClockAssertionRestoreVerification() {
+        clockAssertionRestoreTask?.cancel()
+        let token = UUID()
+        clockAssertionRestoreToken = token
+        clockAssertionRestoreTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                if clockAssertionRestoreToken == token {
+                    clockAssertionRestoreTask = nil
+                    clockAssertionRestoreToken = nil
+                }
+            }
+
+            for _ in 0 ..< 8 {
+                try? await Task.sleep(for: .milliseconds(500))
+                guard !Task.isCancelled,
+                      !isClockActivationBridgeActive,
+                      hasDesiredAssertionRestriction
+                else { return }
+
+                if backend.isHolding {
+                    continue
+                }
+
+                lastRefreshSignature = nil
+                refresh(forceRestrictionPulse: true)
+            }
+
+            if !backend.isHolding {
+                diagLog.error("Clock activation bridge could not restore assertion after bounded retries")
+            }
+        }
+    }
+
     /// Pushes hidden items' position weights to extreme values
     /// (50000+) in `TrailingItemPreferredPositions` so the native macOS 27 menu
     /// bar overflow on notched displays collapses them before visible items.
     /// Items moved back to visible get their weights restored.
     private func applyExperimentalOverflowPreventionIfEnabled(allItems: [MenuBarItem]) {
         guard let appState else { return }
+        guard appState.settings.advanced.enableExperimentalOverflowPrevention else { return }
         guard !appState.menuBarManager.shouldDeferMacOS27MenuBarMutation else {
             diagLog.debug("Skipping experimental overflow prevention: native menu bar unavailable/transitioning")
             return
@@ -1818,7 +1935,9 @@ final class MenuBarSectionController: ObservableObject {
     /// AX coordinates (synthetic drags cannot recover those).
     @discardableResult
     func pulseRestrictionAfterReflow(liveItems: [MenuBarItem]) -> Bool {
-        guard RuntimeSessionController.isAvailable else { return false }
+        guard !isClockActivationBridgeActive,
+              RuntimeSessionController.isAvailable
+        else { return false }
         let assignment = assertionAssignmentInput()
         guard assignment.values.contains(where: { $0 == .hidden || $0 == .alwaysHidden }) else {
             return false

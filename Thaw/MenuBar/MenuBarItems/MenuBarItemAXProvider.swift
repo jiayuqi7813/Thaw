@@ -187,6 +187,54 @@ enum MenuBarItemAXProvider {
         return items
     }
 
+    /// Presses the system Clock without walking every running application's AX
+    /// tree. The Clock may expose the press action on either its extras-bar
+    /// container or a nested button, so try both representations.
+    static func pressSystemClock(on display: CGDirectDisplayID?) -> Bool {
+        guard AXHelpers.isProcessTrusted(),
+              let runningApp = NSRunningApplication.runningApplications(
+                  withBundleIdentifier: "com.apple.MenuBarAgent"
+              ).first,
+              let app = AXHelpers.application(for: runningApp),
+              let bar = AXHelpers.extrasMenuBar(for: app)
+        else {
+            return false
+        }
+
+        let displayBounds = display.map { CGDisplayBounds($0) }
+        for child in AXHelpers.children(for: bar) {
+            guard let frame = AXHelpers.frame(for: child),
+                  displayBounds.map({ $0.contains(frame.center) }) ?? true
+            else {
+                continue
+            }
+
+            let descendants = AXHelpers.children(for: child)
+            let identifier = AXHelpers.identifier(for: child)?.nonEmpty
+                ?? descendants.compactMap { AXHelpers.identifier(for: $0)?.nonEmpty }.first
+            let accessibilityDescription = AXHelpers.description(for: child)?.nonEmpty
+                ?? descendants.compactMap { AXHelpers.description(for: $0)?.nonEmpty }.first
+            let displayTitle = AXHelpers.title(for: child)?.nonEmpty
+                ?? accessibilityDescription
+                ?? identifier
+                ?? ""
+            let stableTitle = identityTitle(
+                namespace: .menuBarAgent,
+                identifier: identifier,
+                accessibilityDescription: accessibilityDescription,
+                displayTitle: displayTitle
+            )
+            guard SystemMenuBarModuleCatalog.assessmentSystemItemID(forTitle: stableTitle) == 2 else {
+                continue
+            }
+
+            for element in descendants + [child] where AXHelpers.press(element) {
+                return true
+            }
+        }
+        return false
+    }
+
     // MARK: Assembly
 
     /// A pre-tag item collected from the AX walk.
