@@ -19,7 +19,7 @@ extension Bundle {
     /// This accessor checks the bundle's `Info.plist` for a string value associated
     /// with the "NSHumanReadableCopyright" key. If a valid value cannot be found for
     /// the key, this accessor returns `nil`.
-    var copyrightString: String? {
+    nonisolated var copyrightString: String? {
         object(forInfoDictionaryKey: "NSHumanReadableCopyright") as? String
     }
 
@@ -29,7 +29,7 @@ extension Bundle {
     /// with the "CFBundleDisplayName" key. If a valid value cannot be found for the
     /// key, the same check is performed for the "CFBundleName" key. If a valid value
     /// cannot be found for either key, this accessor returns `Thaw`.
-    var displayName: String {
+    nonisolated var displayName: String {
         object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ??
             object(forInfoDictionaryKey: "CFBundleName") as? String ??
             "Thaw"
@@ -40,7 +40,7 @@ extension Bundle {
     /// This accessor checks the bundle's `Info.plist` for a string value associated
     /// with the "CFBundleShortVersionString" key. If a valid value cannot be found
     /// for the key, this accessor returns `nil`.
-    var versionString: String? {
+    nonisolated var versionString: String? {
         object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
     }
 
@@ -49,7 +49,7 @@ extension Bundle {
     /// This accessor checks the bundle's `Info.plist` for a string value associated
     /// with the "CFBundleVersion" key. If a valid value cannot be found for the key,
     /// this accessor returns `nil`.
-    var buildString: String? {
+    nonisolated var buildString: String? {
         object(forInfoDictionaryKey: "CFBundleVersion") as? String
     }
 }
@@ -77,7 +77,7 @@ extension CGImage {
 
     /// Options that effect how colors are processed when computing
     /// an average color.
-    struct ColorAveragingOption: OptionSet {
+    nonisolated struct ColorAveragingOption: OptionSet {
         let rawValue: Int
 
         /// Includes the alpha component in the resulting average.
@@ -94,7 +94,7 @@ extension CGImage {
     ///     Pixels with an alpha component greater than or equal to this value
     ///     contribute to the average.
     ///   - option: Options for computing the color.
-    func averageColor(using colorSpace: CGColorSpace? = nil, alphaThreshold: CGFloat = 0.5, option: ColorAveragingOption = []) -> CGColor? {
+    nonisolated func averageColor(using colorSpace: CGColorSpace? = nil, alphaThreshold: CGFloat = 0.5, option: ColorAveragingOption = []) -> CGColor? {
         func createPixelData(width: Int, height: Int, colorSpace: CGColorSpace) -> [UInt32]? {
             guard width > 0, height > 0 else {
                 return nil
@@ -184,7 +184,7 @@ extension CGImage {
     // MARK: Transparency Trimming
 
     /// A context for handling transparency data in an image.
-    private struct TransparencyContext: ~Copyable {
+    private nonisolated struct TransparencyContext: ~Copyable {
         private let image: CGImage
         private let alphaThreshold: CGFloat
         private let cgContext: CGContext
@@ -355,7 +355,7 @@ extension CGImage {
     /// `TransparencyContext` for all other pixel formats.
     ///
     /// - Parameter alphaThreshold: The maximum alpha value to consider transparent.
-    func isTransparent(alphaThreshold: CGFloat = 0) -> Bool {
+    nonisolated func isTransparent(alphaThreshold: CGFloat = 0) -> Bool {
         guard width > 0, height > 0 else { return true }
         guard alphaThreshold < 1 else { return false }
 
@@ -440,7 +440,7 @@ extension CGImage {
     }
 
     /// Slow path for `isTransparent` using `TransparencyContext`.
-    private func isTransparentSlow(alphaThreshold: CGFloat) -> Bool {
+    private nonisolated func isTransparentSlow(alphaThreshold: CGFloat) -> Bool {
         guard let context = TransparencyContext(image: self, alphaThreshold: alphaThreshold) else {
             return false
         }
@@ -475,7 +475,7 @@ extension Comparable {
     ///
     /// - Returns: The value nearest this value that is both greater
     ///   than or equal to `min` and less than or equal to `max`.
-    func clamped(min: Self, max: Self) -> Self {
+    nonisolated func clamped(min: Self, max: Self) -> Self {
         precondition(min <= max, "Clamp requires min <= max")
         return Swift.min(Swift.max(self, min), max)
     }
@@ -490,7 +490,7 @@ extension Comparable {
     /// - Returns: The value nearest this value that is both greater
     ///   than or equal to `range.lowerBound` and less than or equal
     ///   to `range.upperBound`.
-    func clamped(to range: ClosedRange<Self>) -> Self {
+    nonisolated func clamped(to range: ClosedRange<Self>) -> Self {
         clamped(min: range.lowerBound, max: range.upperBound)
     }
 }
@@ -504,7 +504,7 @@ extension DistributedNotificationCenter {
 
 // MARK: - EdgeInsets
 
-extension EdgeInsets {
+nonisolated extension EdgeInsets {
     /// A copy of this instance with only the leading and trailing
     /// edges set.
     var horizontal: EdgeInsets {
@@ -605,7 +605,7 @@ extension NSImage {
 // MARK: - NSScreen
 
 extension NSScreen {
-    private static let diagLog = DiagLog(category: "NSScreen")
+    private static nonisolated let diagLog = DiagLog(category: "NSScreen")
 
     /// The screen containing the mouse pointer.
     static var screenWithMouse: NSScreen? {
@@ -676,13 +676,13 @@ extension NSScreen {
         )
     }
 
-    private struct DisplayCache {
+    private nonisolated struct DisplayCache {
         var menuFrames = [CGDirectDisplayID: CGRect]()
         var menuFramePID: pid_t?
         var menuBarHeights = [CGDirectDisplayID: CGFloat]()
     }
 
-    private static let displayCache = OSAllocatedUnfairLock(initialState: DisplayCache())
+    private static nonisolated let displayCache = OSAllocatedUnfairLock(initialState: DisplayCache())
 
     /// Invalidates the cached application menu frame when the frontmost app changes.
     private static func invalidateApplicationMenuFrameCacheIfNeeded() {
@@ -712,7 +712,7 @@ extension NSScreen {
     }
 
     /// Tracks displays with a pending menu bar height retry.
-    private static let pendingRetryDisplays = OSAllocatedUnfairLock(initialState: Set<CGDirectDisplayID>())
+    private static nonisolated let pendingRetryDisplays = OSAllocatedUnfairLock(initialState: Set<CGDirectDisplayID>())
 
     /// Schedules a one-shot deferred retry to populate the menu bar height
     /// cache for a display after a transient unavailability (e.g. during
@@ -970,7 +970,7 @@ extension OSAllocatedUnfairLock where State == Bool {
     /// Atomically sets the value to `true` and returns whether this call
     /// was the first to do so. Useful for ensuring a continuation or
     /// callback is invoked exactly once across competing code paths.
-    func tryClaimOnce() -> Bool {
+    nonisolated func tryClaimOnce() -> Bool {
         withLock { claimed in
             let wasUnclaimed = !claimed
             claimed = true
@@ -1097,7 +1097,7 @@ extension Publisher where Output: Equatable, Failure == Never {
 
 // MARK: - RangeReplaceableCollection where Element: Hashable
 
-extension RangeReplaceableCollection where Element: Hashable {
+nonisolated extension RangeReplaceableCollection where Element: Hashable {
     /// Returns a copy of the collection with duplicate values removed.
     func removingDuplicates() -> Self {
         var seen = Set<Element>()

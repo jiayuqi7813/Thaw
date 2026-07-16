@@ -13,7 +13,7 @@ import SwiftUI
 /// Links a search entry to the `@Published` property it represents on a
 /// settings model, so the drift-guard test can assert every user-facing
 /// property has a matching entry.
-enum SettingsProperty: Hashable {
+nonisolated enum SettingsProperty: Hashable {
     case general(String)
     case advanced(String)
 }
@@ -36,7 +36,7 @@ enum SettingsProperty: Hashable {
 /// conformance is safe — matching the precedent set by `SectionedListItem`.
 /// `Identifiable.id` is `String`, which is `Hashable`, so `Identifiable` is
 /// satisfied without the whole struct being `Hashable`.
-struct SearchEntry: Identifiable, @unchecked Sendable {
+nonisolated struct SearchEntry: Identifiable, @unchecked Sendable {
     let id: String
     let titleKey: LocalizedStringKey
     let titleText: String
@@ -62,7 +62,7 @@ struct SearchEntry: Identifiable, @unchecked Sendable {
 
 // MARK: - SearchIndex
 
-enum SearchIndex {
+nonisolated enum SearchIndex {
     /// Entries indexed on every supported macOS release.
     private static let sharedEntries: [SearchEntry] = paneEntries + generalEntries + revealEntries + advancedEntries
         + displayEntries + hotkeyEntries + layoutEntries + appearanceEntries

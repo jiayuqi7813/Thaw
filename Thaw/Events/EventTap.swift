@@ -11,7 +11,7 @@ import MenuBarModel
 
 /// An object that receives events from a defined point in
 /// the event stream.
-final class EventTap: @unchecked Sendable {
+final nonisolated class EventTap: @unchecked Sendable {
     /// Pool to limit concurrent EventTaps and prevent Mach port leaks
     private static nonisolated(unsafe) var activeTaps: Set<ObjectIdentifier> = []
     private static let maxConcurrentTaps = 10

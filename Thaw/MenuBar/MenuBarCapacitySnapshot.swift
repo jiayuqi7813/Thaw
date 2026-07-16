@@ -12,7 +12,7 @@ import MenuBarModel
 /// A display-specific, horizontal-only view of the space available to menu bar
 /// items. AppKit, AX, and Core Graphics agree on global X coordinates even
 /// though their Y axes differ, so capacity calculations deliberately ignore Y.
-struct MenuBarCapacitySnapshot: Equatable, Sendable {
+nonisolated struct MenuBarCapacitySnapshot: Equatable, Sendable {
     enum Region: Sendable {
         /// The contiguous status-item lane nearest Control Center.
         case trailing

@@ -9,7 +9,7 @@
 import Foundation
 import SwiftUI
 
-enum Defaults {
+nonisolated enum Defaults {
     /// Returns a dictionary containing the keys and values for
     /// the defaults meant to be seen by all applications.
     static var globalDomain: [String: Any] {
@@ -140,7 +140,7 @@ enum Defaults {
 }
 
 extension Defaults {
-    enum DefaultValue {
+    nonisolated enum DefaultValue {
         // MARK: General Settings
 
         static let showIceIcon = true

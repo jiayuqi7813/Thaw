@@ -39,7 +39,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         private let presentationCache = PresentationCache()
 
         /// The image's size, applying ``scale``.
-        var scaledSize: CGSize {
+        nonisolated var scaledSize: CGSize {
             CGSize(
                 width: CGFloat(cgImage.width) / scale,
                 height: CGFloat(cgImage.height) / scale
@@ -75,7 +75,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         }
 
         /// Whether the capture is effectively blank for UI thumbnail purposes.
-        var isEffectivelyBlank: Bool {
+        nonisolated var isEffectivelyBlank: Bool {
             cgImage.isTransparent(alphaThreshold: 0.05)
         }
 
@@ -141,7 +141,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
     private var accessCounter: UInt64 = 0
 
     /// Failed capture tracking to skip repeatedly failing items
-    private struct FailedCapture: Hashable {
+    private nonisolated struct FailedCapture: Hashable {
         let tag: MenuBarItemTag
         let failureCount: Int
         let lastFailureTime: Date
@@ -150,8 +150,8 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
     private let failedCapturesLock = OSAllocatedUnfairLock<[MenuBarItemTag: FailedCapture]>(initialState: [:])
 
     /// Configuration for failed capture handling
-    private static let maxFailuresBeforeBlacklist = 3
-    private static let blacklistCooldownSeconds: TimeInterval = 30 // 30 seconds
+    private static nonisolated let maxFailuresBeforeBlacklist = 3
+    private static nonisolated let blacklistCooldownSeconds: TimeInterval = 30 // 30 seconds
 
     /// Minimum time that must pass since the last recorded failure before a
     /// new capture failure counts as an additional strike. A single reflow
@@ -160,7 +160,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
     /// those all count as independent failures and blow through
     /// `maxFailuresBeforeBlacklist` in well under a second, blacklisting an
     /// item for the full cooldown over what was really one transient glitch.
-    private static let minimumFailureSpacingSeconds: TimeInterval = 0.5
+    private static nonisolated let minimumFailureSpacingSeconds: TimeInterval = 0.5
 
     /// Queue to run cache operations.
     private let queue = DispatchQueue(
@@ -172,7 +172,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
     /// disk encoding runs on `queue` while the reset action runs on MainActor.
     private let diskPersistenceState = OSAllocatedUnfairLock(initialState: true)
 
-    var isDiskPersistenceEnabled: Bool {
+    nonisolated var isDiskPersistenceEnabled: Bool {
         diskPersistenceState.withLock { $0 }
     }
 
@@ -387,11 +387,11 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
     }
 
     /// Maximum age of disk cache before it's considered stale (30 seconds).
-    private static let maxCacheAgeSeconds: TimeInterval = 30
+    private static nonisolated let maxCacheAgeSeconds: TimeInterval = 30
 
     /// Bump when the capture/display semantics change enough that old images
     /// can be misleading.
-    private static let cacheVersion = 6
+    private static nonisolated let cacheVersion = 6
 
     /// Saves the image cache to disk for faster restart.
     func saveToDisk() {
@@ -635,8 +635,8 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
     /// deliberately absent: routine AX geometry jitter changes `ItemCache`
     /// equality but not the icon pixels or crop dimensions, and was the source
     /// of the observer-driven capture feedback loop.
-    struct CaptureInvalidationKey: Equatable {
-        struct Entry: Equatable, Comparable {
+    nonisolated struct CaptureInvalidationKey: Equatable {
+        nonisolated struct Entry: Equatable, Comparable {
             let section: String
             let identifier: String
             let windowID: CGWindowID
@@ -838,7 +838,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         var streamingLease: ScreenCapture.MenuBarHostingStreamLease?
         while !Task.isCancelled {
             guard let appState = self.appState else { break }
-            var interval = appState.settings.advanced.iconRefreshInterval
+            let interval = appState.settings.advanced.iconRefreshInterval
             guard interval > 0 else {
                 if let streamingLease, #available(macOS 27, *) {
                     await ScreenCapture.endMenuBarHostingStreaming(streamingLease)
@@ -967,6 +967,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
     /// where a window could move between bounds lookup and composite capture.
     /// All items passed to this function are expected to be on-screen;
     /// off-screen items should be pre-filtered by the caller.
+    @concurrent
     private nonisolated func compositeCapture(
         _ itemsWithBounds: [(item: MenuBarItem, bounds: CGRect)],
         scale: CGFloat
@@ -1323,6 +1324,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
     }
 
     @available(macOS 27, *)
+    @concurrent
     private nonisolated func axBoundsCapture(
         _ itemsWithBounds: [(item: MenuBarItem, bounds: CGRect)],
         scale _: CGFloat,
@@ -1613,6 +1615,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         return result
     }
 
+    @concurrent
     private nonisolated func captureImages(
         of items: [MenuBarItem],
         scale: CGFloat,
@@ -1819,6 +1822,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
     /// but skips full cache management (LRU eviction, failure tracking,
     /// size enforcement, cleanup).
     /// Skips `@Published` updates when images haven't changed visually.
+    @concurrent
     nonisolated func refreshImages(
         of items: [MenuBarItem],
         scale: CGFloat,
@@ -1935,12 +1939,10 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         scale: CGFloat,
         appState: AppState
     ) async -> CaptureResult {
-        let items = await appState.itemManager.itemCache.managedItems(
+        let items = appState.itemManager.itemCache.managedItems(
             for: section
         )
-        let revealedSection = await MainActor.run {
-            appState.menuBarManager.sectionController?.revealedSection
-        }
+        let revealedSection = appState.menuBarManager.sectionController?.revealedSection
         let shouldUseFreshBounds = Self.shouldUseFreshBounds(
             for: section,
             revealedSection: revealedSection
@@ -1977,7 +1979,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         !shouldSkipCapture(for: item)
     }
 
-    private func shouldSkipCapture(for item: MenuBarItem) -> Bool {
+    private nonisolated func shouldSkipCapture(for item: MenuBarItem) -> Bool {
         failedCapturesLock.withLock { dict in
             guard let failed = dict[item.tag] else {
                 return false
@@ -2000,7 +2002,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
     }
 
     /// Records a capture failure for an item.
-    private func recordCaptureFailure(for item: MenuBarItem) {
+    private nonisolated func recordCaptureFailure(for item: MenuBarItem) {
         let now = Date()
         failedCapturesLock.withLock { dict in
             let existing = dict[item.tag]
@@ -2046,7 +2048,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
     }
 
     /// Records a successful capture for an item (resets failure count).
-    private func recordCaptureSuccess(for item: MenuBarItem) {
+    private nonisolated func recordCaptureSuccess(for item: MenuBarItem) {
         let recovered = failedCapturesLock.withLock { dict in
             dict.removeValue(forKey: item.tag)
         }
@@ -2474,7 +2476,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
     }
 
     /// Restoration action after temporarily revealing a section for prewarm capture.
-    enum PrewarmRevealRestorationAction: Equatable {
+    nonisolated enum PrewarmRevealRestorationAction: Equatable {
         case hide
         case noOp
         case show(MenuBarSection.Name)
@@ -2497,7 +2499,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
     }
 
     /// Whether prewarm should recapture an item given its cached image state.
-    static func prewarmNeedsCapture(
+    static nonisolated func prewarmNeedsCapture(
         cachedImage: CapturedImage?,
         wouldAttemptCapture: Bool
     ) -> Bool {
@@ -2772,7 +2774,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
 
         if !skipRecentMoveCheck {
             guard
-                await !appState.itemManager.lastMoveOperationOccurred(
+                !appState.itemManager.lastMoveOperationOccurred(
                     within: .seconds(1)
                 )
             else {
@@ -2783,7 +2785,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
             }
 
             // Skip updates during layout reset to prevent stale cache between passes
-            if await appState.itemManager.isResettingLayout {
+            if appState.itemManager.isResettingLayout {
                 MenuBarItemImageCache.diagLog.debug(
                     "Skipping item image cache because layout reset is in progress"
                 )

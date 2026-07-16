@@ -23,13 +23,13 @@ final class ControlItem: NSObject {
     typealias Identifier = ControlItemIdentifier
 
     /// A hiding state for a control item.
-    enum HidingState {
+    nonisolated enum HidingState {
         case showSection
         case hideSection
     }
 
     /// The visual treatment for a hidden/always-hidden section divider.
-    enum SectionDividerPresentation: Equatable {
+    nonisolated enum SectionDividerPresentation: Equatable {
         /// Collapse the status item because the user selected no divider.
         case hidden
         /// Show the small, interactive chevron between sections.
@@ -221,7 +221,7 @@ final class ControlItem: NSObject {
             }
         }
 
-        deinit {
+        isolated deinit {
             removeStatusItem()
         }
 
@@ -1042,7 +1042,7 @@ final class ControlItem: NSObject {
     }
 
     /// The semantic action produced by primary status-button activation.
-    enum PrimaryActionIntent: Equatable {
+    nonisolated enum PrimaryActionIntent: Equatable {
         case toggleSection
         case showAlwaysHidden
         case toggleAlwaysHidden
@@ -1442,7 +1442,7 @@ extension ControlItem.Identifier {
 
 /// Proxy getters and setters for a control item's stored
 /// UserDefaults values.
-enum ControlItemDefaults {
+nonisolated enum ControlItemDefaults {
     /// Accesses the value associated with the specified key
     /// and autosave name.
     static subscript<Value>(key: Key<Value>, autosaveName: String) -> Value? {
@@ -1478,6 +1478,7 @@ enum ControlItemDefaults {
 
     /// Performs some initial required setup work before the
     /// creation of a control item.
+    @MainActor
     fileprivate static func preflightSetup(for controlItem: ControlItem) {
         let autosaveName = controlItem.identifier.rawValue
 
@@ -1575,9 +1576,9 @@ enum ControlItemDefaults {
 
 // MARK: - ControlItemDefaults.Key
 
-extension ControlItemDefaults {
+nonisolated extension ControlItemDefaults {
     /// Keys used to look up UserDefaults values for control items.
-    struct Key<Value> {
+    nonisolated struct Key<Value> {
         /// The raw value of the key.
         let rawValue: String
 
@@ -1595,14 +1596,14 @@ extension ControlItemDefaults {
 
 // MARK: ControlItemDefaults.Key<CGFloat>
 
-extension ControlItemDefaults.Key<CGFloat> {
+nonisolated extension ControlItemDefaults.Key<CGFloat> {
     /// String key: "NSStatusItem Preferred Position autosaveName"
     static let preferredPosition = Self(rawValue: "Preferred Position")
 }
 
 // MARK: ControlItemDefaults.Key<Bool>
 
-extension ControlItemDefaults.Key<Bool> {
+nonisolated extension ControlItemDefaults.Key<Bool> {
     /// String key: "NSStatusItem Visible autosaveName"
     static let visible = Self(rawValue: "Visible")
 

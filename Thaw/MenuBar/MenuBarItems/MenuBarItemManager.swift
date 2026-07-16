@@ -9,6 +9,7 @@
 import AXSwift6
 import Cocoa
 import Combine
+
 // @preconcurrency retained: CoreGraphics event types (CGEventSource/CGEvent) are
 // still not Sendable-annotated in the macOS 26/27 SDK, yet are used off the main
 // actor under OSAllocatedUnfairLock for menu-bar event posting. Removing the shim
@@ -1996,7 +1997,7 @@ extension MenuBarItemManager {
         }
 
         let backend = MenuBarBackendProvider.current
-        context.cache = await backend.rebucket(
+        context.cache = backend.rebucket(
             context.cache,
             hider: appState?.menuBarManager.sectionController,
             allowsAlwaysHidden: appState?.settings.advanced.isAlwaysHiddenSectionEnabled ?? false
@@ -3077,7 +3078,7 @@ extension MenuBarItemManager {
         holder.withLock { $0 }
     }
 
-    private struct EventContinuationContext {
+    private nonisolated struct EventContinuationContext {
         let event: CGEvent
         let pid: pid_t
         let entryEvent: CGEvent
@@ -3086,14 +3087,14 @@ extension MenuBarItemManager {
         let secondLocation: EventTap.Location
     }
 
-    private struct EventContinuationState {
+    private nonisolated struct EventContinuationState {
         let countHolder: OSAllocatedUnfairLock<Int>
         let didResume: OSAllocatedUnfairLock<Bool>
         let continuationHolder: OSAllocatedUnfairLock<CheckedContinuation<Void, any Error>?>
         let innerTaskHolder: OSAllocatedUnfairLock<Task<Void, Never>?>
     }
 
-    private enum EventContinuationKind {
+    private nonisolated enum EventContinuationKind {
         case postEventBarrier
         case scromble
     }
@@ -6506,7 +6507,7 @@ extension MenuBarItemManager {
 // MARK: - MenuBarItemEventType
 
 /// Event types for menu bar item events.
-enum MenuBarItemEventType {
+nonisolated enum MenuBarItemEventType {
     /// The event type for moving a menu bar item.
     case move(MoveSubtype)
     /// The event type for clicking a menu bar item.

@@ -11,7 +11,7 @@ import Foundation
 import MenuBarModel
 
 /// A namespace for mouse helper operations.
-enum MouseHelpers {
+nonisolated enum MouseHelpers {
     private static let diagLog = DiagLog(category: "MouseHelpers")
     private static let cursorLock = DispatchQueue(label: "MouseHelpers.cursorLock")
     /// Protected by `cursorLock` — all accesses go through `cursorLock.sync`.

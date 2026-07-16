@@ -12,7 +12,7 @@ import MenuBarModel
 import PlatformRuntimeKit
 import ScreenCaptureKit
 
-enum MenuBarSplitPillGeometry {
+nonisolated enum MenuBarSplitPillGeometry {
     static func leadingBounds(
         applicationMenuFrame: CGRect,
         trailingContentMinX: CGFloat?,
@@ -84,7 +84,7 @@ enum MenuBarSplitPillGeometry {
 
     /// Section/reveal state used when deciding which AX frames belong in the
     /// split trailing pill.
-    struct TrailingPillContext {
+    nonisolated struct TrailingPillContext {
         var revealedSection: MenuBarSection.Name?
         var section: (MenuBarItem) -> MenuBarSection.Name
     }

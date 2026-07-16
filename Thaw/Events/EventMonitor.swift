@@ -11,7 +11,7 @@ import Combine
 import MenuBarModel
 import os.lock
 
-struct EventMonitor {
+nonisolated struct EventMonitor {
     private static let diagLog = DiagLog(category: "EventMonitor")
     private final class LocalMonitorState: @unchecked Sendable {
         private let mask: NSEvent.EventTypeMask

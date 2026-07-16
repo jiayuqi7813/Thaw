@@ -11,8 +11,8 @@ import CoreGraphics
 /// Stabilizes the native overflow signal independently for each display.
 /// Unavailable AX reads preserve the last state instead of looking like a
 /// negative observation.
-struct NativeOverflowStateReducer: Sendable {
-    private struct DisplayState: Sendable {
+nonisolated struct NativeOverflowStateReducer: Sendable {
+    private nonisolated struct DisplayState: Sendable {
         var isActive = false
         var candidate: Bool?
         var candidateCount = 0

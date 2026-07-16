@@ -93,7 +93,7 @@ final class HIDEventManager: ObservableObject {
     private var showOnClickGuardDeferredDisarmTask: Task<Void, Never>?
 
     /// Tracks the state of the swallow/disarm lifecycle for the click guard tap.
-    enum GuardMouseUpState {
+    nonisolated enum GuardMouseUpState {
         /// No mouse-down has been swallowed; guard tap is idle between clicks.
         case idle
         /// A mouse-down was swallowed; swallow the matching mouse-up but keep
@@ -107,7 +107,7 @@ final class HIDEventManager: ObservableObject {
     /// The input driving a `GuardMouseUpState` transition. Each case
     /// corresponds to one of the state-changing call sites around the guard
     /// tap and its arm/expire/disarm helpers.
-    enum GuardMouseUpSignal {
+    nonisolated enum GuardMouseUpSignal {
         /// A `leftMouseUp` arrived while the guard tap was armed.
         case mouseUp
         /// A `leftMouseDown` landed in the guard region and should be

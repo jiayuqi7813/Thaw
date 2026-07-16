@@ -10,7 +10,7 @@ import AXSwift6
 import Cocoa
 import MenuBarModel
 
-enum NativeOverflowObservation: Equatable, Sendable {
+nonisolated enum NativeOverflowObservation: Equatable, Sendable {
     case unavailable
     case absent
     case present([CGRect])
@@ -38,7 +38,7 @@ enum NativeOverflowObservation: Equatable, Sendable {
 /// handled by the macOS 27-specific callers because items are no longer
 /// independent windows.
 @available(macOS 27, *)
-enum MenuBarItemAXProvider {
+nonisolated enum MenuBarItemAXProvider {
     private static let diagLog = DiagLog(category: "MenuBarItemAXProvider")
 
     /// The maximum height an extras-bar child may have to be considered a menu
@@ -475,14 +475,14 @@ enum MenuBarItemAXProvider {
 
 private extension String {
     /// Returns `self` when it contains non-whitespace characters, otherwise `nil`.
-    var nonEmpty: String? {
+    nonisolated var nonEmpty: String? {
         trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : self
     }
 }
 
 @available(macOS 27, *)
 private extension MenuBarItemAXProvider {
-    enum NativeOverflowChevron {
+    nonisolated enum NativeOverflowChevron {
         static let glyphs = Set("<>‹›«»")
     }
 }

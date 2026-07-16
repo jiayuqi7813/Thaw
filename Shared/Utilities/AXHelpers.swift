@@ -10,7 +10,7 @@ import AXSwift6
 import Cocoa
 import MenuBarModel
 
-enum AXHelpers {
+nonisolated enum AXHelpers {
     @discardableResult
     static func isProcessTrusted(prompt: Bool = false) -> Bool {
         checkIsProcessTrusted(prompt: prompt)

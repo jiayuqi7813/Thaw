@@ -13,6 +13,7 @@ import XCTest
 // MARK: - NSBezierPath.drawShadow Tests
 
 final class NSBezierPathDrawShadowTests: XCTestCase {
+    @MainActor
     func testDrawShadowNoOpsForEmptyPath() {
         NSBezierPath().drawShadow(color: .black, radius: 5)
     }
