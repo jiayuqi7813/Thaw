@@ -9,7 +9,7 @@
 import AppKit
 import CoreGraphics
 import MenuBarModel
-@preconcurrency import ScreenCaptureKit
+import ScreenCaptureKit
 
 public extension ScreenCapture {
     // MARK: - ScreenCaptureKit Implementation

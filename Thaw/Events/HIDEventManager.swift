@@ -8,7 +8,7 @@
 
 import AXSwift6
 import Cocoa
-@preconcurrency import Combine
+import Combine
 import MenuBarModel
 import os
 import ThawCapture

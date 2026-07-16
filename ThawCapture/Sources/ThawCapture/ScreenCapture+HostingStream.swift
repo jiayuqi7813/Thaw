@@ -13,7 +13,7 @@ import CoreVideo
 import Foundation
 import MenuBarModel
 import os.lock
-@preconcurrency import ScreenCaptureKit
+import ScreenCaptureKit
 
 // A persistent ScreenCaptureKit stream on the macOS 27 MenuBarAgent hosting
 // window.
