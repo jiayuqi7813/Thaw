@@ -954,6 +954,13 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
                 displayTitle: "‹ ‹"
             )
         )
+        XCTAssertTrue(
+            MenuBarItemAXProvider.isNativeOverflowChevronPlaceholder(
+                namespace: .menuBarAgent,
+                identityTitle: "AXOverflowButton",
+                displayTitle: ""
+            )
+        )
     }
 
     @available(macOS 27, *)

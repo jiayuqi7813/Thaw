@@ -391,7 +391,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
 
     /// Bump when the capture/display semantics change enough that old images
     /// can be misleading.
-    private static let cacheVersion = 5
+    private static let cacheVersion = 6
 
     /// Saves the image cache to disk for faster restart.
     func saveToDisk() {
@@ -1218,6 +1218,24 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         cropRectOwners[cropRect]
     }
 
+    @available(macOS 27, *)
+    static nonisolated func captureCropRect(
+        expected: CGRect,
+        imageBounds: CGRect
+    ) -> CGRect {
+        expected.intersection(imageBounds)
+    }
+
+    @available(macOS 27, *)
+    static nonisolated func isContaminatedByNativeOverflow(
+        _ bounds: CGRect,
+        overflowBounds: [CGRect]
+    ) -> Bool {
+        overflowBounds.contains { overflow in
+            bounds.intersects(overflow)
+        }
+    }
+
     /// Rejects hosting-window screenshots whose pixel size does not match
     /// `windowFrame * scale`. BetterDisplay / display-mode flips can leave
     /// AppKit scale and ScreenCaptureKit `pointPixelScale` disagreeing; crops
@@ -1322,6 +1340,9 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
             }
             return (screen.frame, menuMaxX)
         }
+        let preCaptureOverflowBounds = await Task.detached(priority: .utility) {
+            MenuBarItemAXProvider.nativeOverflowControlBounds(on: displayID)
+        }.value
 
         // Reject known application-menu or oversized frames before asking
         // ScreenCaptureKit for a GPU-backed screenshot. Besides preventing
@@ -1331,6 +1352,10 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         let captureCandidates = itemsWithBounds.filter { candidate in
             let item = candidate.item
             let bounds = candidate.bounds
+            let intersectsNativeOverflow = Self.isContaminatedByNativeOverflow(
+                bounds,
+                overflowBounds: preCaptureOverflowBounds
+            )
             let isPlausible = Self.isPlausibleItemCaptureBounds(
                 bounds,
                 windowFrame: captureBand.frame
@@ -1338,8 +1363,13 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                 bounds: bounds,
                 windowFrame: captureBand.frame,
                 applicationMenuMaxX: captureBand.menuMaxX
-            )
+            ) && !intersectsNativeOverflow
             if !isPlausible {
+                if intersectsNativeOverflow {
+                    MenuBarItemImageCache.diagLog.debug(
+                        "axBoundsCapture: rejecting native-overflow-contaminated bounds for \(item.logString)"
+                    )
+                }
                 result.excluded.append(item)
                 result.invalidatedTags.insert(item.tag)
             }
@@ -1391,6 +1421,10 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         } else {
             postCaptureBoundsByID = [:]
         }
+        let postCaptureOverflowBounds = await Task.detached(priority: .utility) {
+            MenuBarItemAXProvider.nativeOverflowControlBounds(on: displayID)
+        }.value
+        let overflowBounds = preCaptureOverflowBounds + postCaptureOverflowBounds
 
         MenuBarItemImageCache.diagLog.debug(
             "axBoundsCapture: hosting window \(composite.width)×\(composite.height)px, " +
@@ -1407,6 +1441,16 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
         for (item, bounds) in captureCandidates {
             if shouldSkipCapture(for: item) {
                 result.excluded.append(item)
+                continue
+            }
+
+            if Self.isContaminatedByNativeOverflow(bounds, overflowBounds: overflowBounds) {
+                MenuBarItemImageCache.diagLog.debug(
+                    "axBoundsCapture: overflow geometry changed while capturing \(item.logString); " +
+                        "clearing prior image for app-icon fallback"
+                )
+                result.excluded.append(item)
+                result.invalidatedTags.insert(item.tag)
                 continue
             }
 
@@ -1455,7 +1499,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                 height: bounds.height * scale
             )
             let expectedCropRect = rawCropRect.integral
-            let cropRect = expectedCropRect.intersection(imageBounds)
+            let cropRect = Self.captureCropRect(expected: expectedCropRect, imageBounds: imageBounds)
 
             guard Self.isCompleteCrop(expected: expectedCropRect, clamped: cropRect) else {
                 // Native-hidden / overflowed items sit mostly outside the hosting
@@ -1476,9 +1520,9 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
             // item in this pass. On macOS 27, overflow-hidden items can share
             // identical AX bounds, producing the same pixels under each tag.
             // Neither crop is trustworthy, so both fall back to the app icon.
-            if let priorTag = Self.cropRectOwner(expectedCropRect, cropRectOwners: cropRectOwners) {
+            if let priorTag = Self.cropRectOwner(cropRect, cropRectOwners: cropRectOwners) {
                 MenuBarItemImageCache.diagLog.debug(
-                    "axBoundsCapture: duplicate crop rect \(expectedCropRect) for " +
+                    "axBoundsCapture: duplicate crop rect \(cropRect) for " +
                         "\(item.logString); clearing both items for app-icon fallback"
                 )
                 result.images.removeValue(forKey: priorTag)
@@ -1562,7 +1606,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
             }
 
             recordCaptureSuccess(for: item)
-            cropRectOwners[expectedCropRect] = item.tag
+            cropRectOwners[cropRect] = item.tag
             result.images[item.tag] = captured
         }
 

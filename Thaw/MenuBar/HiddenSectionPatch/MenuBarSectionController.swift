@@ -241,6 +241,15 @@ final class MenuBarSectionController: ObservableObject {
     private var timer: Timer?
     private var boundaryReconciliationTask: Task<Void, Never>?
     private var lastRefreshSignature: String?
+    private var nativeOverflowProbeTask: Task<Void, Never>?
+    private var nativeOverflowState = NativeOverflowStateReducer()
+    private var pendingNativeOverflowRebalance = false
+    private var latestNativeOverflowBounds = [CGDirectDisplayID: [CGRect]]()
+
+    /// Displays where MenuBarAgent has stably reported its native overflow
+    /// control. This is presentation state only; authored section assignment
+    /// and physical reorderability remain independent.
+    @Published private(set) var nativeOverflowDisplayIDs = Set<CGDirectDisplayID>()
 
     /// Watches `MenuBarAgent`'s preferences for external `TrailingItemPreferredPositions`
     /// changes (macOS 27 only). See ``handleExternalPositionsChange(_:)``.
@@ -317,6 +326,7 @@ final class MenuBarSectionController: ObservableObject {
     isolated deinit {
         timer?.invalidate()
         boundaryReconciliationTask?.cancel()
+        nativeOverflowProbeTask?.cancel()
         for task in temporaryRevealConcealTasks.values {
             task.cancel()
         }
@@ -1218,11 +1228,80 @@ final class MenuBarSectionController: ObservableObject {
     /// item set (e.g. re-applying the allowlist when apps appear or quit).
     func start() {
         let timer = Timer(timeInterval: 1.0, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.refresh() }
+            MainActor.assumeIsolated {
+                self?.refresh()
+                self?.scheduleNativeOverflowProbe()
+                self?.drainNativeOverflowRebalanceIfPossible()
+            }
         }
         RunLoop.main.add(timer, forMode: .common)
         self.timer = timer
         refresh()
+        scheduleNativeOverflowProbe()
+    }
+
+    func isNativeOverflowActive(on displayID: CGDirectDisplayID) -> Bool {
+        nativeOverflowDisplayIDs.contains(displayID)
+    }
+
+    func nativeOverflowControlBounds(on displayID: CGDirectDisplayID) -> [CGRect] {
+        guard isNativeOverflowActive(on: displayID) else { return [] }
+        return latestNativeOverflowBounds[displayID] ?? []
+    }
+
+    private var isPerformingTemporaryPresentation: Bool {
+        revealedSection != nil
+            || !temporarilyRevealedIDs.isEmpty
+            || isClockActivationBridgeActive
+            || appState?.menuBarManager.iceBarPanel.currentSection != nil
+            || appState?.menuBarManager.isMenuBarHiddenBySystem == true
+            || appState?.menuBarManager.shouldDeferMacOS27MenuBarMutation == true
+    }
+
+    private func scheduleNativeOverflowProbe() {
+        guard #available(macOS 27, *),
+              nativeOverflowProbeTask == nil,
+              !isPerformingTemporaryPresentation,
+              let displayID = (NSScreen.screenWithActiveMenuBar ?? NSScreen.main)?.displayID
+        else {
+            return
+        }
+
+        nativeOverflowProbeTask = Task { [weak self] in
+            let observation = await Task.detached(priority: .utility) {
+                MenuBarItemAXProvider.nativeOverflowObservation(on: displayID)
+            }.value
+            guard let self, !Task.isCancelled else { return }
+            nativeOverflowProbeTask = nil
+            if case let .present(bounds) = observation {
+                latestNativeOverflowBounds[displayID] = bounds
+            }
+            guard let isActive = nativeOverflowState.consume(observation, on: displayID) else {
+                return
+            }
+
+            if isActive {
+                nativeOverflowDisplayIDs.insert(displayID)
+            } else {
+                nativeOverflowDisplayIDs.remove(displayID)
+                latestNativeOverflowBounds.removeValue(forKey: displayID)
+            }
+            diagLog.info("native overflow on display \(displayID) is now \(isActive ? "present" : "absent")")
+            appState?.menuBarManager.updateControlItemStates()
+            pendingNativeOverflowRebalance = true
+            drainNativeOverflowRebalanceIfPossible()
+        }
+    }
+
+    private func drainNativeOverflowRebalanceIfPossible() {
+        guard pendingNativeOverflowRebalance,
+              !isPerformingTemporaryPresentation,
+              let itemManager = appState?.itemManager
+        else {
+            return
+        }
+        pendingNativeOverflowRebalance = false
+        itemManager.scheduleMacOS27OverflowRebalance(force: true)
     }
 
     /// The section the item with the given identifier is assigned to.

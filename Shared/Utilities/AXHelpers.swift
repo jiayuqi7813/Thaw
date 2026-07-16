@@ -58,6 +58,23 @@ enum AXHelpers {
         (try? element.arrayAttribute(.children)) ?? []
     }
 
+    static func childrenIfAvailable(for element: UIElement) -> [UIElement]? {
+        try? element.arrayAttribute(.children)
+    }
+
+    /// The element referenced by `AXOverflowButton`, when exposed. Containers
+    /// such as the macOS 27 extras menu bar publish their overflow control as
+    /// an attribute rather than as an ordinary child.
+    static func overflowButton(for element: UIElement) -> UIElement? {
+        try? element.attribute(.overflowButton)
+    }
+
+    /// Whether the element advertises `AXOverflowButton`, or `nil` when its
+    /// attribute list could not be read.
+    static func supportsOverflowButton(_ element: UIElement) -> Bool? {
+        try? element.attributes().contains(.overflowButton)
+    }
+
     static func isEnabled(_ element: UIElement) -> Bool {
         (try? element.attribute(.enabled)) ?? false
     }

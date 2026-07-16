@@ -6,8 +6,15 @@
 //  Copyright (Thaw) © 2026 Toni Förster
 //  Licensed under the GNU GPLv3
 
+import AXSwift6
 import Cocoa
 import MenuBarModel
+
+enum NativeOverflowObservation: Equatable, Sendable {
+    case unavailable
+    case absent
+    case present([CGRect])
+}
 
 /// Enumerates menu bar items through the Accessibility tree.
 ///
@@ -235,6 +242,89 @@ enum MenuBarItemAXProvider {
         return false
     }
 
+    /// Frames occupied by the native overflow controls on a display. They are
+    /// excluded from the managed item list, but capture needs their geometry so
+    /// stale item bounds cannot crop the chevrons as item thumbnails.
+    static func nativeOverflowControlBounds(on display: CGDirectDisplayID) -> [CGRect] {
+        guard case let .present(bounds) = nativeOverflowObservation(on: display) else {
+            return []
+        }
+        return bounds
+    }
+
+    /// Distinguishes a trustworthy absence from an AX/MenuBarAgent read that
+    /// could not be completed. Runtime monitoring must not interpret a missing
+    /// permission or transient agent restart as overflow disappearing.
+    static func nativeOverflowObservation(on display: CGDirectDisplayID) -> NativeOverflowObservation {
+        guard AXHelpers.isProcessTrusted(),
+              let runningApp = NSRunningApplication.runningApplications(
+                  withBundleIdentifier: "com.apple.MenuBarAgent"
+              ).first,
+              let app = AXHelpers.application(for: runningApp),
+              let bar = AXHelpers.extrasMenuBar(for: app)
+        else {
+            return .unavailable
+        }
+
+        let displayBounds = CGDisplayBounds(display)
+        guard let children = AXHelpers.childrenIfAvailable(for: bar) else {
+            return .unavailable
+        }
+        let descendants = children.flatMap { child -> [AXSwift6.UIElement] in
+            let childDescendants = AXHelpers.childrenIfAvailable(for: child) ?? []
+            return [child] + childDescendants
+        }
+        var attributeReadFailed = false
+        let attributedControls = ([bar] + children).compactMap { element -> AXSwift6.UIElement? in
+            guard let supportsOverflowButton = AXHelpers.supportsOverflowButton(element) else {
+                attributeReadFailed = true
+                return nil
+            }
+            guard supportsOverflowButton else { return nil }
+            guard let button = AXHelpers.overflowButton(for: element) else {
+                attributeReadFailed = true
+                return nil
+            }
+            return button
+        }
+        let labeledControls = descendants.filter { element in
+            let identifier = AXHelpers.identifier(for: element)?.nonEmpty
+            let accessibilityDescription = AXHelpers.description(for: element)?.nonEmpty
+            let displayTitle = AXHelpers.title(for: element)?.nonEmpty
+                ?? accessibilityDescription
+                ?? identifier
+                ?? ""
+            let stableTitle = identityTitle(
+                namespace: .menuBarAgent,
+                identifier: identifier,
+                accessibilityDescription: accessibilityDescription,
+                displayTitle: displayTitle
+            )
+            return isNativeOverflowChevronPlaceholder(
+                namespace: .menuBarAgent,
+                identityTitle: stableTitle,
+                displayTitle: displayTitle
+            )
+        }
+
+        var seenFrames = Set<CGRect>()
+        let frames: [CGRect] = (attributedControls + labeledControls).compactMap { control -> CGRect? in
+            guard let frame = AXHelpers.frame(for: control),
+                  !frame.isNull,
+                  !frame.isEmpty,
+                  displayBounds.contains(frame.center),
+                  seenFrames.insert(frame).inserted
+            else {
+                return nil
+            }
+            return frame
+        }
+        if frames.isEmpty, attributeReadFailed || !(attributedControls + labeledControls).isEmpty {
+            return .unavailable
+        }
+        return frames.isEmpty ? .absent : .present(frames)
+    }
+
     // MARK: Assembly
 
     /// A pre-tag item collected from the AX walk.
@@ -346,7 +436,11 @@ enum MenuBarItemAXProvider {
         guard namespace == .menuBarAgent else { return false }
 
         return [identityTitle, displayTitle].contains { title in
-            let glyphs = title.filter { !$0.isWhitespace }
+            let normalized = title.filter { !$0.isWhitespace }
+            if normalized.caseInsensitiveCompare("AXOverflowButton") == .orderedSame {
+                return true
+            }
+            let glyphs = normalized
             guard !glyphs.isEmpty, glyphs.count <= 4 else { return false }
             return glyphs.allSatisfy { NativeOverflowChevron.glyphs.contains($0) }
         }

@@ -1056,6 +1056,9 @@ enum SettingsURIHandler {
         let configurations = Defaults.data(forKey: .displayIceBarConfigurations)
             .flatMap { try? JSONDecoder().decode([String: DisplayIceBarConfiguration].self, from: $0) }
             ?? [:]
+        let globalConfiguration = Defaults.data(forKey: .globalDisplayConfiguration)
+            .flatMap { try? JSONDecoder().decode(DisplayIceBarConfiguration.self, from: $0) }
+            ?? .defaultConfiguration
 
         if let uuid {
             // Check if UUID matches a connected display
@@ -1067,23 +1070,21 @@ enum SettingsURIHandler {
             guard isConnected || hasPersisted else {
                 return nil
             }
-            return configurations[uuid] ?? .defaultConfiguration
+            return configurations[uuid] ?? globalConfiguration
         }
 
         // Use active display
         guard let activeDisplayID = Bridging.getActiveMenuBarDisplayID(),
               let activeUUID = Bridging.getDisplayUUIDString(for: activeDisplayID)
         else {
-            return .defaultConfiguration
+            return globalConfiguration
         }
-        return configurations[activeUUID] ?? .defaultConfiguration
+        return configurations[activeUUID] ?? globalConfiguration
     }
 
     /// Gets information for a specific display.
     private static func getDisplayInfo(screen: NSScreen, uuid: String) -> [String: Any] {
-        let config = Defaults.data(forKey: .displayIceBarConfigurations)
-            .flatMap { try? JSONDecoder().decode([String: DisplayIceBarConfiguration].self, from: $0) }?[uuid]
-            ?? .defaultConfiguration
+        let config = getDisplayConfiguration(forUUID: uuid) ?? .defaultConfiguration
 
         let displayID = screen.displayID
         let isConnected = CGDisplayIsActive(displayID) != 0

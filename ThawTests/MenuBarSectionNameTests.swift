@@ -100,13 +100,27 @@ final class MenuBarSectionNameTests: XCTestCase {
 
     // MARK: - Presentation Mode
 
+    private func capacity(
+        width: CGFloat = 1200,
+        appMenuRightEdge: CGFloat? = 250,
+        notchFrame: CGRect? = nil
+    ) -> MenuBarCapacitySnapshot {
+        MenuBarCapacitySnapshot(
+            displayID: 1,
+            displayBounds: CGRect(x: 0, y: 0, width: width, height: 800),
+            notchFrame: notchFrame,
+            applicationMenuFrame: appMenuRightEdge.map {
+                CGRect(x: 0, y: 0, width: $0, height: 30)
+            },
+            trailingBoundary: width,
+            overflowControlBounds: []
+        )
+    }
+
     func testPresentationModeUsesInlineWhenItemsAlreadyFit() {
         let mode = MenuBarSection.presentationMode(
             totalItemsWidth: 300,
-            appMenuRightEdge: 250,
-            screenFrameMinX: 0,
-            screenVisibleMaxX: 1200,
-            notchFrame: nil,
+            capacity: capacity(),
             allowHidingApplicationMenus: false
         )
 
@@ -116,10 +130,7 @@ final class MenuBarSectionNameTests: XCTestCase {
     func testPresentationModeFallsBackToIceBarWhenItemsDoNotFitAndHidingMenusIsDisabled() {
         let mode = MenuBarSection.presentationMode(
             totalItemsWidth: 1000,
-            appMenuRightEdge: 350,
-            screenFrameMinX: 0,
-            screenVisibleMaxX: 1200,
-            notchFrame: nil,
+            capacity: capacity(appMenuRightEdge: 350),
             allowHidingApplicationMenus: false
         )
 
@@ -129,10 +140,7 @@ final class MenuBarSectionNameTests: XCTestCase {
     func testPresentationModeHidesApplicationMenusBeforeUsingIceBar() {
         let mode = MenuBarSection.presentationMode(
             totalItemsWidth: 1000,
-            appMenuRightEdge: 350,
-            screenFrameMinX: 0,
-            screenVisibleMaxX: 1200,
-            notchFrame: nil,
+            capacity: capacity(appMenuRightEdge: 350),
             allowHidingApplicationMenus: true
         )
 
@@ -142,10 +150,7 @@ final class MenuBarSectionNameTests: XCTestCase {
     func testPresentationModeStillUsesIceBarWhenItemsCannotFitEvenAfterHidingMenus() {
         let mode = MenuBarSection.presentationMode(
             totalItemsWidth: 1400,
-            appMenuRightEdge: 350,
-            screenFrameMinX: 0,
-            screenVisibleMaxX: 1200,
-            notchFrame: nil,
+            capacity: capacity(appMenuRightEdge: 350),
             allowHidingApplicationMenus: true
         )
 
@@ -153,11 +158,13 @@ final class MenuBarSectionNameTests: XCTestCase {
     }
 
     func testUsableInlineWidthAccountsForNotchGapOnBothSides() {
-        let width = MenuBarSection.usableInlineWidth(
-            from: 200,
-            screenFrameMinX: 0,
-            screenVisibleMaxX: 1600,
+        let width = capacity(
+            width: 1600,
+            appMenuRightEdge: 200,
             notchFrame: CGRect(x: 700, y: 0, width: 200, height: 30)
+        ).availableWidth(
+            in: .inline,
+            applicationMenus: .visible
         )
 
         XCTAssertEqual(width, 1152)

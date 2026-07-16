@@ -2002,7 +2002,7 @@ extension HIDEventManager {
     ) {
         guard
             appState.settings.general.showOnHover,
-            !appState.settings.displaySettings.useIceBar(for: screen.displayID)
+            !appState.menuBarManager.shouldUseIceBar(for: screen.displayID)
         else {
             return
         }
