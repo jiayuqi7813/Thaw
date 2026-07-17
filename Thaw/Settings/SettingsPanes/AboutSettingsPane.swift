@@ -23,8 +23,8 @@ struct AboutSettingsPane: View {
 
     var body: some View {
         // The About page isn't a settings form: it centers the app identity in
-        // the page and pins the action bar to the bottom. The shared detail host
-        // supplies the full-tab Liquid Glass surface.
+        // the page and pins the action bar to the bottom. The detail host uses
+        // the same extreme behind-window vibrancy as the sidebar.
         VStack(spacing: 24) {
             Spacer(minLength: 0)
             appIconAndCopyrightContent
@@ -131,11 +131,6 @@ struct AboutSettingsPane: View {
                     Text("Based on Thaw \(Constants.versionString) (\(Constants.buildString))")
                         .font(.system(size: 13))
                         .foregroundStyle(.tertiary)
-                        .help(
-                            "macOS 27 support is functional with remaining limitations around Always Hidden and visual menu bar edge cases. Feature work is based on "
-                                + "\(Constants.versionString) (\(Constants.buildString)); "
-                                + "this build is not distributed through Thaw's update channels."
-                        )
                 }
 
                 Text(Constants.copyrightString)
@@ -209,7 +204,7 @@ struct AboutSettingsPane: View {
             Button("Quit \(Constants.displayName)") {
                 ApplicationTermination.request()
             }
-            .buttonStyle(.settingsGlass)
+            .buttonStyle(.plain)
             .foregroundStyle(.red)
 
             Spacer()
@@ -226,7 +221,8 @@ struct AboutSettingsPane: View {
                     openURL(Constants.donateURL)
                 }
             }
-            .buttonStyle(.settingsGlass)
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
         }
     }
 }
