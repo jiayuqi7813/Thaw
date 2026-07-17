@@ -11,36 +11,10 @@ import SwiftUI
 struct IceForm<Content: View>: View {
     @Environment(\.settingsPaneTitle) private var settingsPaneTitle
 
-    private let alignment: HorizontalAlignment
-    private let padding: EdgeInsets
-    private let spacing: CGFloat
     private let content: Content
 
-    init(
-        alignment: HorizontalAlignment = .center,
-        padding: EdgeInsets = .iceFormDefaultPadding,
-        spacing: CGFloat = .iceFormDefaultSpacing,
-        @ViewBuilder content: () -> Content
-    ) {
-        self.alignment = alignment
-        self.padding = padding
-        self.spacing = spacing
+    init(@ViewBuilder content: () -> Content) {
         self.content = content()
-    }
-
-    init(
-        alignment: HorizontalAlignment = .center,
-        padding: CGFloat,
-        spacing: CGFloat = .iceFormDefaultSpacing,
-        @ViewBuilder content: () -> Content
-    ) {
-        self.init(
-            alignment: alignment,
-            padding: EdgeInsets(all: padding),
-            spacing: spacing
-        ) {
-            content()
-        }
     }
 
     var body: some View {
@@ -68,15 +42,4 @@ struct IceForm<Content: View>: View {
         .focusSection()
         .accessibilityElement(children: .contain)
     }
-}
-
-extension EdgeInsets {
-    /// The default padding for an ``IceForm``. Top inset stays tight so the
-    /// in-pane page title can sit close to the first section cards.
-    static let iceFormDefaultPadding: EdgeInsets = .init(top: 8, leading: 20, bottom: 20, trailing: 20)
-}
-
-extension CGFloat {
-    /// The default spacing for an ``IceForm``.
-    static let iceFormDefaultSpacing: CGFloat = 24
 }

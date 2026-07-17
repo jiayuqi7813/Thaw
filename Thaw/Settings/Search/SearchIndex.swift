@@ -93,12 +93,16 @@ nonisolated enum SearchIndex {
     ]
 
     /// All searchable settings entries, in pane order.
-    static var entries: [SearchEntry] {
+    ///
+    /// The set is static for a given OS, so it is resolved once and cached
+    /// rather than re-concatenated on every access (the search path reads it
+    /// per keystroke).
+    static let entries: [SearchEntry] = {
         if #available(macOS 27, *) {
             return sharedEntries + macOS27Entries
         }
         return sharedEntries
-    }
+    }()
 
     /// `@Published` property names that are intentionally absent from the
     /// index because they are deprecated, internal, or currently commented out

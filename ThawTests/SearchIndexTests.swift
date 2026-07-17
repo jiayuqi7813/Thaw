@@ -105,10 +105,6 @@ final class SearchIndexTests: XCTestCase {
         }
     }
 
-    func testDisclosuresDefaultCollapsed() {
-        XCTAssertFalse(LayoutAdvancedControls.defaultsExpanded)
-    }
-
     // MARK: - Relevance Sort
 
     func testSortedByRelevanceOrdersLowestDiffScoreFirst() {

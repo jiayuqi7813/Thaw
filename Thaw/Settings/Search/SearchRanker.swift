@@ -49,13 +49,6 @@ nonisolated enum SearchRanker {
     /// Extracted from the search pipeline so it can be unit-tested without
     /// linking Ifrit into the test target.
     static func sortedByRelevance<T>(_ items: [(item: T, diffScore: Double)]) -> [T] {
-        items.sorted { lhs, rhs in
-            if lhs.diffScore != rhs.diffScore {
-                return lhs.diffScore < rhs.diffScore
-            }
-            // Tie-break on a stable key when the items are identifiable so
-            // equally-scored results don't shuffle between renders.
-            return false
-        }.map(\.item)
+        items.sorted { $0.diffScore < $1.diffScore }.map(\.item)
     }
 }
