@@ -1301,6 +1301,65 @@ final class MacOS27LayoutAnchorOrderingTests: XCTestCase {
         XCTAssertEqual(target.uniqueIdentifier, alpha.uniqueIdentifier)
     }
 
+    @MainActor
+    func testStructuralVisibleSegmentInsertsThawControlAtSavedSlot() {
+        let alpha = appItem(bundleID: "com.example.alpha", title: "Alpha", x: 100, windowID: 1630)
+        let beta = appItem(bundleID: "com.example.beta", title: "Beta", x: 140, windowID: 1631)
+        let thaw = item(tag: .visibleControlItem, x: 180, windowID: 1632)
+
+        let segment = MenuBarItemManager.structuralVisibleSegment(
+            ordinaryVisibleItems: [alpha, beta],
+            visibleControl: thaw,
+            savedOrder: [
+                thaw.uniqueIdentifier,
+                alpha.uniqueIdentifier,
+                beta.uniqueIdentifier,
+            ]
+        )
+
+        XCTAssertEqual(
+            segment.map(\.uniqueIdentifier),
+            [thaw.uniqueIdentifier, alpha.uniqueIdentifier, beta.uniqueIdentifier]
+        )
+    }
+
+    @MainActor
+    func testStructuralVisibleSegmentKeepsLiveMidXWhenSavedOrderOmitsThawControl() {
+        let alpha = appItem(bundleID: "com.example.alpha", title: "Alpha", x: 100, windowID: 1640)
+        let thaw = item(tag: .visibleControlItem, x: 140, windowID: 1642)
+        let beta = appItem(bundleID: "com.example.beta", title: "Beta", x: 180, windowID: 1641)
+
+        let segment = MenuBarItemManager.structuralVisibleSegment(
+            ordinaryVisibleItems: [alpha, beta],
+            visibleControl: thaw,
+            savedOrder: [alpha.uniqueIdentifier, beta.uniqueIdentifier]
+        )
+
+        // Omitted from saved order must not append last — preserve live geometry.
+        XCTAssertEqual(
+            segment.map(\.uniqueIdentifier),
+            [alpha.uniqueIdentifier, thaw.uniqueIdentifier, beta.uniqueIdentifier]
+        )
+    }
+
+    @MainActor
+    func testStructuralVisibleSegmentKeepsLiveMidXWhenSavedOrderIsEmpty() {
+        let alpha = appItem(bundleID: "com.example.alpha", title: "Alpha", x: 100, windowID: 1650)
+        let thaw = item(tag: .visibleControlItem, x: 120, windowID: 1651)
+        let beta = appItem(bundleID: "com.example.beta", title: "Beta", x: 180, windowID: 1652)
+
+        let segment = MenuBarItemManager.structuralVisibleSegment(
+            ordinaryVisibleItems: [alpha, beta],
+            visibleControl: thaw,
+            savedOrder: []
+        )
+
+        XCTAssertEqual(
+            segment.map(\.uniqueIdentifier),
+            [alpha.uniqueIdentifier, thaw.uniqueIdentifier, beta.uniqueIdentifier]
+        )
+    }
+
     @available(macOS 27, *)
     @MainActor
     func testMacOS27VisibleThawControlRestoreMoveWhenStrandedAtBlockedPosition() {

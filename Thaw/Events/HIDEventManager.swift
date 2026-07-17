@@ -917,14 +917,16 @@ final class HIDEventManager: ObservableObject {
         // macOS can invalidate the Mach port under resource pressure or
         // when accessibility permissions change. If it becomes invalid,
         // ensureValid() will recreate it.
+        // Interval matches the stuck-disable recovery threshold so a leaked
+        // stopAll is noticed within ~10s (not one 30s tick later).
         healthCheckTimer?.invalidate()
-        healthCheckTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+        healthCheckTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
             guard let self else { return }
             Task { @MainActor in
                 self.performHealthCheck()
             }
         }
-        healthCheckTimer?.tolerance = 5
+        healthCheckTimer?.tolerance = 2
     }
 
     /// Checks the health of event monitors and taps, and attempts
@@ -934,9 +936,12 @@ final class HIDEventManager: ObservableObject {
         // been disabled for longer than any legitimate operation would
         // take (e.g. a move or click), the count is likely imbalanced
         // due to a cancelled Task or unexpected error. Force recovery.
-        if !isEnabled, disableCount > 0, let lastStop = lastStopTimestamp {
+        if !isEnabled, disableCount > 1, let lastStop = lastStopTimestamp {
             let elapsed = ContinuousClock.now - lastStop
-            if elapsed > .seconds(30) {
+            // Nested stopAll (count>1) held past the settle window is almost
+            // certainly a leaked pause (IamWJC log: stuck 37s at disableCount=2).
+            // A single in-flight move (count==1) is left alone.
+            if elapsed > .seconds(10) {
                 Self.diagLog.error(
                     """
                     Event manager stuck in disabled state for \

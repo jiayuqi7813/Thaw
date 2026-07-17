@@ -36,7 +36,7 @@ struct MenuBarLayoutSettingsPane: View {
         let canArrangeLayout = hasScreenRecordingPermission
             && !appState.menuBarManager.isMenuBarHiddenBySystemUserDefaults
 
-        IceForm(spacing: 20) {
+        IceForm {
             if !hasScreenRecordingPermission {
                 MissingLayoutPermissionView()
             } else if !canArrangeLayout {
@@ -251,9 +251,11 @@ private struct LayoutBarsSection: View {
         guard !Task.isCancelled else { return }
 
         if #available(macOS 27, *) {
+            // Fill gaps only so opening Layout cannot overwrite settled
+            // Hidden glyphs with native overflow chevron («») crops.
             await appState.imageCache.prewarmConcealedImagesMacOS27(
                 sections: [.hidden, .alwaysHidden],
-                onlyMissingImages: false
+                onlyMissingImages: true
             )
             guard !Task.isCancelled else { return }
         }
@@ -288,9 +290,6 @@ struct LayoutAdvancedControls: View {
     @ObservedObject var settings: AdvancedSettings
     @ObservedObject var navigationState: AppNavigationState
     @State private var isExpanded = false
-    @State private var hasConnectedNotchedDisplay = NSScreen.managedScreens.contains(where: \.hasNotch)
-
-    static let defaultsExpanded = false
 
     var body: some View {
         IceSection {
@@ -337,9 +336,6 @@ struct LayoutAdvancedControls: View {
                 }
                 .padding(.top, 10)
             }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)) { _ in
-            hasConnectedNotchedDisplay = NSScreen.managedScreens.contains(where: \.hasNotch)
         }
         .onChange(of: navigationState.requestedSettingsDisclosure, initial: true) { _, _ in
             guard SettingsSearchNavigation.consumeDisclosure(

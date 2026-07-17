@@ -362,6 +362,13 @@ final class MenuBarSectionController: ObservableObject {
         assessmentStateMonitor = monitor
     }
 
+    /// Suppresses the next `TrailingItemPreferredPositions` file events as
+    /// Thaw-authored. Call after structural preferred-position writes so the
+    /// prefs watcher does not treat our own reorder as an external change.
+    func notePreferredPositionsSelfWrite() {
+        prefsWatcher?.noteSelfWrite()
+    }
+
     /// Handles an external change to `TrailingItemPreferredPositions` — one Thaw
     /// did not make itself (`MenuBarAgent` reflow, another manager, `defaults`,
     /// MDM). Re-asserts Thaw's concealment state so a system-driven reflow cannot

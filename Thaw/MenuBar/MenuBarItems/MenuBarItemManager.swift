@@ -1622,9 +1622,11 @@ final class MenuBarItemManager: ObservableObject {
                 Task {
                     guard let imageCache = self.appState?.imageCache else { return }
                     if #available(macOS 27, *) {
+                        // Gap-fill only: a forced full recapture can replace
+                        // settled glyphs with native overflow chevron crops.
                         await imageCache.prewarmConcealedImagesMacOS27(
                             sections: MenuBarSection.Name.allCases,
-                            onlyMissingImages: false
+                            onlyMissingImages: true
                         )
                     }
                     await imageCache.updateCache(sections: MenuBarSection.Name.allCases)
@@ -1650,7 +1652,7 @@ final class MenuBarItemManager: ObservableObject {
                     if #available(macOS 27, *) {
                         await imageCache.prewarmConcealedImagesMacOS27(
                             sections: MenuBarSection.Name.allCases,
-                            onlyMissingImages: false
+                            onlyMissingImages: true
                         )
                     }
                     await imageCache.updateCache(sections: MenuBarSection.Name.allCases)
@@ -4263,6 +4265,7 @@ extension MenuBarItemManager {
                    experimentalSystemItemHiding: experimentalSystemItemHiding
                )
             {
+                controller.notePreferredPositionsSelfWrite()
                 requestMenuBarAgentPositionRefresh()
                 MenuBarItemManager.diagLog.info(
                     "Repaired macOS 27 section boundary for \(liveItem.logString) via preferred positions"
@@ -4345,6 +4348,7 @@ extension MenuBarItemManager {
                     experimentalSystemItemHiding: experimentalSystemItemHiding
                 )
                 if !reordered.isEmpty {
+                    controller.notePreferredPositionsSelfWrite()
                     requestMenuBarAgentPositionRefresh()
                     didReorder = true
                     liveItems = await waitForMenuBarAgentResort(
@@ -4584,6 +4588,7 @@ extension MenuBarItemManager {
         ) else {
             return false
         }
+        appState?.menuBarManager.sectionController?.notePreferredPositionsSelfWrite()
         requestMenuBarAgentPositionRefresh()
 
         // Poll the live order until MenuBarAgent observes the synchronized write.
@@ -4620,6 +4625,7 @@ extension MenuBarItemManager {
                 experimentalSystemItemHiding: experimentalSystemItemHiding
             )
         {
+            appState?.menuBarManager.sectionController?.notePreferredPositionsSelfWrite()
             requestMenuBarAgentPositionRefresh()
             MenuBarItemManager.diagLog.debug(
                 "Retrying preferred-position move after refreshed key resolution for \(item.logString)"
@@ -6246,11 +6252,56 @@ extension MenuBarItemManager {
         return ["status:\(littleSnitchAgentBundleID)::Item-0"]
     }
 
+    /// Visible-section structural sequence for macOS 27 preferred-position
+    /// repair. Inserts the Visible Thaw control at its saved layout slot so
+    /// enforcement cannot shove it to the far-right edge after a user ⌘-drag.
+    ///
+    /// When saved order omits the control (fresh install / pre-persist drag),
+    /// `ordinaryVisibleItems`' existing order (already resolved by the caller
+    /// via `controller.ordered` / `overflowOrderedVisibleItems`) is preserved
+    /// as-is; only the control's insertion point is derived from live
+    /// geometry. A blanket re-sort here would discard that resolved order for
+    /// every other item just because the control's slot was unknown.
+    static func structuralVisibleSegment(
+        ordinaryVisibleItems: [MenuBarItem],
+        visibleControl: MenuBarItem,
+        savedOrder: [String]
+    ) -> [MenuBarItem] {
+        let canonicalOrder = MenuBarItemTag.canonicalPersistentIdentifiers(savedOrder)
+        let visibleCanonical = MenuBarItemTag.canonicalPersistentIdentifier(
+            visibleControl.uniqueIdentifier
+        )
+        guard !canonicalOrder.isEmpty, canonicalOrder.contains(visibleCanonical) else {
+            let insertionIndex = ordinaryVisibleItems.firstIndex {
+                visibleControl.bounds.midX < $0.bounds.midX
+            } ?? ordinaryVisibleItems.count
+            var result = ordinaryVisibleItems
+            result.insert(visibleControl, at: insertionIndex)
+            return result
+        }
+        return MenuBarSectionController.overflowOrderedVisibleItems(
+            ordinaryVisibleItems + [visibleControl],
+            using: savedOrder
+        )
+    }
+
     private func enforceControlItemOrder(
         controlItems: ControlItemPair,
         items: [MenuBarItem],
         force: Bool = false
     ) async {
+        // During assessment-mode reflow, MenuBarAgent is still reshuffling
+        // preferred positions. Structural restores here fight the user's
+        // Visible-control placement and race `applySavedLayout`, which uses
+        // the same settle window (IamWJC snap-back on macOS 27).
+        // `force: true` (reveal / reset) still runs so dividers can be repaired.
+        if #available(macOS 27, *), !force, isWithinRestrictionReflowSettleWindow {
+            MenuBarItemManager.diagLog.debug(
+                "enforceControlItemOrder: skipping, within restriction-reflow settle window"
+            )
+            return
+        }
+
         let hidden = controlItems.hidden
 
         // macOS 27's runtime host owns the actual control-item order. This
@@ -6281,12 +6332,23 @@ extension MenuBarItemManager {
                 ordinaryItems.filter { controller.authoredSection(for: $0.uniqueIdentifier) == .visible },
                 in: .visible
             )
+            // Place Visible where saved layout says (not always last). Always
+            // appending it forced the Thaw icon to the far right and undid ⌘-drags.
+            let recordedVisibleOrder = controller.sectionItemOrder[.visible]
+                ?? savedSectionOrder[sectionKey(for: .visible)]
+                ?? []
+            let visibleSegment = Self.structuralVisibleSegment(
+                ordinaryVisibleItems: visibleItems,
+                visibleControl: visible,
+                savedOrder: recordedVisibleOrder
+            )
             let reordered = RuntimePositionStore.applyControlItemOrder(
-                desiredOrder: alwaysHiddenItems + [alwaysHidden] + hiddenItems + [hidden] + visibleItems + [visible],
+                desiredOrder: alwaysHiddenItems + [alwaysHidden] + hiddenItems + [hidden] + visibleSegment,
                 opaqueVisibleKeys: Self.opaqueVisibleRuntimePositionKeys(),
                 liveItems: items
             )
             if !reordered.isEmpty {
+                controller.notePreferredPositionsSelfWrite()
                 requestMenuBarAgentPositionRefresh()
                 MenuBarItemManager.diagLog.info(
                     "macOS 27: restored structural divider order for \(reordered.count) control item(s)"
@@ -6773,10 +6835,16 @@ extension MenuBarItemManager {
             controller.authoredSection(for: $0.uniqueIdentifier) == .alwaysHidden && !$0.isControlItem
         }
 
-        var desiredFiltered = visibleLive.map(\.uniqueIdentifier)
-        if let uid = visibleCtrl?.uniqueIdentifier {
-            desiredFiltered.append(uid)
+        let visibleSegment: [MenuBarItem] = if let visibleCtrl {
+            Self.structuralVisibleSegment(
+                ordinaryVisibleItems: visibleLive,
+                visibleControl: visibleCtrl,
+                savedOrder: recordedVisibleOrder
+            )
+        } else {
+            visibleLive
         }
+        var desiredFiltered = visibleSegment.map(\.uniqueIdentifier)
         let hiddenCtrlUID = controlUIDs.hidden
         desiredFiltered.append(hiddenCtrlUID)
         desiredFiltered.append(contentsOf: hiddenLive.map(\.uniqueIdentifier))
@@ -6786,7 +6854,7 @@ extension MenuBarItemManager {
         }
 
         var sectionMap = [String: String]()
-        for item in visibleLive {
+        for item in visibleSegment {
             sectionMap[item.uniqueIdentifier] = MenuBarSection.Name.visible.rawValue
         }
         for item in hiddenLive {

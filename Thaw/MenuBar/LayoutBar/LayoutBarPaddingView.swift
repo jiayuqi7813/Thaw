@@ -484,7 +484,7 @@ final class LayoutBarPaddingView: NSView {
                 if #available(macOS 27, *) {
                     await appState.imageCache.prewarmConcealedImagesMacOS27(
                         sections: MenuBarSection.Name.allCases,
-                        onlyMissingImages: false
+                        onlyMissingImages: true
                     )
                 }
                 await appState.imageCache.updateCacheWithoutChecks(sections: MenuBarSection.Name.allCases)
@@ -785,7 +785,7 @@ final class LayoutBarPaddingView: NSView {
         if #available(macOS 27, *) {
             await appState.imageCache.prewarmConcealedImagesMacOS27(
                 sections: MenuBarSection.Name.allCases,
-                onlyMissingImages: false
+                onlyMissingImages: true
             )
         }
         await appState.imageCache.updateCacheWithoutChecks(sections: MenuBarSection.Name.allCases)

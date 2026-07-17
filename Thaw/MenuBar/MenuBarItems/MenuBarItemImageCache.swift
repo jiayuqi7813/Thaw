@@ -1688,7 +1688,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
             // chevron region, producing a narrow, non-blank crop that sails
             // through every validation above. Detect and reject it so the
             // app-icon fallback takes over instead of showing "double arrows".
-            if bounds.width < 15, !item.tag.isLayoutAnchoredSystemItem {
+            if bounds.width < Self.minimumTrustedGlyphWidth, !item.tag.isLayoutAnchoredSystemItem {
                 MenuBarItemImageCache.diagLog.debug(
                     "axBoundsCapture: rejecting suspiciously narrow crop " +
                         "(\(bounds.width)pt) for \(item.logString); likely overflow chevron bleed"
@@ -2453,16 +2453,34 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
             let beforeCount = images.count
 
             // Drop priors that this pass proved unusable (incomplete crop /
-            // off-window). Do this before merge so a successful recapture of
-            // the same tag still wins.
+            // off-window), but keep a settled non-blank glyph when the new
+            // pass has no replacement. Clearing those priors is what turned
+            // Layout open into "double arrow" / app-icon churn on macOS 27.
+            var retainedPriorCount = 0
             for tag in invalidatedTags {
+                if newImages[tag] == nil,
+                   let existing = images[tag],
+                   !existing.isEffectivelyBlank,
+                   existing.scaledSize.width >= Self.minimumTrustedGlyphWidth
+                {
+                    retainedPriorCount += 1
+                    continue
+                }
                 images.removeValue(forKey: tag)
                 accessTimestamps.removeValue(forKey: tag)
             }
             if !invalidatedTags.isEmpty {
-                MenuBarItemImageCache.diagLog.debug(
-                    "updateCacheWithoutChecks: cleared \(invalidatedTags.count) prior image(s) for app-icon fallback"
-                )
+                let clearedCount = invalidatedTags.count - retainedPriorCount
+                if clearedCount > 0 {
+                    MenuBarItemImageCache.diagLog.debug(
+                        "updateCacheWithoutChecks: cleared \(clearedCount) prior image(s) for app-icon fallback"
+                    )
+                }
+                if retainedPriorCount > 0 {
+                    MenuBarItemImageCache.diagLog.debug(
+                        "updateCacheWithoutChecks: retained \(retainedPriorCount) settled prior image(s)"
+                    )
+                }
             }
 
             // Tags with recent capture failures should keep their cached images
@@ -2519,8 +2537,11 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                 accessTimestamps.removeValue(forKey: tag)
             }
 
-            // Merge in the new images
-            images.merge(newImages) { _, new in new }
+            // Merge in the new images, preferring settled glyphs over blank
+            // or much-narrower (chevron-bleed) candidates.
+            images.merge(newImages) { existing, new in
+                Self.preferredCachedImage(existing: existing, candidate: new)
+            }
 
             // Enforce cache size limit using LRU eviction, but never evict
             // items that still exist in the menu bar (valid item tags).
@@ -2599,7 +2620,36 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
     ) -> Bool {
         guard wouldAttemptCapture else { return false }
         guard let cachedImage, !cachedImage.isEffectivelyBlank else { return true }
+        // Recover from a native overflow chevron («») stored as a successful crop.
+        if cachedImage.scaledSize.width < Self.minimumTrustedGlyphWidth {
+            return true
+        }
         return false
+    }
+
+    /// Minimum point width for a crop that is trusted as a real status-item glyph.
+    /// Narrower crops usually come from native overflow chevron bleed on macOS 27.
+    static nonisolated let minimumTrustedGlyphWidth: CGFloat = 15
+
+    /// Chooses between an existing cache entry and a newly captured candidate.
+    ///
+    /// Prefers keeping a settled non-blank glyph over blank or much-narrower
+    /// replacements (chevron bleed), while still allowing legitimate updates
+    /// when the candidate is at least as wide.
+    static nonisolated func preferredCachedImage(
+        existing: CapturedImage,
+        candidate: CapturedImage
+    ) -> CapturedImage {
+        if existing.isEffectivelyBlank {
+            return candidate
+        }
+        if candidate.isEffectivelyBlank {
+            return existing
+        }
+        if candidate.scaledSize.width < existing.scaledSize.width * 0.75 {
+            return existing
+        }
+        return candidate
     }
 
     /// Waits only as long as MenuBarAgent needs to publish the precise AX reveal
@@ -2797,10 +2847,24 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                         validateFreshBounds: true
                     )
                     for tag in captureResult.invalidatedTags {
+                        if let existing = self.images[tag],
+                           !existing.isEffectivelyBlank,
+                           existing.scaledSize.width >= Self.minimumTrustedGlyphWidth
+                        {
+                            continue
+                        }
                         self.images.removeValue(forKey: tag)
                         self.accessTimestamps.removeValue(forKey: tag)
                     }
                     guard let image = captureResult.images[liveItem.tag] else {
+                        // Keep a settled glyph when the reveal/capture miss
+                        // would otherwise wipe the Layout thumbnail.
+                        if let existing = self.images[item.tag],
+                           !existing.isEffectivelyBlank,
+                           existing.scaledSize.width >= Self.minimumTrustedGlyphWidth
+                        {
+                            continue
+                        }
                         // The capture result is keyed by the fresh AX item,
                         // while the layout cache is keyed by the concealed
                         // snapshot. Clear both identities so a failed reveal
@@ -2809,17 +2873,23 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                         self.accessTimestamps.removeValue(forKey: item.tag)
                         continue
                     }
-                    if let cachedImage = self.images[item.tag],
-                       image.scaledSize.width < cachedImage.scaledSize.width * 0.75
-                    {
+                    if let cachedImage = self.images[item.tag] {
+                        let preferred = Self.preferredCachedImage(
+                            existing: cachedImage,
+                            candidate: image
+                        )
+                        if CapturedImage.isVisuallyEqual(preferred, cachedImage) {
+                            continue
+                        }
+                        self.images[item.tag] = preferred
+                        self.accessCounter += 1
+                        self.accessTimestamps[item.tag] = self.accessCounter
                         continue
                     }
 
-                    if !CapturedImage.isVisuallyEqual(self.images[item.tag], image) {
-                        self.images[item.tag] = image
-                        self.accessCounter += 1
-                        self.accessTimestamps[item.tag] = self.accessCounter
-                    }
+                    self.images[item.tag] = image
+                    self.accessCounter += 1
+                    self.accessTimestamps[item.tag] = self.accessCounter
                 }
                 self.saveToDisk()
             }.value

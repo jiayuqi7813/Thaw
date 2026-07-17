@@ -559,7 +559,7 @@ final class ImageCaptureInvalidationTests: XCTestCase {
     }
 
     func testPrewarmNeedsCaptureWhenImageMissing() throws {
-        let image = try makeImage(alpha: 255)
+        let image = try makeImage(alpha: 255, width: 48, height: 44)
         let captured = MenuBarItemImageCache.CapturedImage(cgImage: image, scale: 2)
 
         XCTAssertTrue(
@@ -577,7 +577,7 @@ final class ImageCaptureInvalidationTests: XCTestCase {
     }
 
     func testPrewarmNeedsCaptureWhenImageBlank() throws {
-        let image = try makeImage(alpha: 0)
+        let image = try makeImage(alpha: 0, width: 48, height: 44)
         let captured = MenuBarItemImageCache.CapturedImage(cgImage: image, scale: 2)
 
         XCTAssertTrue(
@@ -591,6 +591,76 @@ final class ImageCaptureInvalidationTests: XCTestCase {
                 cachedImage: captured,
                 wouldAttemptCapture: false
             )
+        )
+    }
+
+    func testPrewarmNeedsCaptureWhenCachedImageIsChevronNarrow() throws {
+        let image = try makeImage(alpha: 255, width: 20, height: 44)
+        let captured = MenuBarItemImageCache.CapturedImage(cgImage: image, scale: 2)
+        XCTAssertLessThan(captured.scaledSize.width, MenuBarItemImageCache.minimumTrustedGlyphWidth)
+
+        XCTAssertTrue(
+            MenuBarItemImageCache.prewarmNeedsCapture(
+                cachedImage: captured,
+                wouldAttemptCapture: true
+            )
+        )
+    }
+
+    func testPreferredCachedImageKeepsSettledGlyphOverNarrowerCandidate() throws {
+        let settled = try MenuBarItemImageCache.CapturedImage(
+            cgImage: makeImage(alpha: 255, width: 48, height: 44),
+            scale: 2
+        )
+        let chevronBleed = try MenuBarItemImageCache.CapturedImage(
+            cgImage: makeImage(alpha: 255, width: 20, height: 44),
+            scale: 2
+        )
+
+        let preferred = MenuBarItemImageCache.preferredCachedImage(
+            existing: settled,
+            candidate: chevronBleed
+        )
+        XCTAssertTrue(
+            MenuBarItemImageCache.CapturedImage.isVisuallyEqual(preferred, settled)
+        )
+    }
+
+    func testPreferredCachedImageKeepsSettledGlyphOverBlankCandidate() throws {
+        let settled = try MenuBarItemImageCache.CapturedImage(
+            cgImage: makeImage(alpha: 255, width: 48, height: 44),
+            scale: 2
+        )
+        let blank = try MenuBarItemImageCache.CapturedImage(
+            cgImage: makeImage(alpha: 0, width: 48, height: 44),
+            scale: 2
+        )
+
+        let preferred = MenuBarItemImageCache.preferredCachedImage(
+            existing: settled,
+            candidate: blank
+        )
+        XCTAssertTrue(
+            MenuBarItemImageCache.CapturedImage.isVisuallyEqual(preferred, settled)
+        )
+    }
+
+    func testPreferredCachedImageAcceptsWiderCandidate() throws {
+        let narrow = try MenuBarItemImageCache.CapturedImage(
+            cgImage: makeImage(alpha: 255, width: 20, height: 44),
+            scale: 2
+        )
+        let wider = try MenuBarItemImageCache.CapturedImage(
+            cgImage: makeImage(alpha: 255, width: 48, height: 44),
+            scale: 2
+        )
+
+        let preferred = MenuBarItemImageCache.preferredCachedImage(
+            existing: narrow,
+            candidate: wider
+        )
+        XCTAssertTrue(
+            MenuBarItemImageCache.CapturedImage.isVisuallyEqual(preferred, wider)
         )
     }
 
@@ -638,12 +708,15 @@ final class ImageCaptureInvalidationTests: XCTestCase {
         return cache
     }
 
-    private func makeImage(alpha: UInt8) throws -> CGImage {
-        let width = 2
-        let height = 2
+    private func makeImage(alpha: UInt8, width: Int = 2, height: Int = 2) throws -> CGImage {
         var pixels = [UInt8](repeating: 0, count: width * height * 4)
         for index in stride(from: 3, to: pixels.count, by: 4) {
             pixels[index] = alpha
+            if alpha > 0 {
+                pixels[index - 3] = 255
+                pixels[index - 2] = 255
+                pixels[index - 1] = 255
+            }
         }
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         guard let context = CGContext(
