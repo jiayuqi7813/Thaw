@@ -344,6 +344,18 @@ final class MenuBarItemManager: ObservableObject {
     /// kick another, preventing the move→reflow→recache→move thrash cycle.
     private var overflowRebalanceTask: Task<Void, Never>?
 
+    /// Whether a coalesced-away schedule requested `force: true`.
+    ///
+    /// `scheduleMacOS27OverflowRebalance` cancels and replaces its in-flight
+    /// task on every call, so a `force: true` request (e.g. a native-overflow
+    /// probe transition) that arrives just before a `force: false` cache-driven
+    /// request would otherwise lose its force intent to the replacement task —
+    /// and `rebalanceMacOS27OverflowIfNeeded`'s 2-second debounce would then
+    /// silently no-op the rebalance the probe was counting on. OR-ing every
+    /// request into this flag, and only clearing it once a rebalance actually
+    /// runs with it set, preserves that intent across coalescing.
+    private(set) var overflowRebalanceForcePending = false
+
     /// Prevents a failed physical layout apply from being committed by a later
     /// cache pass. A new apply or an explicit user Command-drag clears it.
     private var suppressSpatialOrderPersistenceAfterFailedApply = false
@@ -2101,18 +2113,38 @@ extension MenuBarItemManager {
     /// Coalesces environment-driven overflow rebalances behind the same task
     /// used by cache updates so assertion reflow cannot feed back into another
     /// immediate rebalance.
+    ///
+    /// A `force: true` request must survive being coalesced away by a later
+    /// `force: false` call (see `overflowRebalanceForcePending`), so the flag
+    /// — not the parameter captured by this particular call — decides what
+    /// the task that ultimately runs passes to `rebalanceMacOS27OverflowIfNeeded`.
     func scheduleMacOS27OverflowRebalance(force: Bool = false) {
+        overflowRebalanceForcePending = Self.nextOverflowRebalanceForcePending(
+            currentlyPending: overflowRebalanceForcePending,
+            requestedForce: force
+        )
         overflowRebalanceTask?.cancel()
         overflowRebalanceTask = Task { [weak self] in
             guard let self else { return }
             try? await Task.sleep(for: .milliseconds(300))
             guard !Task.isCancelled else { return }
-            if await self.rebalanceMacOS27OverflowIfNeeded(force: force) {
+            let effectiveForce = self.overflowRebalanceForcePending
+            self.overflowRebalanceForcePending = false
+            if await self.rebalanceMacOS27OverflowIfNeeded(force: effectiveForce) {
                 try? await Task.sleep(for: .milliseconds(200))
                 guard !Task.isCancelled else { return }
                 await self.cacheItemsRegardless(skipRecentMoveCheck: true)
             }
         }
+    }
+
+    /// Pure OR logic behind the force-preservation fix above, split out so it
+    /// is unit-testable without spinning up the debounce task's timing.
+    static nonisolated func nextOverflowRebalanceForcePending(
+        currentlyPending: Bool,
+        requestedForce: Bool
+    ) -> Bool {
+        currentlyPending || requestedForce
     }
 
     /// Whether a startup or profile-apply settling period is currently active.

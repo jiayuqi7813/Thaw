@@ -86,6 +86,40 @@ final class MenuBarItemAXProviderTests: XCTestCase {
         XCTAssertEqual(items.first?.title, "Item-0")
     }
 
+    func testFrameIsWithinDisplayWhenMidpointFallsInsideBounds() {
+        let displayBounds = CGRect(x: 0, y: 0, width: 1920, height: 1080)
+
+        XCTAssertTrue(
+            MenuBarItemAXProvider.frame(
+                CGRect(x: 100, y: 0, width: 24, height: 22),
+                isWithin: displayBounds
+            )
+        )
+    }
+
+    func testFrameIsNotWithinDisplayWhenMidpointFallsOutsideBounds() {
+        let displayBounds = CGRect(x: 0, y: 0, width: 1920, height: 1080)
+
+        XCTAssertFalse(
+            MenuBarItemAXProvider.frame(
+                CGRect(x: 2000, y: 0, width: 24, height: 22),
+                isWithin: displayBounds
+            )
+        )
+    }
+
+    func testFrameOnSecondDisplayIsNotAttributedToFirstDisplay() {
+        // Two side-by-side displays: primary at x∈[0, 1920), secondary at
+        // x∈[1920, 3840). An item on the secondary display must not be
+        // filtered into the primary display's item list.
+        let primaryDisplayBounds = CGRect(x: 0, y: 0, width: 1920, height: 1080)
+        let secondaryItemFrame = CGRect(x: 1950, y: 0, width: 24, height: 22)
+
+        XCTAssertFalse(
+            MenuBarItemAXProvider.frame(secondaryItemFrame, isWithin: primaryDisplayBounds)
+        )
+    }
+
     private func rawItem(
         bundleID: String,
         title: String,

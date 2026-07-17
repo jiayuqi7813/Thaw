@@ -346,6 +346,111 @@ extension CGImage {
         return context.trim(around: edges)
     }
 
+    /// Makes near-uniform menu-bar fill around a glyph transparent.
+    ///
+    /// Display-strip crops include wallpaper / Liquid Glass bar material at the
+    /// edges. Samples the four corners, averages those colors, and clears pixels
+    /// within `maxColorDistance` (0…441 Euclidean RGB) of that background.
+    /// Returns `nil` when the image already looks transparent or the knockout
+    /// would erase everything.
+    ///
+    /// - Parameters:
+    ///   - maxColorDistance: Maximum RGB distance from the sampled background
+    ///     treated as fill to clear.
+    ///   - cornerSampleSize: Edge length (px) of each corner sample block.
+    nonisolated func knockingOutNearUniformBackground(
+        maxColorDistance: CGFloat = 36,
+        cornerSampleSize: Int = 2
+    ) -> CGImage? {
+        guard width > 2, height > 2, maxColorDistance > 0 else { return nil }
+
+        let bytesPerPixel = 4
+        let bytesPerRow = width * bytesPerPixel
+        var pixels = [UInt8](repeating: 0, count: bytesPerRow * height)
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
+        guard let context = CGContext(
+            data: &pixels,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: bytesPerRow,
+            space: colorSpace,
+            bitmapInfo: bitmapInfo
+        ) else {
+            return nil
+        }
+        context.draw(self, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+        let sample = max(1, min(cornerSampleSize, min(width, height) / 2))
+        var sumR = 0, sumG = 0, sumB = 0, sampleCount = 0
+        let corners = [
+            (0, 0),
+            (width - sample, 0),
+            (0, height - sample),
+            (width - sample, height - sample),
+        ]
+        for (originX, originY) in corners {
+            for y in originY ..< (originY + sample) {
+                for x in originX ..< (originX + sample) {
+                    let i = y * bytesPerRow + x * bytesPerPixel
+                    let a = Int(pixels[i + 3])
+                    guard a > 8 else { continue }
+                    // Un-premultiply for a stable background estimate.
+                    sumR += Int(pixels[i]) * 255 / a
+                    sumG += Int(pixels[i + 1]) * 255 / a
+                    sumB += Int(pixels[i + 2]) * 255 / a
+                    sampleCount += 1
+                }
+            }
+        }
+        guard sampleCount > 0 else { return nil }
+
+        let bgR = sumR / sampleCount
+        let bgG = sumG / sampleCount
+        let bgB = sumB / sampleCount
+        let maxDistSq = maxColorDistance * maxColorDistance
+
+        var cleared = 0
+        var kept = 0
+        for y in 0 ..< height {
+            for x in 0 ..< width {
+                let i = y * bytesPerRow + x * bytesPerPixel
+                let a = Int(pixels[i + 3])
+                if a <= 8 {
+                    pixels[i] = 0
+                    pixels[i + 1] = 0
+                    pixels[i + 2] = 0
+                    pixels[i + 3] = 0
+                    cleared += 1
+                    continue
+                }
+                let r = Int(pixels[i]) * 255 / a
+                let g = Int(pixels[i + 1]) * 255 / a
+                let b = Int(pixels[i + 2]) * 255 / a
+                let dr = CGFloat(r - bgR)
+                let dg = CGFloat(g - bgG)
+                let db = CGFloat(b - bgB)
+                if dr * dr + dg * dg + db * db <= maxDistSq {
+                    pixels[i] = 0
+                    pixels[i + 1] = 0
+                    pixels[i + 2] = 0
+                    pixels[i + 3] = 0
+                    cleared += 1
+                } else {
+                    kept += 1
+                }
+            }
+        }
+
+        // Reject no-ops and over-aggressive knocks that erase the glyph.
+        guard kept > 0, cleared > 0, Double(kept) / Double(kept + cleared) >= 0.02 else {
+            return nil
+        }
+
+        return context.makeImage()
+    }
+
     /// Returns a Boolean value that indicates whether the image is transparent.
     ///
     /// Uses a zero-allocation fast path that reads alpha bytes directly from

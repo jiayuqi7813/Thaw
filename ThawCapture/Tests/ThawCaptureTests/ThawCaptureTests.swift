@@ -137,4 +137,131 @@ final class ThawCaptureTests: XCTestCase {
             reresolveInterval: 1
         )
     }
+
+    @available(macOS 27, *)
+    func testPixelBackedWindowFrameDoesNotDoubleScaleCaptureSize() {
+        let displayFrame = CGRect(x: 0, y: 0, width: 1512, height: 982)
+        let pixelWindowFrame = CGRect(x: 0, y: 0, width: 3024, height: 74)
+        XCTAssertTrue(
+            ScreenCapture.windowFrameAppearsPixelBacked(pixelWindowFrame, displayFrame: displayFrame)
+        )
+        let size = ScreenCapture.hostingCapturePixelSize(
+            windowFrame: pixelWindowFrame,
+            displayFrame: displayFrame,
+            reportedScale: 2
+        )
+        XCTAssertEqual(size.width, 3024)
+        XCTAssertEqual(size.height, 74)
+    }
+
+    @available(macOS 27, *)
+    func testPointSpaceWindowFrameMultipliesByReportedScale() {
+        let displayFrame = CGRect(x: 0, y: 0, width: 1512, height: 982)
+        let pointWindowFrame = CGRect(x: 0, y: 0, width: 1512, height: 37)
+        XCTAssertFalse(
+            ScreenCapture.windowFrameAppearsPixelBacked(pointWindowFrame, displayFrame: displayFrame)
+        )
+        let size = ScreenCapture.hostingCapturePixelSize(
+            windowFrame: pointWindowFrame,
+            displayFrame: displayFrame,
+            reportedScale: 2
+        )
+        XCTAssertEqual(size.width, 3024)
+        XCTAssertEqual(size.height, 74)
+    }
+
+    @available(macOS 27, *)
+    func testNormalizedHostingCaptureRewritesPixelBackedFrameToPoints() throws {
+        let displayFrame = CGRect(x: 0, y: 0, width: 1512, height: 982)
+        let pixelWindowFrame = CGRect(x: 0, y: 0, width: 3024, height: 74)
+        let image = try XCTUnwrap(makeTestImage(width: 3024, height: 74))
+
+        let normalized = try XCTUnwrap(
+            ScreenCapture.normalizedHostingCapture(
+                image: image,
+                windowFrame: pixelWindowFrame,
+                displayFrame: displayFrame,
+                reportedScale: 2
+            )
+        )
+        XCTAssertEqual(normalized.scale, 2, accuracy: 0.001)
+        XCTAssertEqual(normalized.windowFrame.width, 1512, accuracy: 0.001)
+        XCTAssertEqual(normalized.windowFrame.height, 37, accuracy: 0.001)
+        XCTAssertEqual(normalized.windowFrame.origin, displayFrame.origin)
+    }
+
+    @available(macOS 27, *)
+    func testNormalizedHostingCaptureDerivesScaleFromBitmapForPointFrames() throws {
+        let displayFrame = CGRect(x: 0, y: 0, width: 1512, height: 982)
+        let pointWindowFrame = CGRect(x: 0, y: 0, width: 1512, height: 37)
+        let image = try XCTUnwrap(makeTestImage(width: 3024, height: 74))
+
+        let normalized = try XCTUnwrap(
+            ScreenCapture.normalizedHostingCapture(
+                image: image,
+                windowFrame: pointWindowFrame,
+                displayFrame: displayFrame,
+                reportedScale: 1 // deliberately wrong — bitmap says 2×
+            )
+        )
+        XCTAssertEqual(normalized.scale, 2, accuracy: 0.001)
+        XCTAssertEqual(normalized.windowFrame, pointWindowFrame)
+    }
+
+    @available(macOS 27, *)
+    func testWindowMatchesMenuBarStripGeometryAcceptsPointAndPixelFrames() {
+        let displayFrame = CGRect(x: 0, y: 0, width: 1512, height: 982)
+        XCTAssertTrue(
+            ScreenCapture.windowMatchesMenuBarStripGeometry(
+                CGRect(x: 0, y: 0, width: 1512, height: 37),
+                displayFrame: displayFrame
+            )
+        )
+        XCTAssertTrue(
+            ScreenCapture.windowMatchesMenuBarStripGeometry(
+                CGRect(x: 0, y: 0, width: 3024, height: 74),
+                displayFrame: displayFrame
+            )
+        )
+        XCTAssertFalse(
+            ScreenCapture.windowMatchesMenuBarStripGeometry(
+                CGRect(x: 0, y: 0, width: 200, height: 24),
+                displayFrame: displayFrame
+            )
+        )
+    }
+
+    @available(macOS 27, *)
+    func testMenuBarDisplayStripFramePinsToDisplayTop() {
+        let displayFrame = CGRect(x: 100, y: 50, width: 1512, height: 982)
+        let strip = ScreenCapture.menuBarDisplayStripFrame(displayFrame: displayFrame, height: 40)
+        XCTAssertEqual(strip.origin, displayFrame.origin)
+        XCTAssertEqual(strip.width, displayFrame.width)
+        XCTAssertEqual(strip.height, 40)
+    }
+
+    @available(macOS 27, *)
+    func testMenuBarDisplayStripFrameClampsToDisplayHeight() {
+        let displayFrame = CGRect(x: 0, y: 0, width: 800, height: 24)
+        let strip = ScreenCapture.menuBarDisplayStripFrame(displayFrame: displayFrame, height: 40)
+        XCTAssertEqual(strip.height, 24)
+    }
+
+    private func makeTestImage(width: Int, height: Int) -> CGImage? {
+        let bytesPerRow = width * 4
+        var data = [UInt8](repeating: 0, count: bytesPerRow * height)
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let context = CGContext(
+            data: &data,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: bytesPerRow,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            return nil
+        }
+        return context.makeImage()
+    }
 }

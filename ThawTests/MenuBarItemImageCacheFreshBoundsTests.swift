@@ -388,6 +388,17 @@ final class MenuBarItemImageCacheFreshBoundsTests: XCTestCase {
         )
     }
 
+    @available(macOS 27, *)
+    func testPrefersDisplayStripCaptureForThirdPartyOnly() {
+        let thirdParty = MenuBarItemTag(namespace: .string("com.openai.chat"), title: "Item-0")
+        let menuBarAgent = MenuBarItemTag(namespace: .menuBarAgent, title: "Clock")
+        let thaw = MenuBarItemTag(namespace: .thaw, title: "IceIcon")
+
+        XCTAssertTrue(MenuBarItemImageCache.prefersDisplayStripCapture(for: thirdParty))
+        XCTAssertFalse(MenuBarItemImageCache.prefersDisplayStripCapture(for: menuBarAgent))
+        XCTAssertFalse(MenuBarItemImageCache.prefersDisplayStripCapture(for: thaw))
+    }
+
     private func makeItem(
         tag: MenuBarItemTag = .appItem(bundleID: "com.test.capture", title: "Capture"),
         bounds: CGRect? = nil

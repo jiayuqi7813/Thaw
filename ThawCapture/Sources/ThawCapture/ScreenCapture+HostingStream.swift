@@ -97,6 +97,7 @@ actor MenuBarHostingWindowStreamer {
     private var boundWindowID: CGWindowID?
     private var boundDisplayID: CGDirectDisplayID?
     private var boundWindowFrame: CGRect = .zero
+    private var boundDisplayFrame: CGRect = .zero
     private var boundScale: CGFloat = 1
 
     /// Last time the hosting window was re-resolved. The window's ID churns on
@@ -153,10 +154,11 @@ actor MenuBarHostingWindowStreamer {
         guard let image = sink?.latest else {
             return nil
         }
-        return ScreenCapture.MenuBarHostingCapture(
+        return ScreenCapture.normalizedHostingCapture(
             image: image,
             windowFrame: boundWindowFrame,
-            scale: boundScale
+            displayFrame: boundDisplayFrame,
+            reportedScale: boundScale
         )
     }
 
@@ -196,6 +198,7 @@ actor MenuBarHostingWindowStreamer {
         }
 
         lastResolve = Date()
+        let displayFrame = display.frame
 
         // Reuse a healthy stream already bound to this same window.
         if stream != nil,
@@ -210,15 +213,20 @@ actor MenuBarHostingWindowStreamer {
         await teardown()
 
         let filter = SCContentFilter(desktopIndependentWindow: window)
-        let scale = CGFloat(filter.pointPixelScale)
+        let reportedScale = CGFloat(filter.pointPixelScale)
+        let pixelSize = ScreenCapture.hostingCapturePixelSize(
+            windowFrame: window.frame,
+            displayFrame: displayFrame,
+            reportedScale: reportedScale
+        )
 
         let configuration = SCStreamConfiguration()
         configuration.showsCursor = false
         configuration.ignoreShadowsSingleWindow = true
         configuration.pixelFormat = kCVPixelFormatType_32BGRA
         configuration.captureDynamicRange = .SDR
-        configuration.width = Int((window.frame.width * scale).rounded())
-        configuration.height = Int((window.frame.height * scale).rounded())
+        configuration.width = pixelSize.width
+        configuration.height = pixelSize.height
         // Cap the stream's render rate: a menu-bar preview needs no more than a
         // handful of updates per second, and a lower ceiling is exactly the CPU
         // saving this path exists for. Animated glyphs still update; they just
@@ -243,10 +251,11 @@ actor MenuBarHostingWindowStreamer {
         boundWindowID = window.windowID
         boundDisplayID = displayID
         boundWindowFrame = window.frame
-        boundScale = scale
+        boundScale = reportedScale
+        boundDisplayFrame = displayFrame
         ScreenCapture.diagLog.debug(
             "MenuBarHostingWindowStreamer: bound wid=\(window.windowID) display=\(displayID) " +
-                "\(Int(configuration.width))×\(Int(configuration.height))"
+                "\(pixelSize.width)×\(pixelSize.height)"
         )
     }
 
@@ -258,6 +267,9 @@ actor MenuBarHostingWindowStreamer {
         sink = nil
         boundWindowID = nil
         boundDisplayID = nil
+        boundWindowFrame = .zero
+        boundDisplayFrame = .zero
+        boundScale = 1
     }
 }
 

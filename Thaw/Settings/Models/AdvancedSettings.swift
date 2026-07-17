@@ -95,6 +95,9 @@ final class AdvancedSettings: ObservableObject {
     /// that collapses items when space runs out) by pushing hidden items'
     /// position weights to extreme values so they are collapsed first, keeping
     /// visible items on screen. Only applies on macOS 27+ notched displays.
+    ///
+    /// Experimental and URI/Defaults-only: intentionally has no Settings UI
+    /// and no search entry (see `SearchIndex.baseNonSearchableProperties`).
     @Published var enableExperimentalOverflowPrevention = Defaults.DefaultValue.enableExperimentalOverflowPrevention
 
     /// A Boolean value that indicates whether menu bar item images are captured

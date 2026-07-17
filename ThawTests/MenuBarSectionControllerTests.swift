@@ -698,4 +698,143 @@ final class MenuBarSectionControllerTests: XCTestCase {
         // the dividers themselves, not hideable app items.
         XCTAssertEqual(controller.section(for: controlItemIdentifier), .visible)
     }
+
+    // MARK: - Native-overflow temporary-presentation gating (macOS 27)
+
+    /// Regression: Ice Bar being open must NOT gate native-overflow probing
+    /// — otherwise once overflow forces Ice Bar via `shouldUseIceBar`, the
+    /// probe that could observe overflow-absent and let Ice Bar's fallback
+    /// end can never run again (sticky Ice Bar).
+    func testIceBarAloneDoesNotGateProbing() {
+        let gates = MenuBarSectionController.nativeOverflowTemporaryPresentationGates(
+            hasRevealedSection: false,
+            hasTemporarilyRevealedIDs: false,
+            isClockActivationBridgeActive: false,
+            isIceBarShowing: true,
+            isMenuBarHiddenBySystem: false,
+            shouldDeferMacOS27MenuBarMutation: false
+        )
+
+        XCTAssertFalse(gates.probeGate, "Ice Bar alone must not block probing")
+        XCTAssertTrue(gates.drainGate, "Ice Bar must still block rebalancing (moving items)")
+    }
+
+    /// Every other temporary-presentation reason must still gate both
+    /// probing and rebalancing exactly as before this fix.
+    func testOtherTemporaryPresentationReasonsGateBothProbeAndDrain() {
+        let reasons: [(String, () -> (probeGate: Bool, drainGate: Bool))] = [
+            ("revealedSection", {
+                MenuBarSectionController.nativeOverflowTemporaryPresentationGates(
+                    hasRevealedSection: true,
+                    hasTemporarilyRevealedIDs: false,
+                    isClockActivationBridgeActive: false,
+                    isIceBarShowing: false,
+                    isMenuBarHiddenBySystem: false,
+                    shouldDeferMacOS27MenuBarMutation: false
+                )
+            }),
+            ("temporarilyRevealedIDs", {
+                MenuBarSectionController.nativeOverflowTemporaryPresentationGates(
+                    hasRevealedSection: false,
+                    hasTemporarilyRevealedIDs: true,
+                    isClockActivationBridgeActive: false,
+                    isIceBarShowing: false,
+                    isMenuBarHiddenBySystem: false,
+                    shouldDeferMacOS27MenuBarMutation: false
+                )
+            }),
+            ("clockActivationBridge", {
+                MenuBarSectionController.nativeOverflowTemporaryPresentationGates(
+                    hasRevealedSection: false,
+                    hasTemporarilyRevealedIDs: false,
+                    isClockActivationBridgeActive: true,
+                    isIceBarShowing: false,
+                    isMenuBarHiddenBySystem: false,
+                    shouldDeferMacOS27MenuBarMutation: false
+                )
+            }),
+            ("menuBarHiddenBySystem", {
+                MenuBarSectionController.nativeOverflowTemporaryPresentationGates(
+                    hasRevealedSection: false,
+                    hasTemporarilyRevealedIDs: false,
+                    isClockActivationBridgeActive: false,
+                    isIceBarShowing: false,
+                    isMenuBarHiddenBySystem: true,
+                    shouldDeferMacOS27MenuBarMutation: false
+                )
+            }),
+            ("deferMacOS27MenuBarMutation", {
+                MenuBarSectionController.nativeOverflowTemporaryPresentationGates(
+                    hasRevealedSection: false,
+                    hasTemporarilyRevealedIDs: false,
+                    isClockActivationBridgeActive: false,
+                    isIceBarShowing: false,
+                    isMenuBarHiddenBySystem: false,
+                    shouldDeferMacOS27MenuBarMutation: true
+                )
+            }),
+        ]
+
+        for (name, makeGates) in reasons {
+            let gates = makeGates()
+            XCTAssertTrue(gates.probeGate, "\(name) must gate probing")
+            XCTAssertTrue(gates.drainGate, "\(name) must gate rebalancing")
+        }
+    }
+
+    /// With no temporary-presentation reason active at all, neither gate
+    /// should block.
+    func testNoTemporaryPresentationReasonGatesNothing() {
+        let gates = MenuBarSectionController.nativeOverflowTemporaryPresentationGates(
+            hasRevealedSection: false,
+            hasTemporarilyRevealedIDs: false,
+            isClockActivationBridgeActive: false,
+            isIceBarShowing: false,
+            isMenuBarHiddenBySystem: false,
+            shouldDeferMacOS27MenuBarMutation: false
+        )
+
+        XCTAssertFalse(gates.probeGate)
+        XCTAssertFalse(gates.drainGate)
+    }
+
+    // MARK: - Stale native-overflow display pruning (macOS 27)
+
+    /// Regression: a display that was once overflowing but has since lost
+    /// menu-bar focus must be pruned even though it's still connected — the
+    /// probe only ever samples the active display, so a merely-inactive
+    /// display would otherwise be tracked as overflowing forever and keep
+    /// forcing Ice Bar via `shouldUseIceBar(for:)`.
+    func testStaleNativeOverflowDisplayIDsPrunesInactiveButConnectedDisplay() {
+        let stale = MenuBarSectionController.staleNativeOverflowDisplayIDs(
+            tracked: [1, 2],
+            activeDisplayID: 1,
+            connectedDisplayIDs: [1, 2]
+        )
+
+        XCTAssertEqual(stale, [2])
+    }
+
+    /// A disconnected display must be pruned even if it happens to match the
+    /// (now-stale) active display ID reading.
+    func testStaleNativeOverflowDisplayIDsPrunesDisconnectedDisplay() {
+        let stale = MenuBarSectionController.staleNativeOverflowDisplayIDs(
+            tracked: [1, 2],
+            activeDisplayID: 2,
+            connectedDisplayIDs: [2]
+        )
+
+        XCTAssertEqual(stale, [1])
+    }
+
+    /// The active, connected display must never be pruned.
+    func testStaleNativeOverflowDisplayIDsKeepsActiveConnectedDisplay() {
+        let stale = MenuBarSectionController.staleNativeOverflowDisplayIDs(
+            tracked: [1],
+            activeDisplayID: 1,
+            connectedDisplayIDs: [1]
+        )
+
+        XCTAssertTrue(stale.isEmpty)
+    }
 }

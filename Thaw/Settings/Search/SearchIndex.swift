@@ -51,7 +51,6 @@ nonisolated struct SearchEntry: Identifiable, @unchecked Sendable {
         switch id {
         case "advanced.enableMenuBarItemOverflow",
              "advanced.menuBarOrderFulfillmentTimeout",
-             "advanced.useContinuousMenuBarCapture",
              "advanced.useLCSSortingOnNotchedDisplays":
             .advancedLayoutControls
         default:
@@ -91,17 +90,6 @@ nonisolated enum SearchIndex {
             keywords: ["reorder", "timeout", "wait", "layout", "seconds"],
             property: .advanced("menuBarOrderFulfillmentTimeout")
         ),
-        SearchEntry(
-            id: "advanced.useContinuousMenuBarCapture",
-            titleKey: "Use live icon capture",
-            titleText: "Use live icon capture",
-            descriptionText: "Keeps animated previews up to date, but may show the screen recording indicator and reflow the menu bar.",
-            pane: .menuBarLayout,
-            sectionKey: "Advanced layout controls",
-            sectionText: "Advanced layout controls",
-            keywords: ["capture", "live", "menu bar icons", "screen recording", "refresh", "stream"],
-            property: .advanced("useContinuousMenuBarCapture")
-        ),
     ]
 
     /// All searchable settings entries, in pane order.
@@ -120,13 +108,18 @@ nonisolated enum SearchIndex {
         .general("useIceBar"),
         .general("useIceBarOnlyOnNotchedDisplay"),
         .general("iceBarLocation"),
+        // URI/Defaults-only experimental toggle with no Settings UI; excluded
+        // on every OS version rather than only on macOS <27.
+        .advanced("enableExperimentalOverflowPrevention"),
+        // Continuous hosting-window stream — removed from Settings UI (screen
+        // recording indicator / menu bar reflow); Defaults key retained for reset.
+        .advanced("useContinuousMenuBarCapture"),
     ]
 
     /// Advanced settings that only participate in search on macOS 27.
     private static let macOS27AdvancedNonSearchableProperties: Set<SettingsProperty> = [
         .advanced("enableExperimentalWindowHiding"),
         .advanced("enableExperimentalSystemItemHiding"),
-        .advanced("useContinuousMenuBarCapture"),
         .advanced("menuBarOrderFulfillmentTimeout"),
     ]
 
@@ -590,7 +583,7 @@ nonisolated enum SearchIndex {
             id: "advanced.iconRefreshInterval",
             titleKey: "Icon refresh rate",
             titleText: "Icon refresh rate",
-            descriptionText: "Controls how often menu bar icon previews refresh while a panel is open for both one-shot and live capture.",
+            descriptionText: "Controls how often menu bar icon previews refresh while a panel is open.",
             pane: .menuBarLayout,
             sectionKey: "Icon previews",
             sectionText: "Icon previews",

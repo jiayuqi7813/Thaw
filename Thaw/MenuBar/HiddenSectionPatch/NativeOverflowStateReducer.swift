@@ -31,6 +31,15 @@ nonisolated struct NativeOverflowStateReducer: Sendable {
         states[displayID]?.isActive ?? false
     }
 
+    /// Drops all tracked state for a display, e.g. because it is no longer
+    /// connected or no longer the active menu-bar display and so will not be
+    /// probed again until it earns that status back. A later reactivation on
+    /// that display starts a fresh debounce window instead of resuming a
+    /// stale candidate count from before the display went unobserved.
+    mutating func forget(_ displayID: CGDirectDisplayID) {
+        states.removeValue(forKey: displayID)
+    }
+
     /// Consumes an observation and returns the new stable state only when it
     /// changes. Repeated stable observations are no-ops.
     mutating func consume(

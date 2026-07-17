@@ -51,7 +51,6 @@ final class SearchIndexTests: XCTestCase {
         let ids = Set(SearchIndex.entries.map(\.id))
         let macOS27ExperimentalIDs = [
             "advanced.enableExperimentalSystemItemHiding",
-            "advanced.enableExperimentalOverflowPrevention",
         ]
 
         if #available(macOS 27, *) {
@@ -65,14 +64,21 @@ final class SearchIndexTests: XCTestCase {
         }
     }
 
-    @available(macOS 27, *)
-    func testLiveCaptureResolvesAdvancedLayoutDisclosure() throws {
-        let liveCapture = try XCTUnwrap(SearchIndex.entries.first { $0.id == "advanced.useContinuousMenuBarCapture" })
+    /// `enableExperimentalOverflowPrevention` is intentionally URI/Defaults-only
+    /// (no Settings UI), so it must never gain a search entry on any OS version.
+    func testExperimentalOverflowPreventionHasNoSearchEntryOnAnyOS() {
+        let ids = Set(SearchIndex.entries.map(\.id))
+        XCTAssertFalse(ids.contains("advanced.enableExperimentalOverflowPrevention"))
+    }
 
-        XCTAssertEqual(liveCapture.titleText, "Use live icon capture")
-        XCTAssertEqual(liveCapture.pane, .menuBarLayout)
-        XCTAssertEqual(liveCapture.sectionText, "Advanced layout controls")
-        XCTAssertEqual(liveCapture.disclosure, .advancedLayoutControls)
+    /// Live icon capture was removed from Settings UI; keep the Defaults key
+    /// for reset compatibility but never expose it in search.
+    func testLiveCaptureHasNoSearchEntryOnAnyOS() {
+        let ids = Set(SearchIndex.entries.map(\.id))
+        XCTAssertFalse(ids.contains("advanced.useContinuousMenuBarCapture"))
+        XCTAssertTrue(
+            SearchIndex.nonSearchableProperties.contains(.advanced("useContinuousMenuBarCapture"))
+        )
     }
 
     func testIconRefreshRateRoutesToLayoutWithoutDisclosure() throws {
@@ -94,10 +100,8 @@ final class SearchIndexTests: XCTestCase {
 
         if #available(macOS 27, *) {
             let timeout = try XCTUnwrap(SearchIndex.entries.first { $0.id == "advanced.menuBarOrderFulfillmentTimeout" })
-            let liveCapture = try XCTUnwrap(SearchIndex.entries.first { $0.id == "advanced.useContinuousMenuBarCapture" })
             XCTAssertEqual(timeout.titleText, "Reorder timeout")
             XCTAssertEqual(timeout.disclosure, .advancedLayoutControls)
-            XCTAssertEqual(liveCapture.disclosure, .advancedLayoutControls)
         }
     }
 

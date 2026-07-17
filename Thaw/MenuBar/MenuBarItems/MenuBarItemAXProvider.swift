@@ -46,6 +46,18 @@ nonisolated enum MenuBarItemAXProvider {
     /// children are incidental (open popovers, panels) and are skipped.
     private static let maxItemHeight: CGFloat = 40
 
+    /// Whether an AX-reported item frame belongs to the given display.
+    ///
+    /// Uses the frame's midpoint rather than its origin so items straddling
+    /// a display boundary (e.g. during a reflow) are attributed to whichever
+    /// display they mostly occupy.
+    static func frame(_ frame: CGRect, isWithin displayBounds: CGRect) -> Bool {
+        frame.midY >= displayBounds.minY &&
+            frame.midY <= displayBounds.maxY &&
+            frame.midX >= displayBounds.minX &&
+            frame.midX <= displayBounds.maxX
+    }
+
     /// Returns the menu bar items for the given display by walking the
     /// Accessibility tree of every running application.
     ///
@@ -103,14 +115,8 @@ nonisolated enum MenuBarItemAXProvider {
                     continue
                 }
                 // Restrict to the requested display when one is given.
-                if let displayBounds {
-                    guard frame.midY >= displayBounds.minY,
-                          frame.midY <= displayBounds.maxY,
-                          frame.midX >= displayBounds.minX,
-                          frame.midX <= displayBounds.maxX
-                    else {
-                        continue
-                    }
+                if let displayBounds, !Self.frame(frame, isWithin: displayBounds) {
+                    continue
                 }
 
                 // Keep stable identity metadata separate from the live display

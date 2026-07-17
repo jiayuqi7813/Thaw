@@ -332,9 +332,6 @@ struct LayoutAdvancedControls: View {
                                 }
                             }
                             .annotation("How long Thaw waits for macOS to apply a menu bar reorder before continuing with any remaining layout work.")
-
-                            Toggle("Use live icon capture", isOn: $settings.useContinuousMenuBarCapture)
-                                .annotation("Live capture can keep animated previews up to date, but may show the screen recording indicator and reflow the menu bar.")
                         }
                     }
                 }

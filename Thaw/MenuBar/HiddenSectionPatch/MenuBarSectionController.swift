@@ -1249,20 +1249,72 @@ final class MenuBarSectionController: ObservableObject {
         return latestNativeOverflowBounds[displayID] ?? []
     }
 
+    /// The two native-overflow gates derived from the current temporary
+    /// presentation state.
+    ///
+    /// `probeGate` excludes Ice Bar: native overflow forces Ice Bar via
+    /// `MenuBarManager.shouldUseIceBar`, so gating the probe on Ice Bar being
+    /// open made overflow observation freeze the moment it opened Ice Bar —
+    /// the probe result that could clear `nativeOverflowDisplayIDs` (and let
+    /// Ice Bar's fallback end) could never run again. `drainGate` keeps Ice
+    /// Bar included: rewriting item assignments while Ice Bar is showing
+    /// would fight its temporary reveal, so rebalancing still waits. See
+    /// AGENTS.md macOS 27 hiding invariants: Hidden vs Always Hidden reveal
+    /// semantics are distinct, and the same distinction applies here between
+    /// Ice Bar's temporary reveal and the overflow signal it is derived from.
+    private var temporaryPresentationGates: (probeGate: Bool, drainGate: Bool) {
+        Self.nativeOverflowTemporaryPresentationGates(
+            hasRevealedSection: revealedSection != nil,
+            hasTemporarilyRevealedIDs: !temporarilyRevealedIDs.isEmpty,
+            isClockActivationBridgeActive: isClockActivationBridgeActive,
+            isIceBarShowing: appState?.menuBarManager.iceBarPanel.currentSection != nil,
+            isMenuBarHiddenBySystem: appState?.menuBarManager.isMenuBarHiddenBySystem == true,
+            shouldDeferMacOS27MenuBarMutation: appState?.menuBarManager.shouldDeferMacOS27MenuBarMutation == true
+        )
+    }
+
+    /// Gates native-overflow *rebalancing* (moving items). Ice Bar is
+    /// included: see `temporaryPresentationGates`.
     private var isPerformingTemporaryPresentation: Bool {
-        revealedSection != nil
-            || !temporarilyRevealedIDs.isEmpty
+        temporaryPresentationGates.drainGate
+    }
+
+    /// Gates native-overflow *probing* (AX observation). Ice Bar is
+    /// deliberately excluded: see `temporaryPresentationGates`.
+    private var isPerformingTemporaryPresentationExcludingIceBar: Bool {
+        temporaryPresentationGates.probeGate
+    }
+
+    /// Pure helper behind `temporaryPresentationGates`, split out so the
+    /// probe-vs-drain distinction is unit-testable without a live
+    /// `MenuBarManager`/`IceBarPanel`.
+    static func nativeOverflowTemporaryPresentationGates(
+        hasRevealedSection: Bool,
+        hasTemporarilyRevealedIDs: Bool,
+        isClockActivationBridgeActive: Bool,
+        isIceBarShowing: Bool,
+        isMenuBarHiddenBySystem: Bool,
+        shouldDeferMacOS27MenuBarMutation: Bool
+    ) -> (probeGate: Bool, drainGate: Bool) {
+        let probeGate = hasRevealedSection
+            || hasTemporarilyRevealedIDs
             || isClockActivationBridgeActive
-            || appState?.menuBarManager.iceBarPanel.currentSection != nil
-            || appState?.menuBarManager.isMenuBarHiddenBySystem == true
-            || appState?.menuBarManager.shouldDeferMacOS27MenuBarMutation == true
+            || isMenuBarHiddenBySystem
+            || shouldDeferMacOS27MenuBarMutation
+        return (probeGate: probeGate, drainGate: probeGate || isIceBarShowing)
     }
 
     private func scheduleNativeOverflowProbe() {
         guard #available(macOS 27, *),
-              nativeOverflowProbeTask == nil,
-              !isPerformingTemporaryPresentation,
               let displayID = (NSScreen.screenWithActiveMenuBar ?? NSScreen.main)?.displayID
+        else {
+            return
+        }
+
+        pruneStaleNativeOverflowDisplayIDs(activeDisplayID: displayID)
+
+        guard nativeOverflowProbeTask == nil,
+              !isPerformingTemporaryPresentationExcludingIceBar
         else {
             return
         }
@@ -1291,6 +1343,48 @@ final class MenuBarSectionController: ObservableObject {
             pendingNativeOverflowRebalance = true
             drainNativeOverflowRebalanceIfPossible()
         }
+    }
+
+    /// Removes tracked overflow state for displays that are no longer the
+    /// active menu-bar display or are no longer connected.
+    ///
+    /// The probe above only ever samples `displayID`, so a display that was
+    /// once overflowing but has since lost menu-bar focus (or been
+    /// disconnected) would otherwise never be re-sampled and would keep
+    /// forcing Ice Bar via `shouldUseIceBar(for:)` forever. Pruning instead
+    /// of continuously AX-walking every display keeps the 1-second timer
+    /// tick cheap: only the active display gets probed, every other tracked
+    /// ID is assumed absent until it becomes active again and earns a fresh
+    /// probe.
+    private func pruneStaleNativeOverflowDisplayIDs(activeDisplayID: CGDirectDisplayID) {
+        guard !nativeOverflowDisplayIDs.isEmpty else { return }
+        let connectedDisplayIDs = Set(NSScreen.screens.map(\.displayID))
+        let staleDisplayIDs = Self.staleNativeOverflowDisplayIDs(
+            tracked: nativeOverflowDisplayIDs,
+            activeDisplayID: activeDisplayID,
+            connectedDisplayIDs: connectedDisplayIDs
+        )
+        guard !staleDisplayIDs.isEmpty else { return }
+
+        for staleDisplayID in staleDisplayIDs {
+            nativeOverflowDisplayIDs.remove(staleDisplayID)
+            latestNativeOverflowBounds.removeValue(forKey: staleDisplayID)
+            nativeOverflowState.forget(staleDisplayID)
+        }
+        diagLog.info(
+            "cleared stale native overflow state for \(staleDisplayIDs.count) display(s) no longer active/connected"
+        )
+        appState?.menuBarManager.updateControlItemStates()
+    }
+
+    /// Pure helper behind `pruneStaleNativeOverflowDisplayIDs`, split out so
+    /// it is unit-testable without a live `NSScreen` set or timer.
+    static func staleNativeOverflowDisplayIDs(
+        tracked: Set<CGDirectDisplayID>,
+        activeDisplayID: CGDirectDisplayID,
+        connectedDisplayIDs: Set<CGDirectDisplayID>
+    ) -> Set<CGDirectDisplayID> {
+        tracked.filter { $0 != activeDisplayID || !connectedDisplayIDs.contains($0) }
     }
 
     private func drainNativeOverflowRebalanceIfPossible() {
