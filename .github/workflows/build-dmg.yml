@@ -9,7 +9,7 @@ concurrency:
 
 jobs:
   build-dmg:
-    runs-on: macos-26
+    runs-on: xcode-27
     env:
       APP_NAME: "Thaw.app"
       DMG_NAME: "Thaw-dev.dmg"
