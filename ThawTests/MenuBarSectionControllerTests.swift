@@ -129,10 +129,6 @@ final class MenuBarSectionControllerTests: XCTestCase {
             storedPositions = dict
         }
 
-        func pruneOrphanedControlItemKeys(currentOwners _: Set<String>) -> [String] {
-            []
-        }
-
         func restoreAll() {
             restoreAllCallCount += 1
         }
@@ -172,10 +168,6 @@ final class MenuBarSectionControllerTests: XCTestCase {
 
         func writePositions(_ dict: [String: Int]) {
             storedPositions = dict
-        }
-
-        func pruneOrphanedControlItemKeys(currentOwners _: Set<String>) -> [String] {
-            []
         }
 
         func restoreAll() {}

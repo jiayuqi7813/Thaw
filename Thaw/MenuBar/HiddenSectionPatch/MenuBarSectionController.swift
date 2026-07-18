@@ -68,8 +68,6 @@ protocol RuntimePreferenceProviding: AnyObject {
     var hasHiddenItems: Bool { get }
     func readPositions() -> [String: Int]
     func writePositions(_ dict: [String: Int])
-    @discardableResult
-    func pruneOrphanedControlItemKeys(currentOwners: Set<String>) -> [String]
     func restoreAll()
     @discardableResult
     func hideItems(_ items: [MenuBarItem]) -> Set<String>
@@ -80,6 +78,48 @@ protocol RuntimePreferenceProviding: AnyObject {
 }
 
 extension RuntimePreferenceStore: RuntimePreferenceProviding {}
+
+extension RuntimePreferenceProviding {
+    /// Removes stale Thaw control-item keys from `TrailingItemPreferredPositions`.
+    ///
+    /// Implemented here (not required on the protocol) so Thaw builds against
+    /// published `prk-bin` where ``RuntimePreferenceStore/pruneOrphanedControlItemKeys(currentOwners:)``
+    /// is not yet part of the public module interface. Uses only
+    /// ``readPositions()`` / ``writePositions(_:)``.
+    @discardableResult
+    func pruneOrphanedControlItemKeys(currentOwners: Set<String>) -> [String] {
+        let positions = readPositions()
+        let orphans = positions.keys.filter { key in
+            guard let parsed = parseControlItemStatusKey(key),
+                  parsed.autosave.hasPrefix(ControlItemIdentifier.autosavePrefix)
+            else {
+                return false
+            }
+            return !currentOwners.contains(parsed.owner)
+        }
+        guard !orphans.isEmpty else { return [] }
+        var updated = positions
+        for key in orphans {
+            updated.removeValue(forKey: key)
+        }
+        writePositions(updated)
+        return orphans
+    }
+}
+
+/// Splits a `status:<owner>::<autosave>` preference key into its components.
+private func parseControlItemStatusKey(_ key: String) -> (owner: String, autosave: String)? {
+    let prefix = "status:"
+    guard key.hasPrefix(prefix) else { return nil }
+    let body = key.dropFirst(prefix.count)
+    guard let separator = body.range(of: "::") else {
+        return (owner: "", autosave: String(body))
+    }
+    return (
+        owner: String(body[body.startIndex ..< separator.lowerBound]),
+        autosave: String(body[separator.upperBound...])
+    )
+}
 
 /// The subset of ``PositionHideBackend`` used by the app orchestration.
 @MainActor
