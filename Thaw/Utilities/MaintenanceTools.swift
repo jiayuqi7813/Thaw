@@ -49,9 +49,7 @@ nonisolated enum MaintenanceTools {
         let preferences = home.appending(path: "Library/Preferences", directoryHint: .isDirectory)
 
         let mainPlist = preferences.appending(path: "com.apple.controlcenter.plist")
-        if fileManager.fileExists(atPath: mainPlist.path(percentEncoded: false)) {
-            try fileManager.removeItem(at: mainPlist)
-        }
+        try removeItemIfExists(at: mainPlist, using: fileManager)
 
         let byHost = preferences.appending(path: "ByHost", directoryHint: .isDirectory)
         guard fileManager.fileExists(atPath: byHost.path(percentEncoded: false)) else {
@@ -86,10 +84,16 @@ nonisolated enum MaintenanceTools {
     ) throws {
         for directoryName in appCacheDirectoryNames(bundleIdentifier: bundleIdentifier) {
             let cacheDirectory = cachesDirectory.appending(path: directoryName, directoryHint: .isDirectory)
-            if fileManager.fileExists(atPath: cacheDirectory.path(percentEncoded: false)) {
-                try fileManager.removeItem(at: cacheDirectory)
-            }
+            try removeItemIfExists(at: cacheDirectory, using: fileManager)
         }
+    }
+
+    /// Removes the item at `url` when it exists. Any removal error propagates.
+    private static func removeItemIfExists(at url: URL, using fileManager: FileManager) throws {
+        guard fileManager.fileExists(atPath: url.path(percentEncoded: false)) else {
+            return
+        }
+        try fileManager.removeItem(at: url)
     }
 
     static func appCacheDirectoryNames(bundleIdentifier: String) -> [String] {
