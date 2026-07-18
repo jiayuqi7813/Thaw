@@ -107,7 +107,7 @@ final class MenuBarManager: ObservableObject {
     var shouldDeferMacOS27MenuBarMutation: Bool {
         guard #available(macOS 27, *) else { return false }
         guard let nativeMenuBarStateChangedAt else { return false }
-        return nativeMenuBarStateChangedAt.duration(to: .now) < .milliseconds(900)
+        return nativeMenuBarStateChangedAt.duration(to: .now) < Constants.MenuBarTuning.nativeMenuBarMutationSettle
     }
 
     /// The managed sections in the menu bar.

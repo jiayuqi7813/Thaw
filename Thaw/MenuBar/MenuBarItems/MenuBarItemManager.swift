@@ -138,6 +138,27 @@ final class MenuBarItemManager: ObservableObject {
     /// fails, before giving the achievable-order solver another chance.
     private static let macOS27MoveFailureBackoff: Duration = .seconds(30)
 
+    /// When the ambient `applySavedLayout` pass last *attempted* to restore the
+    /// macOS 27 visible control's order, regardless of the planned destination or
+    /// outcome. See ``restoreMacOS27VisibleControlOrder`` and
+    /// ``visibleControlRestoreCooldown``.
+    private var lastVisibleControlRestoreAttempt: ContinuousClock.Instant?
+
+    /// How long to leave the visible control alone after an ambient restore
+    /// attempt. The restore runs on every cache tick, and when MenuBarAgent
+    /// refuses the placement (the move never verifies) or immediately reverts a
+    /// move that did land, the destination-scoped ``macOS27MoveFailureBackoff``
+    /// does not suppress the retries — ``RuntimeLayoutCoordinator/visibleControlRestoreMove``
+    /// keeps proposing a different on-bar neighbour and the mirrored saved order
+    /// keeps shifting, so every pass mints a fresh backoff key. That turns into a
+    /// visible tug-of-war: Thaw re-nudges its own icon several times a second
+    /// (issue #687). Rate-limiting *attempts* on the control itself caps that at
+    /// one nudge per window, so a placement Thaw cannot win settles quietly
+    /// instead of churning. A genuinely-needed one-shot restore still runs: once
+    /// it sticks, the next pass sees the order satisfied and never re-attempts,
+    /// so the cooldown only ever bites during a thrash.
+    private static let visibleControlRestoreCooldown: Duration = .seconds(30)
+
     /// Builds the backoff key for a planned macOS 27 section-order move.
     ///
     /// Uses `uniqueIdentifier` rather than `logString` for both items: the
@@ -193,13 +214,19 @@ final class MenuBarItemManager: ObservableObject {
     private var lastFailedDividerSignature: String?
 
     /// A candidate item signature seen to differ from the cache but not yet
-    /// confirmed by a second observation. `cacheItemsIfNeeded` requires a
-    /// differing signature to persist across two consecutive checks before
-    /// recaching, so a single transient enumeration blip (a dynamic-title app
-    /// momentarily dropping its AX subtree, an app's item flickering during a
-    /// reflow) does not trigger a full recache + assertion re-apply. Genuine
-    /// changes are stable and clear the gate on the very next check.
+    /// confirmed. `cacheItemsIfNeeded` requires a differing signature to persist,
+    /// unchanged, for ``Constants/MenuBarTuning/signatureStabilityGrace`` before
+    /// recaching, so a transient enumeration blip (a dynamic-title app
+    /// momentarily dropping its AX subtree, a marker/clone window flickering
+    /// during a reflow) does not trigger a full recache + assertion re-apply.
+    /// Genuine changes hold past the grace window and confirm; a flap reverts to
+    /// the cached signature and clears the gate. See ``signatureRecacheDecision``.
     private var pendingItemSignatureCandidate: [String]?
+
+    /// When ``pendingItemSignatureCandidate`` was first observed. The candidate
+    /// only confirms once it has held continuously since this instant for the
+    /// stability grace; a changed difference resets both fields.
+    private var pendingItemSignatureFirstSeen: ContinuousClock.Instant?
 
     deinit {
         rehideTimer?.invalidate()
@@ -2773,33 +2800,54 @@ extension MenuBarItemManager {
     }
 
     /// Decides whether a differing item signature warrants a recache, requiring
-    /// the change to be confirmed by two consecutive observations first.
+    /// the change to hold, unchanged, for a stability grace window first.
     ///
     /// The macOS 27 menu bar enumeration is not perfectly stable: apps with
     /// dynamic AX subtrees can momentarily drop or re-add items between passes,
-    /// and a restriction reflow can transiently perturb which items enumerate.
-    /// Recaching on every single-pass difference turns that noise into a storm
-    /// of full AX walks and assertion re-applies. Requiring the same differing
-    /// signature twice filters the transients while still reacting promptly to
-    /// genuine changes (which are stable and confirm on the very next check).
+    /// a restriction reflow can transiently perturb which items enumerate, and a
+    /// marker/clone window can blink in and out. The autonomous cache tick runs
+    /// several times a second, so a plain "seen twice" gate confirms such a flap
+    /// almost immediately — driving a recache → `applySavedLayout` → preferred-
+    /// position rewrite that visibly reorders icons (the "items keep moving on
+    /// their own" reports). Requiring the same differing signature to persist for
+    /// the whole grace window instead lets a transient drop/re-add revert — the
+    /// signature returns to the cached value and the gate clears — without ever
+    /// recaching, while a genuine add/remove holds past the window and confirms.
     ///
-    /// - Returns: `recache` — whether to recache now; `newPending` — the
-    ///   candidate signature to remember (`nil` clears the gate).
+    /// Only the autonomous poll is gated this way; real app-event and drag
+    /// triggers call `cacheItemsRegardless` directly, so genuine changes still
+    /// recache immediately through those paths regardless of this grace.
+    ///
+    /// - Parameters:
+    ///   - firstSeen: When `pending` was first observed (`nil` if no candidate).
+    ///   - now: The current instant, injected for testability.
+    ///   - grace: How long a difference must hold before it confirms.
+    /// - Returns: `recache` — whether to recache now; `newPending` /
+    ///   `newFirstSeen` — the candidate and its first-seen instant to remember
+    ///   (both `nil` clears the gate).
     static func signatureRecacheDecision(
         cached: [String],
         current: [String],
-        pending: [String]?
-    ) -> (recache: Bool, newPending: [String]?) {
+        pending: [String]?,
+        firstSeen: ContinuousClock.Instant?,
+        now: ContinuousClock.Instant,
+        grace: Duration
+    ) -> (recache: Bool, newPending: [String]?, newFirstSeen: ContinuousClock.Instant?) {
         // Live state matches the cache: nothing to do, drop any stale candidate.
         guard current != cached else {
-            return (recache: false, newPending: nil)
+            return (recache: false, newPending: nil, newFirstSeen: nil)
         }
-        // The same differing signature was seen last time too — confirmed.
-        if let pending, pending == current {
-            return (recache: true, newPending: nil)
+        // The same differing signature is still standing. Confirm it only once it
+        // has held for the full grace window; otherwise keep waiting, preserving
+        // when the streak began so the window measures continuous persistence.
+        if let pending, let firstSeen, pending == current {
+            if now - firstSeen >= grace {
+                return (recache: true, newPending: nil, newFirstSeen: nil)
+            }
+            return (recache: false, newPending: current, newFirstSeen: firstSeen)
         }
-        // First sighting (or the difference itself changed): wait for a repeat.
-        return (recache: false, newPending: current)
+        // First sighting, or the difference itself changed: (re)start the clock.
+        return (recache: false, newPending: current, newFirstSeen: now)
     }
 
     /// Caches the current menu bar items, if the items have changed
@@ -2818,14 +2866,18 @@ extension MenuBarItemManager {
             let decision = Self.signatureRecacheDecision(
                 cached: cachedSignature,
                 current: signature,
-                pending: pendingItemSignatureCandidate
+                pending: pendingItemSignatureCandidate,
+                firstSeen: pendingItemSignatureFirstSeen,
+                now: .now,
+                grace: Constants.MenuBarTuning.signatureStabilityGrace
             )
             pendingItemSignatureCandidate = decision.newPending
+            pendingItemSignatureFirstSeen = decision.newFirstSeen
             if decision.recache {
                 MenuBarItemManager.diagLog.debug("cacheItemsIfNeeded: item identities changed and confirmed (\(cachedSignature.count) cached vs \(signature.count) current), triggering recache")
                 await cacheItemsRegardless(items.reversed().map(\.windowID))
             } else if decision.newPending != nil {
-                MenuBarItemManager.diagLog.debug("cacheItemsIfNeeded: item identities differ (\(cachedSignature.count) cached vs \(signature.count) current); deferring recache until a second matching observation")
+                MenuBarItemManager.diagLog.debug("cacheItemsIfNeeded: item identities differ (\(cachedSignature.count) cached vs \(signature.count) current); deferring recache until the difference holds for the stability grace")
             }
             return
         }
@@ -9072,20 +9124,25 @@ extension MenuBarItemManager {
             return false
         }
 
-        let failureKey = Self.macOS27MoveFailureKey(
-            item: plannedMove.item,
-            destination: plannedMove.destination,
-            desiredOrder: desiredOrder
-        )
-        if let lastFailure = recentMacOS27MoveFailures[failureKey],
-           ContinuousClock.now - lastFailure < Self.macOS27MoveFailureBackoff
+        // Rate-limit ambient restore *attempts* on the control itself. The
+        // destination-scoped `macOS27MoveFailureBackoff` cannot suppress this
+        // loop: each pass may plan a different on-bar neighbour and the mirrored
+        // saved order keeps shifting, so every retry mints a fresh key. Gating on
+        // the last attempt (any destination, any outcome) is what actually caps a
+        // placement Thaw cannot win — including a move that lands and is then
+        // reverted by MenuBarAgent — at one nudge per window instead of several a
+        // second. A restore that succeeds and holds needs no repeat: the next
+        // pass finds the order satisfied above and returns early.
+        if let lastAttempt = lastVisibleControlRestoreAttempt,
+           ContinuousClock.now - lastAttempt < Self.visibleControlRestoreCooldown
         {
             MenuBarItemManager.diagLog.debug(
-                "applySavedLayout: skipping recently-failed macOS 27 visible control restore \(plannedMove.item.logString) \(plannedMove.destination.logString)"
+                "applySavedLayout: skipping macOS 27 visible control restore; within attempt cooldown"
             )
             return false
         }
 
+        lastVisibleControlRestoreAttempt = .now
         do {
             let fulfilled = try await move(
                 item: plannedMove.item,
@@ -9095,21 +9152,18 @@ extension MenuBarItemManager {
                 allowParkedOffMenuBarSource: true
             )
             guard fulfilled else {
-                recentMacOS27MoveFailures[failureKey] = .now
                 MenuBarItemManager.diagLog.debug(
                     "applySavedLayout: could not fulfill macOS 27 visible control restore via preferred positions " +
                         "\(plannedMove.item.logString) \(plannedMove.destination.logString)"
                 )
                 return false
             }
-            recentMacOS27MoveFailures.removeValue(forKey: failureKey)
             MenuBarItemManager.diagLog.info(
                 "applySavedLayout: restored macOS 27 visible control order for \(plannedMove.item.logString)"
             )
             scheduleDeferredCacheRefresh()
             return true
         } catch {
-            recentMacOS27MoveFailures[failureKey] = .now
             MenuBarItemManager.diagLog.error(
                 "applySavedLayout: failed macOS 27 visible control restore \(plannedMove.item.logString): \(error)"
             )
