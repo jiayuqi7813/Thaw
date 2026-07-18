@@ -6,8 +6,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/thaw-app/AXSwift6",
       "state" : {
-        "revision" : "5ffa0911c66ee343366ebac6ffe5b23c524ceba7",
-        "version" : "0.4.0"
+        "revision" : "7c3c6115a4aa61231a97dadd847e7d0d849ea8b3",
+        "version" : "0.4.1"
       }
     },
     {
