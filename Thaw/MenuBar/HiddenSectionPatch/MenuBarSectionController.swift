@@ -68,6 +68,8 @@ protocol RuntimePreferenceProviding: AnyObject {
     var hasHiddenItems: Bool { get }
     func readPositions() -> [String: Int]
     func writePositions(_ dict: [String: Int])
+    @discardableResult
+    func pruneOrphanedControlItemKeys(currentOwners: Set<String>) -> [String]
     func restoreAll()
     @discardableResult
     func hideItems(_ items: [MenuBarItem]) -> Set<String>
@@ -346,6 +348,8 @@ final class MenuBarSectionController: ObservableObject {
     private func startRuntimeStateObservers() {
         guard appState != nil, #available(macOS 27, *) else { return }
 
+        pruneOrphanedControlItemKeys()
+
         let watcher = MenuBarAgentPreferencesWatcher(
             readPositions: { [weak self] in self?.positionStore.readPositions() ?? [:] },
             onExternalChange: { [weak self] positions in
@@ -367,6 +371,29 @@ final class MenuBarSectionController: ObservableObject {
     /// prefs watcher does not treat our own reorder as an external change.
     func notePreferredPositionsSelfWrite() {
         prefsWatcher?.noteSelfWrite()
+    }
+
+    /// Drops control-item preferred-position keys left in the shared
+    /// `TrailingItemPreferredPositions` dictionary by earlier builds and retired
+    /// host agents. Only keys owned by an identity other than this running build
+    /// are removed, so the live control keys are preserved; this trims the
+    /// dictionary MenuBarAgent renormalises and prevents key resolution from ever
+    /// matching a stale variant. macOS 27 only — gated by the sole caller
+    /// (``startRuntimeStateObservers``), and inert on macOS 26 regardless.
+    private func pruneOrphanedControlItemKeys() {
+        let owners = Set(
+            [
+                Bundle.main.bundleIdentifier,
+                Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String,
+                Bundle.main.object(forInfoDictionaryKey: "CFBundleExecutable") as? String,
+                ProcessInfo.processInfo.processName,
+            ].compactMap(\.self)
+        )
+        let pruned = positionStore.pruneOrphanedControlItemKeys(currentOwners: owners)
+        if !pruned.isEmpty {
+            notePreferredPositionsSelfWrite()
+            diagLog.info("pruned \(pruned.count) orphaned control-item position key(s)")
+        }
     }
 
     /// Handles an external change to `TrailingItemPreferredPositions` — one Thaw
