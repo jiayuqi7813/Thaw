@@ -389,14 +389,17 @@ final class MenuBarItemImageCacheFreshBoundsTests: XCTestCase {
     }
 
     @available(macOS 27, *)
-    func testPrefersDisplayStripCaptureForThirdPartyOnly() {
+    func testPrefersDisplayStripCaptureForThirdPartyAndThaw() {
         let thirdParty = MenuBarItemTag(namespace: .string("com.openai.chat"), title: "Item-0")
         let menuBarAgent = MenuBarItemTag(namespace: .menuBarAgent, title: "Clock")
-        let thaw = MenuBarItemTag(namespace: .thaw, title: "IceIcon")
+        let thaw = MenuBarItemTag(namespace: .thaw, title: "Thaw.ControlItem.Visible")
 
+        // Only genuine Apple modules composite cleanly in the hosting window.
         XCTAssertTrue(MenuBarItemImageCache.prefersDisplayStripCapture(for: thirdParty))
         XCTAssertFalse(MenuBarItemImageCache.prefersDisplayStripCapture(for: menuBarAgent))
-        XCTAssertFalse(MenuBarItemImageCache.prefersDisplayStripCapture(for: thaw))
+        // Thaw's own control item is a third-party Liquid Glass item for capture
+        // purposes and shreds in the hosting window — read it from the strip.
+        XCTAssertTrue(MenuBarItemImageCache.prefersDisplayStripCapture(for: thaw))
     }
 
     private func makeItem(

@@ -1109,13 +1109,22 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
     /// Whether macOS 27 thumbnail capture should avoid MenuBarAgent's hosting
     /// window for this item.
     ///
-    /// System / MenuBarAgent modules composite cleanly in the hosting window.
-    /// Third-party Liquid Glass slots in that same off-screen window often shred
-    /// under ScreenCaptureKit — read those from the on-screen display strip and
-    /// knock out the near-uniform bar fill so tiles stay glyph-clean.
+    /// Only genuine Apple system modules (Control Center, Clock, Wi-Fi, …)
+    /// composite cleanly in MenuBarAgent's off-screen hosting window. Any other
+    /// item's Liquid Glass slot in that same window often shreds into vertical
+    /// columns under ScreenCaptureKit — read those from the on-screen display
+    /// strip and knock out the near-uniform bar fill so tiles stay glyph-clean.
+    ///
+    /// Thaw's own control items report ``MenuBarItemTag/isSystemItem`` (the
+    /// `.thaw` namespace) so the rest of the app treats them as first-party, but
+    /// for *capture* they are a third-party app's Liquid Glass status item that
+    /// shreds in the hosting window exactly like any other third party — so they
+    /// must read from the display strip too. Routing them through the hosting
+    /// path left Thaw's own icon half-cut / column-shredded while every genuine
+    /// Apple module beside it captured cleanly.
     @available(macOS 27, *)
     static nonisolated func prefersDisplayStripCapture(for tag: MenuBarItemTag) -> Bool {
-        !tag.isSystemItem
+        !tag.isSystemItem || tag.isThawOwnedNamespace
     }
 
     /// Checks which of the given items currently render as blank pixels in the
@@ -1713,8 +1722,9 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
     ) async -> CaptureResult {
         // Thaw's section-divider control items capture as transparent via
         // CGWindowListCreateImage on macOS <=26, so skip them there. On macOS
-        // 27 the visible Thaw icon is composited inside MenuBarAgent and crops
-        // correctly from the hosting-window screenshot (axBoundsCapture).
+        // 27 the visible Thaw icon is composited by MenuBarAgent and crops from
+        // the on-screen display strip (axBoundsCapture) — like any third-party
+        // Liquid Glass item, it shreds if read from the hosting window.
         let capturable: [MenuBarItem] = if #available(macOS 27, *) {
             items.filter { !$0.isControlItem || $0.tag == .visibleControlItem }
         } else {
