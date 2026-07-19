@@ -459,7 +459,7 @@ final class LayoutBarPaddingView: NSView {
                 return
             }
             isStabilizing = true
-            await MainActor.run { self.showOverlay(true) }
+            await MainActor.run { self.setDimmed(true) }
             // Increased delay to allow macOS to settle after operations like Reset Layout.
             // Prevents transient errors when dragging items immediately after reset.
             do {
@@ -467,7 +467,7 @@ final class LayoutBarPaddingView: NSView {
             } catch {
                 await MainActor.run {
                     self.isStabilizing = false
-                    self.showOverlay(false)
+                    self.setDimmed(false)
                     self.container.canSetArrangedViews = true
                     sourceContainer?.canSetArrangedViews = true
                 }
@@ -543,13 +543,13 @@ final class LayoutBarPaddingView: NSView {
             }
             await MainActor.run {
                 self.isStabilizing = false
-                self.showOverlay(false)
+                self.setDimmed(false)
                 // Update the badge anchor BEFORE re-enabling view updates, using
                 // the current visual arrangement from the drag. This ensures the
                 // didSet refresh uses the correct anchor position.
                 // Only update if this section actually contains the badge.
                 if let appState = self.container.appState,
-                   self.containsNewItemsBadge()
+                   self.container.arrangedViews.contains(where: \.isNewItemsBadge)
                 {
                     appState.itemManager.updateNewItemsPlacement(
                         section: self.container.section,
@@ -601,20 +601,13 @@ final class LayoutBarPaddingView: NSView {
     private func resetStabilizingStateIfNeeded() async {
         if isStabilizing {
             isStabilizing = false
-            showOverlay(false)
+            setDimmed(false)
             container.canSetArrangedViews = true
         }
     }
 
-    private func showOverlay(_ visible: Bool) {
+    private func setDimmed(_ visible: Bool) {
         container.alphaValue = visible ? 0.6 : 1.0
-    }
-
-    private func containsNewItemsBadge() -> Bool {
-        for arrangedView in container.arrangedViews where arrangedView.isNewItemsBadge {
-            return true
-        }
-        return false
     }
 
     /// Whether items in the section currently have live AX elements to reorder.

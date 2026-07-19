@@ -62,7 +62,7 @@ final class LayoutBarContainer: NSView {
         }
     }
 
-    /// The contaner's arranged views.
+    /// The container's arranged views.
     ///
     /// The views are laid out from left to right in the order that they
     /// appear in the array. The ``spacing`` property determines the amount
@@ -193,7 +193,7 @@ final class LayoutBarContainer: NSView {
         }
     }
 
-    /// Relayouts the container after one arranged view changed size.
+    /// Re-runs layout for the container after one arranged view changed size.
     ///
     /// This avoids subscribing the whole container to every image cache update.
     func itemPreferredSizeDidChange(_ itemView: LayoutBarArrangedView) {
