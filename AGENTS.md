@@ -37,6 +37,9 @@ OS policy is split so macOS 26 can be retired without cluttering the app:
 Thaw selects the backend via `MenuBarBackendProvider` in
 `Thaw/MenuBar/Backends/`. The XCFramework dynamically links
 `MenuBarModel` (shipped as a dynamic library product from this repo).
+Published PlatformRuntimeKit binaries can import public `MenuBarModel` symbols.
+Before removing or renaming that public surface, inspect the shipped framework's
+imports and retain forwarding compatibility symbols for anything it references.
 
 ## Build And Test
 

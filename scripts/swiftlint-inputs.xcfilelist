@@ -9,6 +9,7 @@ $(SRCROOT)/MenuBarModel/Sources/MenuBarModel/BundleExtensions.swift
 $(SRCROOT)/MenuBarModel/Sources/MenuBarModel/ControlItemIdentifier.swift
 $(SRCROOT)/MenuBarModel/Sources/MenuBarModel/DiagnosticLogger.swift
 $(SRCROOT)/MenuBarModel/Sources/MenuBarModel/HidingStateProviding.swift
+$(SRCROOT)/MenuBarModel/Sources/MenuBarModel/LegacyConstants.swift
 $(SRCROOT)/MenuBarModel/Sources/MenuBarModel/MarkerPairResolver.swift
 $(SRCROOT)/MenuBarModel/Sources/MenuBarModel/MenuBarBackend.swift
 $(SRCROOT)/MenuBarModel/Sources/MenuBarModel/MenuBarBackendTypes.swift
@@ -26,6 +27,7 @@ $(SRCROOT)/MenuBarModel/Sources/MenuBarModel/SystemMenuBarModuleCatalog.swift
 $(SRCROOT)/MenuBarModel/Sources/MenuBarModel/ThawMenuBarIdentity.swift
 $(SRCROOT)/MenuBarModel/Sources/MenuBarModel/WindowInfo.swift
 $(SRCROOT)/MenuBarModel/Tests/MenuBarModelTests/DiagnosticLoggerTests.swift
+$(SRCROOT)/MenuBarModel/Tests/MenuBarModelTests/LegacyConstantsCompatibilityTests.swift
 $(SRCROOT)/MenuBarModel/Tests/MenuBarModelTests/MenuBarSectionNameTests.swift
 $(SRCROOT)/MenuBarModel/Tests/MenuBarModelTests/WindowInfoTests.swift
 $(SRCROOT)/Shared/Services/MenuBarItemService.swift
