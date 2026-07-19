@@ -59,7 +59,7 @@ struct DisplaySettingsPane: View {
             IceSection(options: [.isBordered]) {
                 confirmSpacingRelaunchControls
             }
-            ForEach(displaySettings.allDisplays()) { display in
+            ForEach(displaySettings.displays) { display in
                 displaySection(for: display)
             }
         }
@@ -682,7 +682,7 @@ struct DisplaySettingsPane: View {
     /// broadcast would be a no-op.
     private var canApplyGlobal: Bool {
         let target = displaySettings.globalConfiguration
-        let displays = displaySettings.allDisplays()
+        let displays = displaySettings.displays
         guard !displays.isEmpty else { return false }
         return displays.contains { display in
             displaySettings.configuration(forUUID: display.id) != target
@@ -696,7 +696,7 @@ struct DisplaySettingsPane: View {
     /// asks for confirmation because it overwrites every per-display entry,
     /// which is destructive.
     private func requestGlobalApply() {
-        let displayCount = displaySettings.allDisplays().count
+        let displayCount = displaySettings.displays.count
         let activeID = appState.profileManager.activeProfileID
 
         // Confirmations disabled: broadcast directly, saving to the chosen

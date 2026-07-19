@@ -249,7 +249,7 @@ struct ProfileSettingsPane: View {
 
     @ViewBuilder
     private var autoSwitchControls: some View {
-        let displays = allDisplays()
+        let displays = allKnownDisplays
         let profileOptions = profileManager.profiles
 
         ForEach(displays) { display in
@@ -459,9 +459,9 @@ struct ProfileSettingsPane: View {
         }
     }
 
-    /// Returns all displays relevant to auto-switch: connected displays plus
-    /// any disconnected displays that still have a profile association.
-    private func allDisplays() -> [DisplayInfo] {
+    /// All displays relevant to auto-switch: connected displays plus any
+    /// disconnected displays that still have a profile association.
+    private var allKnownDisplays: [DisplayInfo] {
         let knownDisplays = appState.settings.displaySettings.knownDisplays
         var displays = NSScreen.managedScreens.compactMap { screen -> DisplayInfo? in
             guard let uuid = Bridging.getDisplayUUIDString(for: screen.displayID) else {

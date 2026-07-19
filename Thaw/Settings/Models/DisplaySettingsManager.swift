@@ -832,7 +832,7 @@ final class DisplaySettingsManager: ObservableObject {
     /// applyActiveDisplaySpacing each fire once.
     @discardableResult
     func applyGlobalToAllKnownDisplays() -> [String] {
-        let targets = allDisplays().map(\.id)
+        let targets = displays.map(\.id)
         guard !targets.isEmpty else { return [] }
         var updated = configurations
         for uuid in targets {
@@ -878,7 +878,7 @@ final class DisplaySettingsManager: ObservableObject {
             // Skip transient blank-name screens (mirrored slave, GPU
             // sleep transition) so connectedDisplays stays consistent
             // with captureCurrentlyConnectedDisplays, the persistence
-            // loader, and allDisplays' disconnected branch.
+            // loader, and displays' disconnected branch.
             let trimmed = screen.localizedName.trimmingCharacters(in: .whitespaces)
             guard !trimmed.isEmpty else { return nil }
             return DisplayInfo(
@@ -903,7 +903,11 @@ final class DisplaySettingsManager: ObservableObject {
     /// is retained in storage; if such a display reconnects, its name is
     /// captured into knownDisplays and it appears normally on subsequent
     /// renders.
-    func allDisplays() -> [DisplayInfo] {
+    ///
+    /// - Complexity: O(n) in the number of connected screens plus known
+    ///   displays; walks `NSScreen.managedScreens` and the stored profile
+    ///   data on every access.
+    var displays: [DisplayInfo] {
         let connected = connectedDisplays()
         let connectedIDs = Set(connected.map(\.id))
 
