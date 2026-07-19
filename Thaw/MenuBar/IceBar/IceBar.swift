@@ -354,6 +354,7 @@ private final class IceBarHostingView: NSHostingView<IceBarContentView> {
             itemManager: appState.itemManager,
             imageCache: appState.imageCache,
             menuBarManager: appState.menuBarManager,
+            visibleControlItem: appState.menuBarManager.section(withName: .visible)?.controlItem,
             screen: screen,
             section: section
         )
@@ -395,12 +396,42 @@ private struct IceBarContentView: View {
     @State private var scrollIndicatorsFlashTrigger = 0
     @State private var cacheGracePeriodActive = true
     @State private var loadingTimedOut = false
+    @State private var visibleControlItemState: ControlItem.HidingState
 
+    let visibleControlItem: ControlItem?
     let screen: NSScreen
     let section: MenuBarSection.Name
 
+    init(
+        appState: AppState,
+        colorManager: IceBarColorManager,
+        itemManager: MenuBarItemManager,
+        imageCache: MenuBarItemImageCache,
+        menuBarManager: MenuBarManager,
+        visibleControlItem: ControlItem?,
+        screen: NSScreen,
+        section: MenuBarSection.Name
+    ) {
+        self.appState = appState
+        self.colorManager = colorManager
+        self.itemManager = itemManager
+        self.imageCache = imageCache
+        self.menuBarManager = menuBarManager
+        self.visibleControlItem = visibleControlItem
+        self.screen = screen
+        self.section = section
+        self._visibleControlItemState = State(initialValue: visibleControlItem?.state ?? .hideSection)
+    }
+
     private var items: [MenuBarItem] {
         itemManager.itemCache.managedItems(for: section)
+    }
+
+    private var visibleControlItemStatePublisher: AnyPublisher<ControlItem.HidingState, Never> {
+        guard let visibleControlItem else {
+            return Empty().eraseToAnyPublisher()
+        }
+        return visibleControlItem.$state.eraseToAnyPublisher()
     }
 
     private var configuration: MenuBarAppearanceConfigurationV2 {
@@ -513,7 +544,8 @@ private struct IceBarContentView: View {
             for: item,
             section: section,
             appState: appState,
-            cachedImage: imageCache.image(for: item.tag)?.nsImage
+            cachedImage: imageCache.image(for: item.tag)?.nsImage,
+            visibleControlItemState: visibleControlItemState
         )
     }
 
@@ -562,6 +594,9 @@ private struct IceBarContentView: View {
             """)
         }
         .onFrameChange(update: $frame)
+        .onReceive(visibleControlItemStatePublisher) { state in
+            visibleControlItemState = state
+        }
         .task(id: section) {
             cacheGracePeriodActive = true
             loadingTimedOut = false
@@ -881,6 +916,7 @@ private struct IceBarItemView: View {
         if let image {
             let size = targetSize(for: image)
             Image(nsImage: image)
+                .renderingMode(image.isTemplate ? .template : .original)
                 .interpolation(.high)
                 .antialiased(true)
                 .resizable()

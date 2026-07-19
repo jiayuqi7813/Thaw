@@ -24,6 +24,7 @@ final class LayoutBarItemView: LayoutBarArrangedView {
         static let iconInset: CGFloat = 2
         static let fallbackSymbolPointSize: CGFloat = 11
         static let unresponsiveBadgeWidth: CGFloat = 15
+        static let defaultSystemItemHorizontalPadding: CGFloat = 16
     }
 
     private weak var appState: AppState?
@@ -42,10 +43,15 @@ final class LayoutBarItemView: LayoutBarArrangedView {
     /// The image displayed inside the view.
     private var cachedImage: MenuBarItemImageCache.CapturedImage? {
         didSet {
+            let previousSize = frame.size
             cachedDrawImage = cachedImage.map {
                 NSImage(cgImage: $0.cgImage, size: $0.scaledSize)
             }
-            let previousSize = preferredSizeForCurrentDisplayMode(oldValue)
+            systemItemHorizontalPadding = Self.systemItemHorizontalPadding(
+                for: item,
+                image: cachedImage,
+                desiredPadding: desiredSystemItemHorizontalPadding
+            )
             let newSize = preferredSizeForCurrentDisplayMode(cachedImage)
             setFrameSize(newSize)
             if previousSize != newSize {
@@ -59,6 +65,10 @@ final class LayoutBarItemView: LayoutBarArrangedView {
     /// cache entry changes. Avoids allocating a new AppKit image on every
     /// `draw(_:)` pass.
     private var cachedDrawImage: NSImage?
+
+    /// Extra transparent width needed to match the system host item's native
+    /// menu-bar selection padding. Applied only in the layout editor.
+    private var systemItemHorizontalPadding: CGFloat = 0
 
     override var kind: Kind {
         .item(item)
@@ -75,8 +85,22 @@ final class LayoutBarItemView: LayoutBarArrangedView {
 
         let initialImage = appState.imageCache.image(for: item.tag)
         self.cachedImage = initialImage
+        self.systemItemHorizontalPadding = Self.systemItemHorizontalPadding(
+            for: item,
+            image: initialImage,
+            desiredPadding: Metrics.defaultSystemItemHorizontalPadding + CGFloat(appState.spacingManager.offset)
+        )
 
-        super.init(frame: CGRect(origin: .zero, size: Self.preferredSize(for: item, image: initialImage)))
+        super.init(
+            frame: CGRect(
+                origin: .zero,
+                size: Self.preferredSize(
+                    for: item,
+                    image: initialImage,
+                    additionalHorizontalPadding: systemItemHorizontalPadding
+                )
+            )
+        )
         unregisterDraggedTypes()
 
         let experimentalSystemItemHiding = appState.settings.advanced.enableExperimentalSystemItemHiding
@@ -93,6 +117,16 @@ final class LayoutBarItemView: LayoutBarArrangedView {
 
     private var tooltipDelay: TimeInterval {
         appState?.settings.advanced.tooltipDelay ?? 0.5
+    }
+
+    private var desiredSystemItemHorizontalPadding: CGFloat {
+        Metrics.defaultSystemItemHorizontalPadding + CGFloat(appState?.spacingManager.offset ?? 0)
+    }
+
+    /// Matches the foreground selected by ``MenuBarItemContainer`` for the
+    /// layout preview's sampled menu-bar background.
+    private var menuBarForegroundColor: NSColor {
+        appState?.menuBarManager.averageColorInfo?.isBright(for: nil) == true ? .black : .white
     }
 
     override func draggingImage() -> NSImage? {
@@ -161,6 +195,14 @@ final class LayoutBarItemView: LayoutBarArrangedView {
                 }
                 .store(in: &c)
 
+            appState.menuBarManager.$averageColorInfo
+                .map { $0?.isBright(for: nil) == true }
+                .removeDuplicates()
+                .sink { [weak self] _ in
+                    self?.needsDisplay = true
+                }
+                .store(in: &c)
+
             if item.tag.matchesVisibleControlItem,
                let controlItem = appState.menuBarManager.section(withName: .visible)?.controlItem
             {
@@ -202,7 +244,7 @@ final class LayoutBarItemView: LayoutBarArrangedView {
                 drawOverflowFallback()
             } else if let capturedImage = cachedDrawImage {
                 capturedImage.draw(
-                    in: bounds,
+                    in: capturedImageDrawRect(for: capturedImage),
                     from: .zero,
                     operation: .sourceOver,
                     fraction: isEnabled ? 1.0 : 0.67
@@ -238,10 +280,16 @@ final class LayoutBarItemView: LayoutBarArrangedView {
         // crops). Prefer the app icon instead of stretching Finder menus across
         // the layout row while the image cache invalidates them.
         if let cachedDrawImage, cachedDrawImage.size.width > Metrics.maxWidth {
-            return OverflowFallbackIcon.supportsMissingCaptureFallback(for: section)
+            return OverflowFallbackIcon.shouldPreferAppIcon(
+                for: item,
+                in: section,
+                appState: appState,
+                cachedImage: nil
+            )
         }
         return OverflowFallbackIcon.shouldPreferAppIcon(
-            for: section,
+            for: item,
+            in: section,
             appState: appState,
             cachedImage: cachedDrawImage
         )
@@ -249,12 +297,12 @@ final class LayoutBarItemView: LayoutBarArrangedView {
 
     /// Draws the owning app's icon when no usable capture exists (macOS 27
     /// incomplete hosting-window crops / native hide). Falls back to the
-    /// generic box placeholder when no icon resolves (e.g. Thaw's own control
-    /// items). See ``OverflowFallbackIcon``.
+    /// generic box placeholder when no icon resolves. See
+    /// ``OverflowFallbackIcon``.
     private func drawOverflowFallback() {
         guard
-            !item.isControlItem,
-            let icon = OverflowFallbackIcon.image(for: item)
+            let appState,
+            let icon = OverflowFallbackIcon.preferredImage(for: item, appState: appState)
         else {
             drawPlaceholder()
             return
@@ -267,11 +315,11 @@ final class LayoutBarItemView: LayoutBarArrangedView {
             width: side,
             height: side
         )
-        icon.draw(
+        draw(
+            icon,
             in: iconRect,
-            from: .zero,
-            operation: .sourceOver,
-            fraction: isEnabled ? 1.0 : 0.5
+            fraction: isEnabled ? 1.0 : 0.5,
+            templateTint: menuBarForegroundColor
         )
     }
 
@@ -301,7 +349,11 @@ final class LayoutBarItemView: LayoutBarArrangedView {
     }
 
     private func preferredSize(for image: MenuBarItemImageCache.CapturedImage?) -> CGSize {
-        Self.preferredSize(for: item, image: image)
+        Self.preferredSize(
+            for: item,
+            image: image,
+            additionalHorizontalPadding: systemItemHorizontalPadding
+        )
     }
 
     private func preferredSizeForCurrentDisplayMode(_ image: MenuBarItemImageCache.CapturedImage?) -> CGSize {
@@ -310,14 +362,15 @@ final class LayoutBarItemView: LayoutBarArrangedView {
 
     private static func preferredSize(
         for item: MenuBarItem,
-        image: MenuBarItemImageCache.CapturedImage?
+        image: MenuBarItemImageCache.CapturedImage?,
+        additionalHorizontalPadding: CGFloat = 0
     ) -> CGSize {
         if let image {
             // Clamp so a poisoned near-full-bar crop cannot dominate the
             // Visible layout strip (Finder menu chrome spanning the row).
             let width = image.scaledSize.width.clamped(to: Metrics.minWidth ... Metrics.maxWidth)
             let height = max(image.scaledSize.height, Metrics.minHeight)
-            return CGSize(width: width, height: height)
+            return CGSize(width: width + additionalHorizontalPadding, height: height)
         }
 
         let width = item.bounds.width.clamped(to: Metrics.minWidth ... Metrics.maxWidth)
@@ -325,14 +378,51 @@ final class LayoutBarItemView: LayoutBarArrangedView {
         return CGSize(width: width, height: height)
     }
 
+    /// Supplies only padding that is absent from a system-host capture. The
+    /// image cache remains an exact crop of the real menu bar; this correction
+    /// is presentation-only for the layout editor.
+    static func systemItemHorizontalPadding(
+        for item: MenuBarItem,
+        image: MenuBarItemImageCache.CapturedImage?,
+        desiredPadding: CGFloat
+    ) -> CGFloat {
+        guard OverflowFallbackIcon.usesCapturedSystemPreview(item),
+              let image,
+              desiredPadding > 0,
+              let trimmed = image.cgImage.trimmingTransparency(
+                  around: [.minXEdge, .maxXEdge],
+                  alphaThreshold: 0.05
+              )
+        else {
+            return 0
+        }
+
+        let contentWidth = CGFloat(trimmed.width) / image.scale
+        let capturedPadding = max(0, image.scaledSize.width - contentWidth)
+        return max(0, desiredPadding - capturedPadding)
+    }
+
+    /// Centers a capture at its natural size inside the padded tile instead of
+    /// stretching the glyph and its existing transparent margins edge-to-edge.
+    private func capturedImageDrawRect(for image: NSImage) -> CGRect {
+        guard image.size.width > 0, image.size.height > 0 else { return bounds }
+        let scale = min(
+            1,
+            bounds.width / image.size.width,
+            bounds.height / image.size.height
+        )
+        let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        return CGRect(
+            x: bounds.midX - (size.width / 2),
+            y: bounds.midY - (size.height / 2),
+            width: size.width,
+            height: size.height
+        )
+    }
+
     private static func makePlaceholderImage(for item: MenuBarItem, appState: AppState) -> NSImage? {
-        if item.tag.matchesVisibleControlItem {
-            let icon = appState.settings.general.iceIcon
-            let state = appState.menuBarManager.section(withName: .visible)?.controlItem.state ?? .hideSection
-            return switch state {
-            case .showSection: icon.visible.nsImage(for: appState)
-            case .hideSection: icon.hidden.nsImage(for: appState)
-            }
+        if let icon = OverflowFallbackIcon.selectedThawIcon(for: item, appState: appState) {
+            return icon
         }
         return NSImage(
             systemSymbolName: "menubar.rectangle",
@@ -377,24 +467,27 @@ final class LayoutBarItemView: LayoutBarArrangedView {
             height: iconSide
         )
 
-        if image.isTemplate {
-            NSGraphicsContext.saveGraphicsState()
-            NSColor.secondaryLabelColor.set()
-            image.draw(
-                in: iconRect,
-                from: .zero,
-                operation: .sourceOver,
-                fraction: isEnabled ? 0.8 : 0.5
-            )
-            NSGraphicsContext.restoreGraphicsState()
-        } else {
-            image.draw(
-                in: iconRect,
-                from: .zero,
-                operation: .sourceOver,
-                fraction: isEnabled ? 0.9 : 0.5
-            )
-        }
+        draw(
+            image,
+            in: iconRect,
+            fraction: isEnabled ? (image.isTemplate ? 0.8 : 0.9) : 0.5,
+            templateTint: item.tag.matchesVisibleControlItem ? menuBarForegroundColor : .secondaryLabelColor
+        )
+    }
+
+    private func draw(
+        _ image: NSImage,
+        in rect: CGRect,
+        fraction: CGFloat,
+        templateTint: NSColor
+    ) {
+        let displayImage = image.isTemplate ? image.tinted(with: templateTint) : image
+        displayImage.draw(
+            in: rect,
+            from: .zero,
+            operation: .sourceOver,
+            fraction: fraction
+        )
     }
 
     private func refreshLivePlaceholderImage() {
@@ -424,4 +517,19 @@ final class LayoutBarItemView: LayoutBarArrangedView {
 
 extension NSPasteboard.PasteboardType {
     static let layoutBarItem = Self("\(Constants.bundleIdentifier).layout-bar-item")
+}
+
+private extension NSImage {
+    /// Resolves a template image into a concrete color for direct AppKit
+    /// drawing, matching the automatic tinting performed by an NSStatusItem.
+    func tinted(with color: NSColor) -> NSImage {
+        let image = NSImage(size: size, flipped: false) { bounds in
+            self.draw(in: bounds)
+            color.setFill()
+            bounds.fill(using: .sourceIn)
+            return true
+        }
+        image.isTemplate = false
+        return image
+    }
 }

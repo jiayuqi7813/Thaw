@@ -37,11 +37,16 @@ enum OverflowFallbackIcon {
     /// glyph.
     @MainActor
     static func shouldPreferAppIcon(
-        for section: MenuBarSection.Name?,
+        for item: MenuBarItem,
+        in section: MenuBarSection.Name?,
         appState: AppState,
         cachedImage: NSImage?
     ) -> Bool {
         guard supportsMissingCaptureFallback(for: section) else { return false }
+        // These processes host multiple distinct Apple modules rather than one
+        // app-owned status item. Keep their captures, including Siri, instead
+        // of substituting the host process's application icon.
+        guard !usesCapturedSystemPreview(item) else { return false }
         // User escape hatch: always render the owning app's icon instead of the
         // live capture, regardless of whether a (possibly polluted) capture
         // exists. Lets users sidestep macOS 27 native-overflow capture bleed.
@@ -57,18 +62,65 @@ enum OverflowFallbackIcon {
         for item: MenuBarItem,
         section: MenuBarSection.Name?,
         appState: AppState,
-        cachedImage: NSImage?
+        cachedImage: NSImage?,
+        visibleControlItemState: ControlItem.HidingState? = nil
     ) -> NSImage? {
-        if shouldPreferAppIcon(for: section, appState: appState, cachedImage: cachedImage) {
-            return image(for: item)
+        if shouldPreferAppIcon(
+            for: item,
+            in: section,
+            appState: appState,
+            cachedImage: cachedImage
+        ) {
+            return preferredImage(
+                for: item,
+                appState: appState,
+                visibleControlItemState: visibleControlItemState
+            )
         }
         return cachedImage
+    }
+
+    /// The image used when app-icon presentation is active. Thaw's visible
+    /// control item uses the icon selected in General settings; other items use
+    /// their owning application's icon.
+    @MainActor
+    static func preferredImage(
+        for item: MenuBarItem,
+        appState: AppState,
+        visibleControlItemState: ControlItem.HidingState? = nil
+    ) -> NSImage? {
+        selectedThawIcon(
+            for: item,
+            appState: appState,
+            visibleControlItemState: visibleControlItemState
+        ) ?? image(for: item)
+    }
+
+    /// Thaw's selected status-item icon for the current visible-section state.
+    @MainActor
+    static func selectedThawIcon(
+        for item: MenuBarItem,
+        appState: AppState,
+        visibleControlItemState: ControlItem.HidingState? = nil
+    ) -> NSImage? {
+        guard item.tag.matchesVisibleControlItem else { return nil }
+
+        let icon = appState.settings.general.iceIcon
+        let state = visibleControlItemState
+            ?? appState.menuBarManager.section(withName: .visible)?.controlItem.state
+            ?? .hideSection
+        return switch state {
+        case .showSection: icon.visible.nsImage(for: appState)
+        case .hideSection: icon.hidden.nsImage(for: appState)
+        }
     }
 
     /// The owning app's icon for `item`, falling back to a generic menu-bar
     /// glyph when no application can be resolved (e.g. some system items).
     static func image(for item: MenuBarItem) -> NSImage? {
         switch item.tag.namespace {
+        case .menuBarAgent:
+            break
         case .controlCenter, .systemUIServer, .textInputMenuAgent:
             if let controlCenterIcon {
                 return controlCenterIcon
@@ -82,5 +134,15 @@ enum OverflowFallbackIcon {
             systemSymbolName: "menubar.rectangle",
             accessibilityDescription: item.displayName
         )
+    }
+
+    /// Whether an Apple hosting process should keep its captured preview.
+    static func usesCapturedSystemPreview(_ item: MenuBarItem) -> Bool {
+        switch item.tag.namespace {
+        case .menuBarAgent, .controlCenter, .systemUIServer:
+            true
+        default:
+            false
+        }
     }
 }
