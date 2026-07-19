@@ -619,7 +619,7 @@ private struct IceBarContentView: View {
 
     @ViewBuilder
     private var content: some View {
-        if !ScreenCapture.cachedCheckPermissions() {
+        if !ScreenCapture.hasCachedScreenRecordingPermission {
             HStack {
                 Text("The \(Constants.displayName) Bar requires screen recording permissions.")
 
@@ -633,7 +633,7 @@ private struct IceBarContentView: View {
             }
             .padding(.horizontal, 10)
             .onAppear {
-                Self.diagLog.warning("IceBar content: showing 'requires screen recording permissions' — cachedCheckPermissions() returned false")
+                Self.diagLog.warning("IceBar content: showing 'requires screen recording permissions' — hasCachedScreenRecordingPermission returned false")
             }
         } else if section == .alwaysHidden || section == .hidden, items.isEmpty {
             HStack {

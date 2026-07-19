@@ -3070,9 +3070,9 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
     /// failed for the given section.
     @MainActor
     func cacheFailed(for section: MenuBarSection.Name) -> Bool {
-        let hasPermission = ScreenCapture.cachedCheckPermissions()
+        let hasPermission = ScreenCapture.hasCachedScreenRecordingPermission
         guard hasPermission else {
-            MenuBarItemImageCache.diagLog.debug("cacheFailed(\(section.logString)): no screen recording permission (cachedCheckPermissions=false)")
+            MenuBarItemImageCache.diagLog.debug("cacheFailed(\(section.logString)): no screen recording permission (hasCachedScreenRecordingPermission=false)")
             return true
         }
         let items = appState?.itemManager.itemCache[section] ?? []

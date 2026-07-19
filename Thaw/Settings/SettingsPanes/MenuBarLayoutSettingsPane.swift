@@ -32,7 +32,7 @@ struct MenuBarLayoutSettingsPane: View {
     }
 
     var body: some View {
-        let hasScreenRecordingPermission = ScreenCapture.cachedCheckPermissions()
+        let hasScreenRecordingPermission = ScreenCapture.hasCachedScreenRecordingPermission
         let canArrangeLayout = hasScreenRecordingPermission
             && !appState.menuBarManager.isMenuBarHiddenBySystemUserDefaults
 
@@ -233,9 +233,9 @@ private struct LayoutBarsSection: View {
 
     private func loadItemsIfNeeded() async {
         loadDeadlineReached = false
-        guard !hasItems, ScreenCapture.cachedCheckPermissions() else { return }
+        guard !hasItems, ScreenCapture.hasCachedScreenRecordingPermission else { return }
 
-        diagLog.debug("Preloading menu bar layout caches (hasItems=\(self.hasItems), screenRecording=\(ScreenCapture.cachedCheckPermissions()))")
+        diagLog.debug("Preloading menu bar layout caches (hasItems=\(self.hasItems), screenRecording=\(ScreenCapture.hasCachedScreenRecordingPermission))")
         async let preloadCaches: Void = preloadLayoutCaches()
         try? await Task.sleep(for: .seconds(3))
 

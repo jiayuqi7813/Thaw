@@ -558,7 +558,7 @@ private struct MenuBarSearchContentView: View {
 
     @ViewBuilder
     private var mainContent: some View {
-        if !ScreenCapture.cachedCheckPermissions() {
+        if !ScreenCapture.hasCachedScreenRecordingPermission {
             VStack(spacing: 16) {
                 Image(systemName: "exclamationmark.triangle")
                     .font(.system(size: 32))

@@ -37,7 +37,7 @@ struct AdvancedSettingsPane: View {
                 searchSectionOrdering
             }
             IceSection("Tooltips") {
-                if ScreenCapture.cachedCheckPermissions() {
+                if ScreenCapture.hasCachedScreenRecordingPermission {
                     showMenuBarTooltips
                     tooltipDelay
                 } else {
