@@ -77,10 +77,18 @@ struct SettingsView: View {
         colorScheme == .dark
     }
 
-    /// Light uses `.underWindowBackground` (~step up from `.sidebar`) for more
-    /// desktop bleed without going full `.hudWindow`. Dark keeps the extreme look.
+    /// Keep the sidebar's dense vibrancy consistent in both appearances.
     private var sidebarMaterial: NSVisualEffectView.Material {
-        prefersExtremeVibrancy ? .hudWindow : .underWindowBackground
+        .hudWindow
+    }
+
+    private var sharedSidebarSurface: some View {
+        ZStack {
+            BehindWindowMaterialBackground(material: sidebarMaterial)
+            if colorScheme == .light {
+                Color.white.opacity(0.2)
+            }
+        }
     }
 
     private func configureSettingsWindowChrome(_ window: NSWindow?) {
@@ -106,16 +114,12 @@ struct SettingsView: View {
     @ViewBuilder
     private var detailSurface: some View {
         let isAbout = navigationState.settingsNavigationIdentifier == .about
-        if prefersExtremeVibrancy {
-            if isAbout {
-                BehindWindowMaterialBackground(material: .hudWindow)
-            } else {
-                // Apple Music–style solid page: no Liquid Glass veil over content.
-                Rectangle()
-                    .fill(Color(nsColor: .windowBackgroundColor))
-            }
-        } else if isAbout {
-            BehindWindowMaterialBackground(material: .underWindowBackground)
+        if isAbout {
+            sharedSidebarSurface
+        } else if prefersExtremeVibrancy {
+            // Apple Music–style solid page: no Liquid Glass veil over content.
+            Rectangle()
+                .fill(Color(nsColor: .windowBackgroundColor))
         } else {
             // Light panes: under-window vibrancy + glass for a touch more life
             // than glass alone, without the muddy dark-mode double stack.
@@ -138,7 +142,7 @@ struct SettingsView: View {
             }
         }
         .background {
-            BehindWindowMaterialBackground(material: sidebarMaterial)
+            sharedSidebarSurface
                 .ignoresSafeArea(.container, edges: .top)
         }
     }

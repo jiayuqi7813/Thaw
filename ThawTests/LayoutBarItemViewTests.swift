@@ -77,6 +77,35 @@ final class LayoutBarItemViewTests: XCTestCase {
         )
     }
 
+    func testThawFallbackIconKeepsNativeMenuBarSize() {
+        let item = MenuBarItem.fixture(tag: .visibleControlItem, windowID: 4)
+
+        XCTAssertEqual(
+            LayoutBarItemView.overflowFallbackDrawRect(
+                for: item,
+                imageSize: CGSize(width: 12, height: 12),
+                bounds: CGRect(x: 0, y: 0, width: 28, height: 24)
+            ),
+            CGRect(x: 8, y: 6, width: 12, height: 12)
+        )
+    }
+
+    func testApplicationFallbackIconStillFillsAvailableSquare() {
+        let item = MenuBarItem.fixture(
+            tag: MenuBarItemTag(namespace: .string("com.example.StatusApp"), title: "Status"),
+            windowID: 5
+        )
+
+        XCTAssertEqual(
+            LayoutBarItemView.overflowFallbackDrawRect(
+                for: item,
+                imageSize: CGSize(width: 16, height: 16),
+                bounds: CGRect(x: 0, y: 0, width: 28, height: 24)
+            ),
+            CGRect(x: 2, y: 0, width: 24, height: 24)
+        )
+    }
+
     private func opaqueImage(width: Int, height: Int) throws -> CGImage {
         try image(
             width: width,

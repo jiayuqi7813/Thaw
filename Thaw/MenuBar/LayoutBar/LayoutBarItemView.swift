@@ -307,19 +307,50 @@ final class LayoutBarItemView: LayoutBarArrangedView {
             drawPlaceholder()
             return
         }
-        let side = min(bounds.width, bounds.height)
-        guard side > 0 else { return }
-        let iconRect = CGRect(
-            x: bounds.midX - (side / 2),
-            y: bounds.midY - (side / 2),
-            width: side,
-            height: side
+        let iconRect = Self.overflowFallbackDrawRect(
+            for: item,
+            imageSize: icon.size,
+            bounds: bounds
         )
+        guard !iconRect.isEmpty else { return }
         draw(
             icon,
             in: iconRect,
             fraction: isEnabled ? 1.0 : 0.5,
             templateTint: menuBarForegroundColor
+        )
+    }
+
+    /// App icons fill the available square, but Thaw's own control-item image
+    /// must match the native size used by its real status-item button.
+    static func overflowFallbackDrawRect(
+        for item: MenuBarItem,
+        imageSize: CGSize,
+        bounds: CGRect
+    ) -> CGRect {
+        guard bounds.width > 0, bounds.height > 0 else { return .zero }
+
+        if item.tag.matchesVisibleControlItem, imageSize.width > 0, imageSize.height > 0 {
+            let scale = min(
+                1,
+                bounds.width / imageSize.width,
+                bounds.height / imageSize.height
+            )
+            let size = CGSize(width: imageSize.width * scale, height: imageSize.height * scale)
+            return CGRect(
+                x: bounds.midX - (size.width / 2),
+                y: bounds.midY - (size.height / 2),
+                width: size.width,
+                height: size.height
+            )
+        }
+
+        let side = min(bounds.width, bounds.height)
+        return CGRect(
+            x: bounds.midX - (side / 2),
+            y: bounds.midY - (side / 2),
+            width: side,
+            height: side
         )
     }
 
