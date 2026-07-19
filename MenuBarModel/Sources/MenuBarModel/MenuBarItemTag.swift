@@ -237,7 +237,7 @@ public struct MenuBarItemTag: Hashable, CustomStringConvertible, Sendable {
         case .thaw:
             return true
         case let .string(bundleID):
-            return Constants.isThawOwnedBundleIdentifier(bundleID)
+            return ThawMenuBarIdentity.owns(bundleIdentifier: bundleID)
         case .null, .uuid:
             return false
         }
@@ -634,7 +634,7 @@ public extension MenuBarItemTag {
 
 public extension MenuBarItemTag.Namespace {
     /// The namespace for the "Thaw" process.
-    static let thaw = string(Constants.bundleIdentifier)
+    static let thaw = string(ThawMenuBarIdentity.bundleIdentifier)
 
     /// The namespace for the "Control Center" process.
     static let controlCenter = string("com.apple.controlcenter")

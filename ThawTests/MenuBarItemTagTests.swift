@@ -95,13 +95,6 @@ final class MenuBarItemTagNamespaceTests: XCTestCase {
 
     // MARK: - Hashable Tests
 
-    func testNamespaceHashable() {
-        let ns1 = MenuBarItemTag.Namespace.string("com.example.app")
-        let ns2 = MenuBarItemTag.Namespace.string("com.example.app")
-
-        XCTAssertEqual(ns1.hashValue, ns2.hashValue)
-    }
-
     func testNamespaceInSet() {
         var set = Set<MenuBarItemTag.Namespace>()
         set.insert(.string("com.example.app"))
@@ -761,13 +754,6 @@ final class MenuBarItemTagTests: XCTestCase {
     }
 
     // MARK: - Hashable Tests
-
-    func testHashableConsistency() {
-        let tag1 = MenuBarItemTag(namespace: .string("com.app"), title: "Item")
-        let tag2 = MenuBarItemTag(namespace: .string("com.app"), title: "Item")
-
-        XCTAssertEqual(tag1.hashValue, tag2.hashValue)
-    }
 
     func testHashableInSet() {
         var set = Set<MenuBarItemTag>()

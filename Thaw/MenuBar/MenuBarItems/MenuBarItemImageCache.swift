@@ -830,9 +830,6 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
     private func runLiveRefreshLoop() async {
         MenuBarItemImageCache.diagLog.debug("Live refresh loop started")
 
-        // Continuous hosting-window streaming was removed from Settings UI: a
-        // persistent SCStream keeps the screen-recording indicator lit and
-        // reflows the bar. Always use one-shot captures.
         while !Task.isCancelled {
             guard let appState = self.appState else { break }
             let interval = appState.settings.advanced.iconRefreshInterval

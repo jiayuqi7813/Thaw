@@ -11,7 +11,8 @@ import Cocoa
 // MARK: - OverflowFallbackIcon
 
 /// Interim fallback that renders menu bar items using their owning app's icon
-/// instead of the live screenshot crop when captured glyphs are unavailable.
+/// instead of the live screenshot crop when captured glyphs are unavailable or
+/// the user opts out of live previews.
 ///
 /// On macOS 27 native hiding / overflow often produces incomplete hosting-window
 /// crops. When the image cache clears those failed captures, this fallback keeps
@@ -32,15 +33,21 @@ enum OverflowFallbackIcon {
         return section != nil
     }
 
-    /// Whether items in `section` should fall back to the app icon when no
-    /// captured glyph exists.
+    /// Whether items in `section` should use the app icon instead of a captured
+    /// glyph.
     @MainActor
     static func shouldPreferAppIcon(
         for section: MenuBarSection.Name?,
-        appState _: AppState,
+        appState: AppState,
         cachedImage: NSImage?
     ) -> Bool {
         guard supportsMissingCaptureFallback(for: section) else { return false }
+        // User escape hatch: always render the owning app's icon instead of the
+        // live capture, regardless of whether a (possibly polluted) capture
+        // exists. Lets users sidestep macOS 27 native-overflow capture bleed.
+        if appState.settings.advanced.alwaysUseAppIconForMenuBarItems {
+            return true
+        }
         return cachedImage == nil
     }
 

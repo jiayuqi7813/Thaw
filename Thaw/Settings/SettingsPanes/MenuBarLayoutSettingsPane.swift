@@ -325,6 +325,14 @@ struct LayoutAdvancedControls: View {
                         )
 
                         if #available(macOS 27, *) {
+                            Toggle(
+                                "Use app icons instead of live previews",
+                                isOn: $settings.alwaysUseAppIconForMenuBarItems
+                            )
+                            .annotation(
+                                "Show each item's app icon in the Thaw Bar and layout editor instead of a live screenshot. Use this if macOS 27's native overflow control bleeds into the captured previews. The real menu bar is unaffected."
+                            )
+
                             LabeledContent("Reorder timeout") {
                                 IceSlider(value: $settings.menuBarOrderFulfillmentTimeout, in: 1 ... 15, step: 0.5) {
                                     SecondsLabel(value: settings.menuBarOrderFulfillmentTimeout)

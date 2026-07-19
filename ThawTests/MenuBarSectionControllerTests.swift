@@ -247,6 +247,36 @@ final class MenuBarSectionControllerTests: XCTestCase {
         )
     }
 
+    func testHidingUnsupportedVisibilityFailuresIncludesAbsentBundle() {
+        let failures = MenuBarSectionController.hidingUnsupportedVisibilityFailures(
+            items: [],
+            bundleIDs: ["com.example.denylisted"]
+        )
+
+        XCTAssertTrue(failures.invisibleItems.isEmpty)
+        XCTAssertEqual(failures.absentBundleIDs, ["com.example.denylisted"])
+    }
+
+    func testHidingUnsupportedVisibilityFailuresIgnoresVisibleBundle() {
+        let item = MenuBarItem(
+            tag: .appItem(bundleID: "com.example.denylisted", title: "Item"),
+            windowID: 40,
+            ownerPID: 100,
+            sourcePID: 100,
+            bounds: CGRect(x: 120, y: 0, width: 24, height: 22),
+            title: "Item",
+            isOnScreen: true
+        )
+
+        let failures = MenuBarSectionController.hidingUnsupportedVisibilityFailures(
+            items: [item],
+            bundleIDs: ["com.example.denylisted"]
+        )
+
+        XCTAssertTrue(failures.invisibleItems.isEmpty)
+        XCTAssertTrue(failures.absentBundleIDs.isEmpty)
+    }
+
     func testRecoverySnapshotUsesProvidedLiveItemsWithoutAXRefresh() {
         let controlled = MenuBarItem(
             tag: .appItem(bundleID: "com.test.hidden", title: "Hidden"),

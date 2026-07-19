@@ -314,16 +314,6 @@ public extension ScreenCapture {
     static func captureMenuBarHostingWindowAsync(
         displayID: CGDirectDisplayID
     ) async -> MenuBarHostingCapture? {
-        // Fast path: when the caller has opted into continuous capture and kept
-        // a warm hosting-window stream running, its most-recently delivered
-        // frame is the current truth (SCStream only emits on content change),
-        // so it can be returned without a fresh capture + GPU readback. Returns
-        // nil — falling through to the one-shot screenshot — whenever no stream
-        // is warm (the default) or none has delivered a first frame yet.
-        if let warm = await MenuBarHostingWindowStreamer.shared.warmCapture(displayID: displayID) {
-            return warm
-        }
-
         let content: SCShareableContent
         do {
             content = try await getShareableContent()

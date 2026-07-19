@@ -185,7 +185,7 @@ extension Defaults {
         static let enableExperimentalSystemItemHiding = false
         static let enableExperimentalWindowHiding = false
         static let enableExperimentalOverflowPrevention = false
-        static let useContinuousMenuBarCapture = false
+        static let alwaysUseAppIconForMenuBarItems = false
         static let menuBarOrderFulfillmentTimeout: TimeInterval = 3
 
         // MARK: Search
@@ -266,7 +266,7 @@ extension Defaults {
         case enableExperimentalSystemItemHiding = "EnableExperimentalSystemItemHiding"
         case enableExperimentalWindowHiding = "EnableExperimentalWindowHiding"
         case enableExperimentalOverflowPrevention = "EnableExperimentalOverflowPrevention"
-        case useContinuousMenuBarCapture = "UseContinuousMenuBarCapture"
+        case alwaysUseAppIconForMenuBarItems = "AlwaysUseAppIconForMenuBarItems"
         case menuBarOrderFulfillmentTimeout = "MenuBarOrderFulfillmentTimeout"
         case diagnosticAssessmentModeSceneProbes = "Thaw.diagnosticAssessmentModeSceneProbes"
         case diagnosticAssessmentModeProbeHiddenTriggerPress = "Thaw.diagnosticAssessmentModeProbeHiddenTriggerPress"

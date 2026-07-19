@@ -49,7 +49,8 @@ nonisolated struct SearchEntry: Identifiable, @unchecked Sendable {
 
     var disclosure: AppNavigationState.SettingsDisclosure? {
         switch id {
-        case "advanced.enableMenuBarItemOverflow",
+        case "advanced.alwaysUseAppIconForMenuBarItems",
+             "advanced.enableMenuBarItemOverflow",
              "advanced.menuBarOrderFulfillmentTimeout",
              "advanced.useLCSSortingOnNotchedDisplays":
             .advancedLayoutControls
@@ -78,6 +79,17 @@ nonisolated enum SearchIndex {
             sectionText: nil,
             keywords: ["system items", "clock", "control center", "siri", "hide", "macOS"],
             property: .advanced("enableExperimentalSystemItemHiding")
+        ),
+        SearchEntry(
+            id: "advanced.alwaysUseAppIconForMenuBarItems",
+            titleKey: "Use app icons instead of live previews",
+            titleText: "Use app icons instead of live previews",
+            descriptionText: "Show each item's app icon in the Thaw Bar and layout editor instead of a live screenshot.",
+            pane: .menuBarLayout,
+            sectionKey: "Advanced layout controls",
+            sectionText: "Advanced layout controls",
+            keywords: ["app icon", "live preview", "screenshot", "capture", "overflow", "notch"],
+            property: .advanced("alwaysUseAppIconForMenuBarItems")
         ),
         SearchEntry(
             id: "advanced.menuBarOrderFulfillmentTimeout",
@@ -115,13 +127,11 @@ nonisolated enum SearchIndex {
         // URI/Defaults-only experimental toggle with no Settings UI; excluded
         // on every OS version rather than only on macOS <27.
         .advanced("enableExperimentalOverflowPrevention"),
-        // Continuous hosting-window stream — removed from Settings UI (screen
-        // recording indicator / menu bar reflow); Defaults key retained for reset.
-        .advanced("useContinuousMenuBarCapture"),
     ]
 
     /// Advanced settings that only participate in search on macOS 27.
     private static let macOS27AdvancedNonSearchableProperties: Set<SettingsProperty> = [
+        .advanced("alwaysUseAppIconForMenuBarItems"),
         .advanced("enableExperimentalWindowHiding"),
         .advanced("enableExperimentalSystemItemHiding"),
         .advanced("menuBarOrderFulfillmentTimeout"),

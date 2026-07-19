@@ -8,11 +8,13 @@
 
 import AppKit
 @testable import ThawCapture
-import XCTest
+import Testing
 
-final class ThawCaptureTests: XCTestCase {
-    func testScreenCapturePermissionChecksAllEligibleWindows() {
-        XCTAssertTrue(
+@Suite("Thaw capture")
+struct ThawCaptureTests {
+    @Test
+    func screenCapturePermissionChecksAllEligibleWindows() {
+        #expect(
             ScreenCapture.permissionGranted(
                 windowTitles: [nil, "Clock"],
                 preflightResult: false
@@ -20,8 +22,9 @@ final class ThawCaptureTests: XCTestCase {
         )
     }
 
-    func testScreenCapturePermissionUsesPreflightFallback() {
-        XCTAssertTrue(
+    @Test
+    func screenCapturePermissionUsesPreflightFallback() {
+        #expect(
             ScreenCapture.permissionGranted(
                 windowTitles: [nil],
                 preflightResult: true
@@ -29,16 +32,18 @@ final class ThawCaptureTests: XCTestCase {
         )
     }
 
-    func testScreenCapturePermissionRejectsUntitledWindowsWithoutPreflight() {
-        XCTAssertFalse(
-            ScreenCapture.permissionGranted(
+    @Test
+    func screenCapturePermissionRejectsUntitledWindowsWithoutPreflight() {
+        #expect(
+            !ScreenCapture.permissionGranted(
                 windowTitles: [nil, nil],
                 preflightResult: false
             )
         )
     }
 
-    func testScreenCapturePermissionPromptTemporarilyUsesRegularActivationPolicy() {
+    @Test
+    func screenCapturePermissionPromptTemporarilyUsesRegularActivationPolicy() {
         var appliedPolicies = [NSApplication.ActivationPolicy]()
         var didActivate = false
         let restore = ScreenCapture.restoreActivationPolicyAfterScreenCapturePrompt(
@@ -49,13 +54,14 @@ final class ThawCaptureTests: XCTestCase {
             },
             activate: { didActivate = true }
         )
-        XCTAssertEqual(appliedPolicies, [.regular])
-        XCTAssertTrue(didActivate)
+        #expect(appliedPolicies == [.regular])
+        #expect(didActivate)
         restore?()
-        XCTAssertEqual(appliedPolicies, [.regular, .accessory])
+        #expect(appliedPolicies == [.regular, .accessory])
     }
 
-    func testScreenCapturePermissionPromptDoesNotRestoreAlreadyRegularApp() {
+    @Test
+    func screenCapturePermissionPromptDoesNotRestoreAlreadyRegularApp() {
         var appliedPolicies = [NSApplication.ActivationPolicy]()
         var didActivate = false
         let restore = ScreenCapture.restoreActivationPolicyAfterScreenCapturePrompt(
@@ -66,83 +72,22 @@ final class ThawCaptureTests: XCTestCase {
             },
             activate: { didActivate = true }
         )
-        XCTAssertTrue(appliedPolicies.isEmpty)
-        XCTAssertTrue(didActivate)
-        XCTAssertNil(restore)
+        #expect(appliedPolicies.isEmpty)
+        #expect(didActivate)
+        #expect(restore == nil)
     }
 
-    func testProbeLoggingDefaultsToDisabled() {
-        XCTAssertFalse(ScreenCapture.isProbeLoggingEnabled())
+    @Test
+    func probeLoggingDefaultsToDisabled() {
+        #expect(!ScreenCapture.isProbeLoggingEnabled())
     }
 
+    @Test
     @available(macOS 27, *)
-    func testHostingStreamRebindsWithoutAStream() {
-        XCTAssertTrue(shouldRebind(hasStream: false))
-    }
-
-    @available(macOS 27, *)
-    func testHostingStreamRebindsForADifferentDisplay() {
-        XCTAssertTrue(shouldRebind(boundDisplayID: 2))
-    }
-
-    @available(macOS 27, *)
-    func testHostingStreamRebindsWhenSinkStopped() {
-        XCTAssertTrue(shouldRebind(sinkStopped: true))
-    }
-
-    @available(macOS 27, *)
-    func testHostingStreamRebindsAfterResolveInterval() {
-        XCTAssertTrue(shouldRebind(timeSinceLastResolve: 1.1))
-    }
-
-    @available(macOS 27, *)
-    func testHostingStreamKeepsHealthyCurrentBinding() {
-        XCTAssertFalse(shouldRebind())
-    }
-
-    @available(macOS 27, *)
-    func testHostingStreamUsesLowFrameRateAndAmortizedResolution() {
-        XCTAssertEqual(MenuBarHostingWindowStreamer.targetFrameRate, 8)
-        XCTAssertEqual(MenuBarHostingWindowStreamer.defaultReresolveInterval, 5)
-    }
-
-    @available(macOS 27, *)
-    func testReleasingOldLeaseDoesNotDeactivateNewConsumer() async {
-        let streamer = MenuBarHostingWindowStreamer()
-        let oldLease = await streamer.begin()
-        let newLease = await streamer.begin()
-
-        await streamer.end(oldLease)
-        let countAfterOldConsumerEnds = await streamer.activeLeaseCount
-        XCTAssertEqual(countAfterOldConsumerEnds, 1)
-
-        await streamer.end(newLease)
-        let finalCount = await streamer.activeLeaseCount
-        XCTAssertEqual(finalCount, 0)
-    }
-
-    @available(macOS 27, *)
-    private func shouldRebind(
-        hasStream: Bool = true,
-        boundDisplayID: CGDirectDisplayID? = 1,
-        sinkStopped: Bool = false,
-        timeSinceLastResolve: TimeInterval = 0.9
-    ) -> Bool {
-        MenuBarHostingWindowStreamer.shouldRebind(
-            hasStream: hasStream,
-            boundDisplayID: boundDisplayID,
-            requestedDisplayID: 1,
-            sinkStopped: sinkStopped,
-            timeSinceLastResolve: timeSinceLastResolve,
-            reresolveInterval: 1
-        )
-    }
-
-    @available(macOS 27, *)
-    func testPixelBackedWindowFrameDoesNotDoubleScaleCaptureSize() {
+    func pixelBackedWindowFrameDoesNotDoubleScaleCaptureSize() {
         let displayFrame = CGRect(x: 0, y: 0, width: 1512, height: 982)
         let pixelWindowFrame = CGRect(x: 0, y: 0, width: 3024, height: 74)
-        XCTAssertTrue(
+        #expect(
             ScreenCapture.windowFrameAppearsPixelBacked(pixelWindowFrame, displayFrame: displayFrame)
         )
         let size = ScreenCapture.hostingCapturePixelSize(
@@ -150,33 +95,35 @@ final class ThawCaptureTests: XCTestCase {
             displayFrame: displayFrame,
             reportedScale: 2
         )
-        XCTAssertEqual(size.width, 3024)
-        XCTAssertEqual(size.height, 74)
+        #expect(size.width == 3024)
+        #expect(size.height == 74)
     }
 
+    @Test
     @available(macOS 27, *)
-    func testPointSpaceWindowFrameMultipliesByReportedScale() {
+    func pointSpaceWindowFrameMultipliesByReportedScale() {
         let displayFrame = CGRect(x: 0, y: 0, width: 1512, height: 982)
         let pointWindowFrame = CGRect(x: 0, y: 0, width: 1512, height: 37)
-        XCTAssertFalse(
-            ScreenCapture.windowFrameAppearsPixelBacked(pointWindowFrame, displayFrame: displayFrame)
+        #expect(
+            !ScreenCapture.windowFrameAppearsPixelBacked(pointWindowFrame, displayFrame: displayFrame)
         )
         let size = ScreenCapture.hostingCapturePixelSize(
             windowFrame: pointWindowFrame,
             displayFrame: displayFrame,
             reportedScale: 2
         )
-        XCTAssertEqual(size.width, 3024)
-        XCTAssertEqual(size.height, 74)
+        #expect(size.width == 3024)
+        #expect(size.height == 74)
     }
 
+    @Test
     @available(macOS 27, *)
-    func testNormalizedHostingCaptureRewritesPixelBackedFrameToPoints() throws {
+    func normalizedHostingCaptureRewritesPixelBackedFrameToPoints() throws {
         let displayFrame = CGRect(x: 0, y: 0, width: 1512, height: 982)
         let pixelWindowFrame = CGRect(x: 0, y: 0, width: 3024, height: 74)
-        let image = try XCTUnwrap(makeTestImage(width: 3024, height: 74))
+        let image = try #require(makeTestImage(width: 3024, height: 74))
 
-        let normalized = try XCTUnwrap(
+        let normalized = try #require(
             ScreenCapture.normalizedHostingCapture(
                 image: image,
                 windowFrame: pixelWindowFrame,
@@ -184,19 +131,20 @@ final class ThawCaptureTests: XCTestCase {
                 reportedScale: 2
             )
         )
-        XCTAssertEqual(normalized.scale, 2, accuracy: 0.001)
-        XCTAssertEqual(normalized.windowFrame.width, 1512, accuracy: 0.001)
-        XCTAssertEqual(normalized.windowFrame.height, 37, accuracy: 0.001)
-        XCTAssertEqual(normalized.windowFrame.origin, displayFrame.origin)
+        #expect(abs(normalized.scale - 2) < 0.001)
+        #expect(abs(normalized.windowFrame.width - 1512) < 0.001)
+        #expect(abs(normalized.windowFrame.height - 37) < 0.001)
+        #expect(normalized.windowFrame.origin == displayFrame.origin)
     }
 
+    @Test
     @available(macOS 27, *)
-    func testNormalizedHostingCaptureDerivesScaleFromBitmapForPointFrames() throws {
+    func normalizedHostingCaptureDerivesScaleFromBitmapForPointFrames() throws {
         let displayFrame = CGRect(x: 0, y: 0, width: 1512, height: 982)
         let pointWindowFrame = CGRect(x: 0, y: 0, width: 1512, height: 37)
-        let image = try XCTUnwrap(makeTestImage(width: 3024, height: 74))
+        let image = try #require(makeTestImage(width: 3024, height: 74))
 
-        let normalized = try XCTUnwrap(
+        let normalized = try #require(
             ScreenCapture.normalizedHostingCapture(
                 image: image,
                 windowFrame: pointWindowFrame,
@@ -204,47 +152,50 @@ final class ThawCaptureTests: XCTestCase {
                 reportedScale: 1 // deliberately wrong — bitmap says 2×
             )
         )
-        XCTAssertEqual(normalized.scale, 2, accuracy: 0.001)
-        XCTAssertEqual(normalized.windowFrame, pointWindowFrame)
+        #expect(abs(normalized.scale - 2) < 0.001)
+        #expect(normalized.windowFrame == pointWindowFrame)
     }
 
+    @Test
     @available(macOS 27, *)
-    func testWindowMatchesMenuBarStripGeometryAcceptsPointAndPixelFrames() {
+    func windowMatchesMenuBarStripGeometryAcceptsPointAndPixelFrames() {
         let displayFrame = CGRect(x: 0, y: 0, width: 1512, height: 982)
-        XCTAssertTrue(
+        #expect(
             ScreenCapture.windowMatchesMenuBarStripGeometry(
                 CGRect(x: 0, y: 0, width: 1512, height: 37),
                 displayFrame: displayFrame
             )
         )
-        XCTAssertTrue(
+        #expect(
             ScreenCapture.windowMatchesMenuBarStripGeometry(
                 CGRect(x: 0, y: 0, width: 3024, height: 74),
                 displayFrame: displayFrame
             )
         )
-        XCTAssertFalse(
-            ScreenCapture.windowMatchesMenuBarStripGeometry(
+        #expect(
+            !ScreenCapture.windowMatchesMenuBarStripGeometry(
                 CGRect(x: 0, y: 0, width: 200, height: 24),
                 displayFrame: displayFrame
             )
         )
     }
 
+    @Test
     @available(macOS 27, *)
-    func testMenuBarDisplayStripFramePinsToDisplayTop() {
+    func menuBarDisplayStripFramePinsToDisplayTop() {
         let displayFrame = CGRect(x: 100, y: 50, width: 1512, height: 982)
         let strip = ScreenCapture.menuBarDisplayStripFrame(displayFrame: displayFrame, height: 40)
-        XCTAssertEqual(strip.origin, displayFrame.origin)
-        XCTAssertEqual(strip.width, displayFrame.width)
-        XCTAssertEqual(strip.height, 40)
+        #expect(strip.origin == displayFrame.origin)
+        #expect(strip.width == displayFrame.width)
+        #expect(strip.height == 40)
     }
 
+    @Test
     @available(macOS 27, *)
-    func testMenuBarDisplayStripFrameClampsToDisplayHeight() {
+    func menuBarDisplayStripFrameClampsToDisplayHeight() {
         let displayFrame = CGRect(x: 0, y: 0, width: 800, height: 24)
         let strip = ScreenCapture.menuBarDisplayStripFrame(displayFrame: displayFrame, height: 40)
-        XCTAssertEqual(strip.height, 24)
+        #expect(strip.height == 24)
     }
 
     private func makeTestImage(width: Int, height: Int) -> CGImage? {

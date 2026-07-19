@@ -147,6 +147,20 @@ final class LayoutBarItemView: LayoutBarArrangedView {
                 }
                 .store(in: &c)
 
+            appState.settings.advanced.$alwaysUseAppIconForMenuBarItems
+                .removeDuplicates()
+                .sink { [weak self] _ in
+                    guard let self else { return }
+                    let oldSize = frame.size
+                    let newSize = preferredSizeForCurrentDisplayMode(cachedImage)
+                    setFrameSize(newSize)
+                    if oldSize != newSize {
+                        (superview as? LayoutBarContainer)?.itemPreferredSizeDidChange(self)
+                    }
+                    needsDisplay = true
+                }
+                .store(in: &c)
+
             if item.tag.matchesVisibleControlItem,
                let controlItem = appState.menuBarManager.section(withName: .visible)?.controlItem
             {

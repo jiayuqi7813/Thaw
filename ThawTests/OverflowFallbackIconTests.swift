@@ -28,7 +28,17 @@ final class OverflowFallbackIconTests: XCTestCase {
             throw XCTSkip("App-icon fallback is macOS 27-specific")
         }
 
+        let originalValue = Defaults.object(forKey: .alwaysUseAppIconForMenuBarItems)
+        defer {
+            if let originalValue {
+                Defaults.set(originalValue, forKey: .alwaysUseAppIconForMenuBarItems)
+            } else {
+                Defaults.removeObject(forKey: .alwaysUseAppIconForMenuBarItems)
+            }
+        }
+
         let appState = AppState()
+        appState.settings.advanced.alwaysUseAppIconForMenuBarItems = false
 
         XCTAssertTrue(
             OverflowFallbackIcon.shouldPreferAppIcon(
@@ -47,6 +57,39 @@ final class OverflowFallbackIconTests: XCTestCase {
         XCTAssertFalse(
             OverflowFallbackIcon.shouldPreferAppIcon(
                 for: .alwaysHidden,
+                appState: appState,
+                cachedImage: NSImage(size: NSSize(width: 16, height: 16))
+            )
+        )
+    }
+
+    func testShouldPreferAppIconWithCachedCaptureWhenOverrideEnabled() throws {
+        guard #available(macOS 27, *) else {
+            throw XCTSkip("App-icon fallback is macOS 27-specific")
+        }
+
+        let originalValue = Defaults.object(forKey: .alwaysUseAppIconForMenuBarItems)
+        defer {
+            if let originalValue {
+                Defaults.set(originalValue, forKey: .alwaysUseAppIconForMenuBarItems)
+            } else {
+                Defaults.removeObject(forKey: .alwaysUseAppIconForMenuBarItems)
+            }
+        }
+
+        let appState = AppState()
+        appState.settings.advanced.alwaysUseAppIconForMenuBarItems = true
+
+        XCTAssertTrue(
+            OverflowFallbackIcon.shouldPreferAppIcon(
+                for: .visible,
+                appState: appState,
+                cachedImage: NSImage(size: NSSize(width: 16, height: 16))
+            )
+        )
+        XCTAssertFalse(
+            OverflowFallbackIcon.shouldPreferAppIcon(
+                for: nil,
                 appState: appState,
                 cachedImage: NSImage(size: NSSize(width: 16, height: 16))
             )

@@ -352,11 +352,23 @@ nonisolated enum MenuBarItemAXProvider {
         // Sort by x so instance indices are positional and stable.
         let sorted = raw.sorted { $0.bounds.minX < $1.bounds.minX }
 
+        // macOS 27 vends third-party status items twice in the AX tree — once
+        // from the owning app's own `AXExtrasMenuBar` and again from
+        // MenuBarAgent's. The two copies share the same on-screen position but
+        // land under different namespaces (`.string(bundleID)` vs
+        // `.menuBarAgent`), so without deduping they receive different instance
+        // indices → different tags → different synthetic window IDs, and render
+        // as two tiles. Drop the MenuBarAgent re-vend whenever a direct-app
+        // entry occupies the same position; MenuBarAgent-only items (Clock,
+        // Control Center, and Thaw's own control items arrive under their real
+        // namespaces) have no direct twin and are preserved.
+        let deduped = dropDuplicateMenuBarAgentRevends(sorted)
+
         var indexByKey: [String: Int] = [:]
         var items: [MenuBarItem] = []
-        items.reserveCapacity(sorted.count)
+        items.reserveCapacity(deduped.count)
 
-        for entry in sorted {
+        for entry in deduped {
             if MenuBarItemTag(namespace: entry.namespace, title: entry.identityTitle).isNativeOverflowPlaceholder ||
                 MenuBarItemTag(namespace: entry.namespace, title: entry.displayTitle).isNativeOverflowPlaceholder
             {
@@ -454,6 +466,44 @@ nonisolated enum MenuBarItemAXProvider {
 
     private static func namespace(for app: NSRunningApplication) -> MenuBarItemTag.Namespace {
         namespace(forBundleIdentifier: app.bundleIdentifier, localizedName: app.localizedName)
+    }
+
+    /// Positional tolerance (points) within which two AX entries are treated as
+    /// the same physical status item vended under two owners. Both coordinates
+    /// participate so equal horizontal positions on stacked displays remain
+    /// distinct.
+    static let duplicateRevendPositionTolerance: CGFloat = 1
+
+    /// Removes MenuBarAgent re-vends of items that are also published directly by
+    /// their owning app.
+    ///
+    /// On macOS 27 a third-party status item appears both in its own app's
+    /// `AXExtrasMenuBar` and again in MenuBarAgent's. Keyed by namespace, those
+    /// become two independent items. This keeps the direct-app copy (accurate
+    /// owner/namespace for persistence and section assignment) and drops the
+    /// MenuBarAgent copy whenever the two occupy the same on-screen position.
+    /// MenuBarAgent-only entries (no direct twin) are preserved unchanged.
+    ///
+    /// `sorted` must be ordered by `bounds.minX`.
+    static func dropDuplicateMenuBarAgentRevends(_ sorted: [RawItem]) -> [RawItem] {
+        let directOrigins = sorted
+            .filter { $0.namespace != .menuBarAgent }
+            .map { CGPoint(x: $0.bounds.minX, y: $0.bounds.minY) }
+        guard !directOrigins.isEmpty else { return sorted }
+
+        return sorted.filter { entry in
+            guard entry.namespace == .menuBarAgent else { return true }
+            let hasDirectTwin = directOrigins.contains {
+                abs($0.x - entry.bounds.minX) <= duplicateRevendPositionTolerance &&
+                    abs($0.y - entry.bounds.minY) <= duplicateRevendPositionTolerance
+            }
+            if hasDirectTwin {
+                diagLog.debug(
+                    "assemble: dropping MenuBarAgent re-vend title='\(entry.identityTitle)' at minX=\(entry.bounds.minX)"
+                )
+            }
+            return !hasDirectTwin
+        }
     }
 
     /// Produces a deterministic window identifier for an AX item.

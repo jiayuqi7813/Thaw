@@ -1991,9 +1991,16 @@ final class MenuBarSectionController: ObservableObject {
             // Post-assertion safety net: verify denylisted hiding-unsupported
             // items are still visible after the restriction reflow. Runs async
             // so the main thread isn't blocked by a fresh AX walk on every refresh.
-            Task { @MainActor [weak self] in
+            let expectedUnsupportedBundleIDs = Set(
+                allItems.compactMap { item in
+                    item.tag.isHidingUnsupported ? item.tag.namespace.description : nil
+                }
+            )
+            Task { @MainActor [weak self, expectedUnsupportedBundleIDs] in
                 try? await Task.sleep(for: .milliseconds(200))
-                self?.verifyHidingUnsupportedItemsVisiblePostAssertion()
+                self?.verifyHidingUnsupportedItemsVisiblePostAssertion(
+                    expectedBundleIDs: expectedUnsupportedBundleIDs
+                )
             }
         }
     }
@@ -2002,43 +2009,50 @@ final class MenuBarSectionController: ObservableObject {
     /// restriction if any denylisted hiding-unsupported item has become
     /// invisible. Uses a fresh AX snapshot — the pre-assertion `allItems`
     /// cache has stale `isOnScreen` values.
-    private func verifyHidingUnsupportedItemsVisiblePostAssertion() {
+    struct HidingUnsupportedVisibilityFailures {
+        let invisibleItems: [MenuBarItem]
+        let absentBundleIDs: Set<String>
+
+        var isEmpty: Bool {
+            invisibleItems.isEmpty && absentBundleIDs.isEmpty
+        }
+    }
+
+    static func hidingUnsupportedVisibilityFailures(
+        items: [MenuBarItem],
+        bundleIDs: Set<String>
+    ) -> HidingUnsupportedVisibilityFailures {
+        let unsupportedItems = items.filter { item in
+            bundleIDs.contains(item.tag.namespace.description)
+        }
+        let presentBundleIDs = Set(unsupportedItems.map { $0.tag.namespace.description })
+        return HidingUnsupportedVisibilityFailures(
+            invisibleItems: unsupportedItems.filter { !$0.isOnScreen },
+            absentBundleIDs: bundleIDs.subtracting(presentBundleIDs)
+        )
+    }
+
+    private func verifyHidingUnsupportedItemsVisiblePostAssertion(expectedBundleIDs: Set<String>) {
         guard #available(macOS 27, *),
               RuntimeSessionController.isAvailable,
-              !MenuBarItemTag.hidingUnsupportedBundleIDs.isEmpty
+              !expectedBundleIDs.isEmpty
         else { return }
 
         let freshItems = MenuBarItemAXProvider.menuBarItems(option: [])
+        let failures = Self.hidingUnsupportedVisibilityFailures(
+            items: freshItems,
+            bundleIDs: expectedBundleIDs
+        )
+        guard !failures.isEmpty else { return }
 
-        let unsupportedItems = freshItems.filter { item in
-            item.tag.isHidingUnsupported
-        }
-
-        let invisible = unsupportedItems.filter { !$0.isOnScreen }
-        guard !invisible.isEmpty else { return }
-
-        // Also check against the known bundle IDs: are any denylisted
-        // hiding-unsupported bundles absent from the fresh enumeration entirely?
-        // The assertion can remove items from AX visibility, so a bundle with
-        // zero visible items in the fresh snapshot is also a signal.
-        let unsupportedBundleIDs = MenuBarItemTag.hidingUnsupportedBundleIDs
-        let visibleBundleIDs = Set(freshItems.compactMap { item in
-            MenuBarItemTag.hidingUnsupportedBundleIDs.contains(where: {
-                item.tag.namespace.description == $0
-            }) ? item.tag.namespace.description : nil
-        })
-        let fullyAbsent = unsupportedBundleIDs.subtracting(visibleBundleIDs)
-
-        if !invisible.isEmpty || !fullyAbsent.isEmpty {
-            diagLog.error(
-                "Post-assertion guard: \(invisible.count) denylisted hiding-unsupported item(s) " +
-                    "invisible, \(fullyAbsent.count) bundle(s) absent — " +
-                    "tearing down restriction. Invisible: " +
-                    invisible.map { "\($0.uniqueIdentifier) onScreen=\($0.isOnScreen)" }.joined(separator: ", ") +
-                    ". Absent: \(fullyAbsent.sorted().joined(separator: ", "))"
-            )
-            resetBackendRestriction()
-        }
+        diagLog.error(
+            "Post-assertion guard: \(failures.invisibleItems.count) denylisted hiding-unsupported item(s) " +
+                "invisible, \(failures.absentBundleIDs.count) bundle(s) absent — " +
+                "tearing down restriction. Invisible: " +
+                failures.invisibleItems.map { "\($0.uniqueIdentifier) onScreen=\($0.isOnScreen)" }.joined(separator: ", ") +
+                ". Absent: \(failures.absentBundleIDs.sorted().joined(separator: ", "))"
+        )
+        resetBackendRestriction()
     }
 
     private func resetBackendRestriction() {

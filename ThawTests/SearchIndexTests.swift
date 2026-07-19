@@ -50,6 +50,7 @@ final class SearchIndexTests: XCTestCase {
     func testMacOS27ExperimentalEntriesFollowAvailability() {
         let ids = Set(SearchIndex.entries.map(\.id))
         let macOS27ExperimentalIDs = [
+            "advanced.alwaysUseAppIconForMenuBarItems",
             "advanced.enableExperimentalSystemItemHiding",
         ]
 
@@ -71,16 +72,6 @@ final class SearchIndexTests: XCTestCase {
         XCTAssertFalse(ids.contains("advanced.enableExperimentalOverflowPrevention"))
     }
 
-    /// Live icon capture was removed from Settings UI; keep the Defaults key
-    /// for reset compatibility but never expose it in search.
-    func testLiveCaptureHasNoSearchEntryOnAnyOS() {
-        let ids = Set(SearchIndex.entries.map(\.id))
-        XCTAssertFalse(ids.contains("advanced.useContinuousMenuBarCapture"))
-        XCTAssertTrue(
-            SearchIndex.nonSearchableProperties.contains(.advanced("useContinuousMenuBarCapture"))
-        )
-    }
-
     func testIconRefreshRateRoutesToLayoutWithoutDisclosure() throws {
         let refreshRate = try XCTUnwrap(SearchIndex.entries.first { $0.id == "advanced.iconRefreshInterval" })
 
@@ -99,7 +90,10 @@ final class SearchIndexTests: XCTestCase {
         XCTAssertEqual(lcsSorting.disclosure, .advancedLayoutControls)
 
         if #available(macOS 27, *) {
+            let appIcons = try XCTUnwrap(SearchIndex.entries.first { $0.id == "advanced.alwaysUseAppIconForMenuBarItems" })
             let timeout = try XCTUnwrap(SearchIndex.entries.first { $0.id == "advanced.menuBarOrderFulfillmentTimeout" })
+            XCTAssertEqual(appIcons.titleText, "Use app icons instead of live previews")
+            XCTAssertEqual(appIcons.disclosure, .advancedLayoutControls)
             XCTAssertEqual(timeout.titleText, "Reorder timeout")
             XCTAssertEqual(timeout.disclosure, .advancedLayoutControls)
         }

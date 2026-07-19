@@ -159,6 +159,22 @@ final class MenuBarItemManager: ObservableObject {
     /// so the cooldown only ever bites during a thrash.
     private static let visibleControlRestoreCooldown: Duration = .seconds(30)
 
+    /// Nominal width used for the macOS 27 overflow budget when an item's AX
+    /// bounds have collapsed to an untrusted sliver (see `minimumTrustedGlyphWidth`).
+    /// Matches the standard status-item footprint so the budget approximates the
+    /// real rendered width rather than the collapsed measurement.
+    static nonisolated let nominalStatusItemWidth: CGFloat = 24
+
+    /// Width to charge a non-control item against the macOS 27 overflow budget.
+    ///
+    /// macOS 27 collapses hidden/overflowed item AX bounds to a sliver, so the
+    /// measured width understates the real footprint and deflates the budget's
+    /// profile baseline. Below the trust threshold the item is charged a nominal
+    /// status-item width instead; otherwise the measured width is used as-is.
+    static nonisolated func budgetWidth(forMeasuredWidth measured: CGFloat) -> CGFloat {
+        measured < MenuBarItemImageCache.minimumTrustedGlyphWidth ? nominalStatusItemWidth : measured
+    }
+
     /// Builds the backoff key for a planned macOS 27 section-order move.
     ///
     /// Uses `uniqueIdentifier` rather than `logString` for both items: the
@@ -6923,20 +6939,34 @@ extension MenuBarItemManager {
             .map(\.uniqueIdentifier)
             .filter { !savedVisible.contains(MenuBarItemTag.canonicalPersistentIdentifier($0)) }
 
+        // macOS 27 collapses hidden/overflowed item AX bounds to a sliver
+        // (~2pt), so trusting `bounds.width` verbatim deflates the budget's
+        // profile baseline and the planner wrongly concludes everything fits —
+        // leaving the native overflow control visible. Floor any implausibly
+        // narrow non-control item to a nominal status-item width so the budget
+        // reflects the real rendered bar. Control items keep their true (thin)
+        // width; `visibleLive` never contains control items.
         var uidWidths = [String: CGFloat]()
+        var collapsedWidthCount = 0
         for item in visibleLive {
-            uidWidths[item.uniqueIdentifier] = item.bounds.width
+            let measured = item.bounds.width
+            if measured < MenuBarItemImageCache.minimumTrustedGlyphWidth {
+                collapsedWidthCount += 1
+            }
+            uidWidths[item.uniqueIdentifier] = Self.budgetWidth(forMeasuredWidth: measured)
         }
         if let visibleCtrl {
             uidWidths[visibleCtrl.uniqueIdentifier] = visibleCtrl.bounds.width
         }
+        let trailingLaneItemWidth = uidWidths.values.reduce(0, +)
 
         MenuBarItemManager.diagLog.debug(
             """
             macOS 27 overflow budget: display=\(screen.displayID) \
             trailingBoundary=\(String(describing: capacity.trailingBoundary)) \
             availableWidth=\(String(describing: availableWidth)) \
-            visibleCount=\(visibleLive.count) unmanagedCount=\(unmanagedUIDs.count)
+            visibleCount=\(visibleLive.count) unmanagedCount=\(unmanagedUIDs.count) \
+            trailingLaneItemWidth=\(trailingLaneItemWidth) collapsedWidthCount=\(collapsedWidthCount)
             """
         )
 
@@ -6946,13 +6976,27 @@ extension MenuBarItemManager {
             return false
         }
 
+        // Ground-truth safety net: if the system's own overflow control is
+        // active, the bar is overflowing even when the modeled budget still
+        // shows headroom. Trim the effective budget by the observed control
+        // width (plus one nominal item) so the planner ejects the leftmost
+        // item(s); the debounced probe re-measures each cycle and converges as
+        // the bar shrinks. Kept modest to avoid Visible↔Hidden ping-ponging.
+        var effectiveAvailableWidth = availableWidth
+        if controller.isNativeOverflowActive(on: screen.displayID) {
+            let controlWidth = controller.nativeOverflowControlBounds(on: screen.displayID)
+                .map(\.width).max() ?? 0
+            let deficit = controlWidth + Self.nominalStatusItemWidth
+            effectiveAvailableWidth = max(1, availableWidth - deficit)
+        }
+
         let overflowResult = LayoutSolver.planNotchOverflow(
             desiredFiltered: desiredFiltered,
             unmanagedUIDs: unmanagedUIDs,
             controlUIDs: controlUIDs,
             sectionMap: sectionMap,
             uidWidths: uidWidths,
-            availableWidth: availableWidth
+            availableWidth: effectiveAvailableWidth
         )
 
         lastMacOS27OverflowRebalance = Date()

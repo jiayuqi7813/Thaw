@@ -86,6 +86,74 @@ final class MenuBarItemAXProviderTests: XCTestCase {
         XCTAssertEqual(items.first?.title, "Item-0")
     }
 
+    func testAssembleDropsMenuBarAgentRevendAtSamePosition() {
+        // macOS 27 vends the same physical item twice: once under the app and
+        // once under MenuBarAgent, at the same on-screen position.
+        let raw = [
+            rawItem(bundleID: "com.example.app", title: "Metric", x: 200),
+            rawItem(namespace: .menuBarAgent, title: "Metric", x: 200),
+        ]
+
+        let items = MenuBarItemAXProvider.assemble(raw)
+
+        XCTAssertEqual(items.count, 1)
+        XCTAssertEqual(items.first?.tag.namespace, .string("com.example.app"))
+    }
+
+    func testAssembleKeepsMenuBarAgentOnlyItem() {
+        // A genuine system item vended only by MenuBarAgent (no direct-app
+        // twin) must survive the dedup.
+        let raw = [
+            rawItem(bundleID: "com.example.app", title: "Metric", x: 200),
+            rawItem(namespace: .menuBarAgent, title: "Clock", x: 500),
+        ]
+
+        let items = MenuBarItemAXProvider.assemble(raw)
+
+        XCTAssertEqual(items.count, 2)
+        XCTAssertTrue(items.contains { $0.title == "Clock" })
+        XCTAssertTrue(items.contains { $0.title == "Metric" })
+    }
+
+    func testAssembleKeepsDistinctItemsAtDifferentPositions() {
+        // A MenuBarAgent entry at a different position from the direct-app
+        // entry is a distinct item and must be preserved.
+        let raw = [
+            rawItem(bundleID: "com.example.app", title: "Metric", x: 200),
+            rawItem(namespace: .menuBarAgent, title: "Metric", x: 260),
+        ]
+
+        let items = MenuBarItemAXProvider.assemble(raw)
+
+        XCTAssertEqual(items.count, 2)
+    }
+
+    func testDropDuplicateMenuBarAgentRevendsWithinTolerance() {
+        // Sub-point positional jitter between the two vends still dedups.
+        let raw = [
+            rawItem(bundleID: "com.example.app", title: "Metric", x: 200),
+            rawItem(namespace: .menuBarAgent, title: "Metric", x: 200.5),
+        ].sorted { $0.bounds.minX < $1.bounds.minX }
+
+        let deduped = MenuBarItemAXProvider.dropDuplicateMenuBarAgentRevends(raw)
+
+        XCTAssertEqual(deduped.count, 1)
+        XCTAssertEqual(deduped.first?.namespace, .string("com.example.app"))
+    }
+
+    func testAssembleKeepsItemsAtSameHorizontalPositionOnStackedDisplays() {
+        let raw = [
+            rawItem(bundleID: "com.example.app", title: "Metric", x: 200, y: 0),
+            rawItem(namespace: .menuBarAgent, title: "Clock", x: 200, y: 1080),
+        ]
+
+        let items = MenuBarItemAXProvider.assemble(raw)
+
+        XCTAssertEqual(items.count, 2)
+        XCTAssertTrue(items.contains { $0.title == "Metric" })
+        XCTAssertTrue(items.contains { $0.title == "Clock" })
+    }
+
     func testFrameIsWithinDisplayWhenMidpointFallsInsideBounds() {
         let displayBounds = CGRect(x: 0, y: 0, width: 1920, height: 1080)
 
@@ -123,21 +191,23 @@ final class MenuBarItemAXProviderTests: XCTestCase {
     private func rawItem(
         bundleID: String,
         title: String,
-        x: CGFloat
+        x: CGFloat,
+        y: CGFloat = 0
     ) -> MenuBarItemAXProvider.RawItem {
-        rawItem(namespace: .string(bundleID), title: title, x: x)
+        rawItem(namespace: .string(bundleID), title: title, x: x, y: y)
     }
 
     private func rawItem(
         namespace: MenuBarItemTag.Namespace,
         title: String,
-        x: CGFloat
+        x: CGFloat,
+        y: CGFloat = 0
     ) -> MenuBarItemAXProvider.RawItem {
         MenuBarItemAXProvider.RawItem(
             namespace: namespace,
             identityTitle: title,
             displayTitle: title,
-            bounds: CGRect(x: x, y: 0, width: 20, height: 22),
+            bounds: CGRect(x: x, y: y, width: 20, height: 22),
             ownerPID: 1234
         )
     }

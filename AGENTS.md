@@ -48,12 +48,21 @@ xcodebuild test -project Thaw.xcodeproj -scheme Thaw -derivedDataPath Build/ -de
 
 `CODE_SIGNING_ALLOWED=NO` is required for CI-style local builds.
 
+Run the first-party package tests separately; Xcode does not include package
+test targets in the `Thaw` scheme:
+
+```bash
+swift test --package-path MenuBarModel
+swift test --package-path ThawCapture
+```
+
 ## Lint And Format
 
 SwiftLint must pass in strict mode, matching CI:
 
 ```bash
 swiftlint --strict
+swiftlint lint --strict --config .swiftlint.yml --config .swiftlint-tests.yml ThawTests
 ```
 
 CI runs SwiftLint with `ghcr.io/realm/swiftlint:0.63.3`. Config lives in

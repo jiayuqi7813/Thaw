@@ -2,42 +2,6 @@
 
 Helper scripts for local Thaw development and Claude Code tooling.
 
-## `thaw-build-dmg.sh`
-
-Local-only mirror of the **Build DMG** workflow. It reads signing and
-notarization configuration from the environment, so a clean checkout needs no
-tracked-file edits. The notarization password lives in your login keychain via
-`notarytool` (never commit app-specific passwords).
-
-One-time:
-
-```bash
-export THAW_TEAM_ID="YOUR_TEAM_ID"
-export THAW_APPLE_ID="you@example.com"
-export THAW_NOTARY_PROFILE="thaw-notary"
-export THAW_SIGN_IDENTITY="Developer ID Application: Your Name (YOUR_TEAM_ID)"
-
-xcrun notarytool store-credentials "$THAW_NOTARY_PROFILE" \
-  --apple-id "$THAW_APPLE_ID" \
-  --team-id "$THAW_TEAM_ID" \
-  --password "<app-specific-password>"
-```
-
-Add the four `export` lines to an untracked local shell profile if desired.
-`--skip-notarize` does not require `THAW_APPLE_ID` or
-`THAW_NOTARY_PROFILE`; signing still requires `THAW_TEAM_ID` and
-`THAW_SIGN_IDENTITY`.
-
-Then:
-
-```bash
-./scripts/thaw-build-dmg.sh
-./scripts/thaw-build-dmg.sh --skip-notarize   # sign only
-./scripts/thaw-build-dmg.sh --dmg-name Thaw-test.dmg
-```
-
-Requires a **Developer ID Application** certificate. Output: `build/Thaw-dev.dmg`.
-
 ## `thaw-devrun.sh`
 
 Builds the **Debug** configuration and runs it from `/Applications/Thaw Debug.app`.

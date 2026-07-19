@@ -260,7 +260,7 @@ public struct MenuBarItem: CustomStringConvertible, Sendable {
         }
 
         guard !isControlItem else {
-            return Constants.displayName
+            return ThawMenuBarIdentity.displayName
         }
 
         lazy var fallbackName = "Menu Bar Item"
