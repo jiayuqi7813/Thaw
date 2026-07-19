@@ -106,19 +106,14 @@ struct AutomationSettingsPane: View {
     }
 
     private var whitelistHeader: some View {
-        HStack(spacing: 0) {
+        let count = String(localized: "apps \(settings.whitelistedApps.count)", comment: "Shows the number of whitelisted apps")
+        return HStack(spacing: 0) {
             Text("Whitelisted Applications")
                 .font(.headline)
 
             Spacer().frame(width: 6)
 
-            Text(verbatim: "(")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Text(String(localized: "apps \(settings.whitelistedApps.count)", comment: "Shows the number of whitelisted apps"))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Text(verbatim: ")")
+            Text(verbatim: "(\(count))")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Spacer()

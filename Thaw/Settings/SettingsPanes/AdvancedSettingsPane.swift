@@ -10,22 +10,6 @@ import MenuBarModel
 import SwiftUI
 import ThawCapture
 
-struct SecondsLabel: View {
-    let value: Double
-
-    private var formatted: String {
-        let localized = String(localized: "\(value) seconds")
-        return localized
-            .replacingOccurrences(of: #"(\d+)\.0+(\s)"#, with: "$1$2", options: .regularExpression)
-            .replacingOccurrences(of: #"(\d+)\,0+(\s)"#, with: "$1$2", options: .regularExpression)
-            .replacingOccurrences(of: #"(\d+[\.,]\d*?)0+(\s)"#, with: "$1$2", options: .regularExpression)
-    }
-
-    var body: Text {
-        Text(formatted)
-    }
-}
-
 struct AdvancedSettingsPane: View {
     @EnvironmentObject var appState: AppState
     @ObservedObject var settings: AdvancedSettings

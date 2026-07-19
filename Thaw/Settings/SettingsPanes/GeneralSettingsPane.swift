@@ -19,8 +19,8 @@ struct GeneralSettingsPane: View {
     @State private var maxSliderLabelWidth: CGFloat = 0
 
     private var rehideIntervalKey: LocalizedStringKey {
-        let count = Int(settings.rehideInterval)
-        return LocalizedStringKey(String(localized: "\(count) seconds"))
+        let number = settings.rehideInterval.formatted(.number.precision(.fractionLength(0 ... 1)))
+        return LocalizedStringKey(String(localized: "\(number) seconds"))
     }
 
     var body: some View {

@@ -458,7 +458,7 @@ private struct LayoutResetControls: View {
             case .success(.hidden): String(localized: "Layout reset. Items were moved to the Hidden section.")
             case .success(.alwaysHidden): String(localized: "Layout reset. Items were moved to the Always Hidden section.")
             case .success(.visible): String(localized: "Items were moved to the Visible section.")
-            case let .partialFailure(count): String(localized: "Reset completed with \(count) item(s) that could not be moved. Check the menu bar and try again if needed.")
+            case let .partialFailure(count): String(localized: "Reset completed with \(count) items that could not be moved. Check the menu bar and try again if needed.")
             case let .failure(message): String(localized: "Reset failed: \(message)")
             }
         }

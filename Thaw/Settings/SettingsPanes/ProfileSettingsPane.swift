@@ -328,7 +328,7 @@ struct ProfileSettingsPane: View {
             }
         }
         if failed > 0 {
-            errorMessage = String(localized: "Failed to update configuration on \(failed) profile(s).")
+            errorMessage = String(localized: "Failed to update configuration on \(failed) profiles.")
             showingError = true
         }
     }
