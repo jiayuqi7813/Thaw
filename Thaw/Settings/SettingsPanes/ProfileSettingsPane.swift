@@ -19,7 +19,6 @@ struct ProfileSettingsPane: View {
     @State private var isApplying = false
     @State private var editingProfileID: UUID?
     @State private var editingName = ""
-    @State private var isConfirmingDelete = false
     @State private var profileToDelete: UUID?
     @State private var errorMessage: String?
     @State private var showingError = false
@@ -47,6 +46,21 @@ struct ProfileSettingsPane: View {
         } message: {
             if let errorMessage {
                 Text(errorMessage)
+            }
+        }
+        .alert(
+            "Delete Profile?",
+            isPresented: Binding(
+                get: { profileToDelete != nil },
+                set: { if !$0 { profileToDelete = nil } }
+            ),
+            presenting: profileToDelete
+        ) { id in
+            Button("Delete", role: .destructive) { deleteProfile(id: id) }
+            Button("Cancel", role: .cancel) {}
+        } message: { id in
+            if let profile = profileManager.profiles.first(where: { $0.id == id }) {
+                Text("Are you sure you want to delete the profile \"\(profile.name)\"? This cannot be undone.")
             }
         }
     }
@@ -144,30 +158,12 @@ struct ProfileSettingsPane: View {
 
                     Button("Delete", role: .destructive) {
                         profileToDelete = profile.id
-                        isConfirmingDelete = true
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
                 .menuStyle(.borderlessButton)
                 .fixedSize()
-            }
-        }
-        .alert("Delete Profile?", isPresented: $isConfirmingDelete) {
-            Button("Delete", role: .destructive) {
-                if let id = profileToDelete {
-                    deleteProfile(id: id)
-                }
-                profileToDelete = nil
-            }
-            Button("Cancel", role: .cancel) {
-                profileToDelete = nil
-            }
-        } message: {
-            if let id = profileToDelete,
-               let profile = profileManager.profiles.first(where: { $0.id == id })
-            {
-                Text("Are you sure you want to delete the profile \"\(profile.name)\"? This cannot be undone.")
             }
         }
     }
