@@ -144,10 +144,10 @@ private struct MenuBarItemHotkeyList: View {
         // Tell the image cache whether this list is visible so it only runs the
         // live capture loop while the disclosure is expanded.
         .onChange(of: isExpanded, initial: true) { _, expanded in
-            imageCache.setItemHotkeyListExpanded(expanded)
+            imageCache.isItemHotkeyListExpanded = expanded
         }
         .onDisappear {
-            imageCache.setItemHotkeyListExpanded(false)
+            imageCache.isItemHotkeyListExpanded = false
         }
         .task(id: isExpanded) {
             // Item images for the hidden and always-hidden sections are not

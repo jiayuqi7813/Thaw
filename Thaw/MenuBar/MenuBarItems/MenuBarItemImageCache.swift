@@ -204,15 +204,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
     /// While collapsed, the pane has no visible item-icon consumer, so the live
     /// capture loop stays off rather than paying the off-screen SkyLight capture
     /// cost for items the user cannot see.
-    @Published private(set) var isItemHotkeyListExpanded = false
-
-    /// Updates isItemHotkeyListExpanded from the Hotkeys settings UI.
-    func setItemHotkeyListExpanded(_ expanded: Bool) {
-        guard isItemHotkeyListExpanded != expanded else {
-            return
-        }
-        isItemHotkeyListExpanded = expanded
-    }
+    @Published var isItemHotkeyListExpanded = false
 
     deinit {
         memoryPressureSource?.cancel()
