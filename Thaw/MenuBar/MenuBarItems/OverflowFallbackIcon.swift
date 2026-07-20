@@ -51,7 +51,11 @@ enum OverflowFallbackIcon {
         // live capture, regardless of whether a (possibly polluted) capture
         // exists. Lets users sidestep macOS 27 native-overflow capture bleed.
         if appState.settings.advanced.alwaysUseAppIconForMenuBarItems {
-            return true
+            // Do not turn a stale cache entry into a generic placeholder after
+            // its source app has quit. Without the override, a missing capture
+            // renders nothing; preserve that behavior when there is no live app
+            // icon to substitute.
+            return selectedThawIcon(for: item, appState: appState) != nil || appIcon(for: item) != nil
         }
         return cachedImage == nil
     }
@@ -118,22 +122,24 @@ enum OverflowFallbackIcon {
     /// The owning app's icon for `item`, falling back to a generic menu-bar
     /// glyph when no application can be resolved (e.g. some system items).
     static func image(for item: MenuBarItem) -> NSImage? {
-        switch item.tag.namespace {
-        case .menuBarAgent:
-            break
-        case .controlCenter, .systemUIServer, .textInputMenuAgent:
-            if let controlCenterIcon {
-                return controlCenterIcon
-            }
-        default:
-            if let icon = item.sourceApplication?.icon {
-                return icon
-            }
-        }
-        return NSImage(
+        appIcon(for: item) ?? NSImage(
             systemSymbolName: "menubar.rectangle",
             accessibilityDescription: item.displayName
         )
+    }
+
+    /// The actual icon available for the item's currently live source app.
+    /// Unlike `image(for:)`, this deliberately has no generic fallback so the
+    /// app-icon override can distinguish a quit app from a live one.
+    private static func appIcon(for item: MenuBarItem) -> NSImage? {
+        switch item.tag.namespace {
+        case .menuBarAgent:
+            return nil
+        case .controlCenter, .systemUIServer, .textInputMenuAgent:
+            return controlCenterIcon
+        default:
+            return item.sourceApplication?.icon
+        }
     }
 
     /// Whether an Apple hosting process should keep its captured preview.

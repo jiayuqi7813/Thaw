@@ -83,7 +83,7 @@ final class OverflowFallbackIconTests: XCTestCase {
 
         let appState = AppState()
         appState.settings.advanced.alwaysUseAppIconForMenuBarItems = true
-        let item = appItem()
+        let item = runningAppItem()
 
         XCTAssertTrue(
             OverflowFallbackIcon.shouldPreferAppIcon(
@@ -99,6 +99,37 @@ final class OverflowFallbackIconTests: XCTestCase {
                 in: nil,
                 appState: appState,
                 cachedImage: NSImage(size: NSSize(width: 16, height: 16))
+            )
+        )
+    }
+
+    func testOverrideDoesNotShowFallbackForQuitApp() throws {
+        guard #available(macOS 27, *) else {
+            throw XCTSkip("App-icon fallback is macOS 27-specific")
+        }
+
+        let appState = AppState()
+        appState.settings.advanced.alwaysUseAppIconForMenuBarItems = true
+        let item = MenuBarItem.fixture(
+            tag: MenuBarItemTag(namespace: .string("com.example.QuitStatusApp"), title: "Status"),
+            windowID: 5,
+            sourcePID: nil
+        )
+
+        XCTAssertFalse(
+            OverflowFallbackIcon.shouldPreferAppIcon(
+                for: item,
+                in: .hidden,
+                appState: appState,
+                cachedImage: nil
+            )
+        )
+        XCTAssertNil(
+            OverflowFallbackIcon.resolvedImage(
+                for: item,
+                section: .hidden,
+                appState: appState,
+                cachedImage: nil
             )
         )
     }
@@ -303,6 +334,16 @@ final class OverflowFallbackIconTests: XCTestCase {
         MenuBarItem.fixture(
             tag: MenuBarItemTag(namespace: .string("com.example.StatusApp"), title: "Status"),
             windowID: 1
+        )
+    }
+
+    private func runningAppItem() -> MenuBarItem {
+        let pid = ProcessInfo.processInfo.processIdentifier
+        return MenuBarItem.fixture(
+            tag: MenuBarItemTag(namespace: .string("com.example.StatusApp"), title: "Status"),
+            windowID: 6,
+            sourcePID: pid,
+            ownerPID: pid
         )
     }
 
