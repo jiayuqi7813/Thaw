@@ -17,7 +17,6 @@ struct DisplaySettingsPane: View {
     @EnvironmentObject var appState: AppState
     @ObservedObject var displaySettings: DisplaySettingsManager
 
-    @State private var maxSliderLabelWidth: CGFloat = 0
     /// Per-display draft of the spacing slider, keyed by display UUID.
     /// Until the user clicks Apply, dragging the slider only updates this
     /// dictionary, it does not touch the saved configuration or trigger
@@ -199,79 +198,14 @@ struct DisplaySettingsPane: View {
             }
         )
 
-        Toggle("Always show hidden items", isOn: alwaysShowHiddenItems)
-            .disabled(useIceBar.wrappedValue)
-            .annotation {
-                if useIceBar.wrappedValue {
-                    Text("Not available because the \(Constants.displayName) Bar is enabled for this display.")
-                } else {
-                    Text("Always show hidden menu bar items in the menu bar on this display.")
-                }
-            }
-
-        Toggle("Use \(Constants.displayName) Bar", isOn: useIceBar)
-            .annotation("Show hidden menu bar items in a separate bar below the menu bar on this display.")
-
-        if useIceBar.wrappedValue {
-            IcePicker("Location", selection: location) {
-                ForEach(IceBarLocation.allCases) { loc in
-                    Text(loc.localized).tag(loc)
-                }
-            }
-            .annotation {
-                switch location.wrappedValue {
-                case .dynamic:
-                    Text("The \(Constants.displayName) Bar's location changes based on context.")
-                case .mousePointer:
-                    Text("The \(Constants.displayName) Bar is centered below the mouse pointer.")
-                case .iceIcon:
-                    Text("The \(Constants.displayName) Bar is centered below the \(Constants.displayName) icon.")
-                case .leftAligned:
-                    Text("The \(Constants.displayName) Bar is aligned to the left edge of the display.")
-                case .rightAligned:
-                    Text("The \(Constants.displayName) Bar is aligned to the right edge of the display.")
-                }
-            }
-
-            IcePicker("Arrangement", selection: layout) {
-                ForEach(IceBarLayout.allCases) { lay in
-                    Text(lay.localized).tag(lay)
-                }
-            }
-            .annotation {
-                switch layout.wrappedValue {
-                case .horizontal:
-                    Text("Items are arranged in a single horizontal row.")
-                case .vertical:
-                    Text("Items are stacked vertically in a single column.")
-                case .grid:
-                    Text("Items are arranged in a grid with multiple columns.")
-                }
-            }
-
-            if layout.wrappedValue == .grid {
-                let gridColumnsDouble = Binding<Double>(
-                    get: { Double(gridColumns.wrappedValue) },
-                    set: { gridColumns.wrappedValue = Int($0) }
-                )
-                LabeledContent {
-                    IceSlider(
-                        value: gridColumnsDouble,
-                        in: 2 ... 10,
-                        step: 1
-                    ) {
-                        Text(verbatim: "\(gridColumns.wrappedValue)")
-                    }
-                } label: {
-                    Text("Columns")
-                        .frame(minWidth: maxSliderLabelWidth, alignment: .leading)
-                        .onFrameChange { frame in
-                            maxSliderLabelWidth = max(maxSliderLabelWidth, frame.width)
-                        }
-                }
-                .annotation("Maximum number of items per row in the grid arrangement.")
-            }
-        }
+        IceBarConfigurationControls(
+            alwaysShowHiddenItems: alwaysShowHiddenItems,
+            useIceBar: useIceBar,
+            location: location,
+            layout: layout,
+            gridColumns: gridColumns,
+            context: .display
+        )
 
         spacingRow(for: display)
     }
@@ -532,87 +466,22 @@ struct DisplaySettingsPane: View {
             set: { displaySettings.globalConfiguration = displaySettings.globalConfiguration.withGridColumns($0) }
         )
 
-        Toggle("Always show hidden items", isOn: alwaysShowHiddenItems)
-            .disabled(useIceBar.wrappedValue)
-            .annotation {
-                if useIceBar.wrappedValue {
-                    Text("Not available because the \(Constants.displayName) Bar is enabled in the global template.")
-                } else {
-                    Text("Always show hidden menu bar items in the menu bar.")
-                }
-            }
-
-        Toggle("Use \(Constants.displayName) Bar", isOn: useIceBar)
-            .annotation("Show hidden menu bar items in a separate bar below the menu bar.")
-
-        Toggle(
-            "Show at mouse pointer on hotkey",
-            isOn: Binding(
-                get: { appState.settings.general.iceBarLocationOnHotkey },
-                set: { appState.settings.general.iceBarLocationOnHotkey = $0 }
-            )
-        )
-        .annotation("Always show the \(Constants.displayName) Bar at the mouse pointer's location when it is shown using a hotkey.")
-
-        if useIceBar.wrappedValue {
-            IcePicker("Location", selection: location) {
-                ForEach(IceBarLocation.allCases) { loc in
-                    Text(loc.localized).tag(loc)
-                }
-            }
-            .annotation {
-                switch location.wrappedValue {
-                case .dynamic:
-                    Text("The \(Constants.displayName) Bar's location changes based on context.")
-                case .mousePointer:
-                    Text("The \(Constants.displayName) Bar is centered below the mouse pointer.")
-                case .iceIcon:
-                    Text("The \(Constants.displayName) Bar is centered below the \(Constants.displayName) icon.")
-                case .leftAligned:
-                    Text("The \(Constants.displayName) Bar is aligned to the left edge of the display.")
-                case .rightAligned:
-                    Text("The \(Constants.displayName) Bar is aligned to the right edge of the display.")
-                }
-            }
-
-            IcePicker("Arrangement", selection: layout) {
-                ForEach(IceBarLayout.allCases) { lay in
-                    Text(lay.localized).tag(lay)
-                }
-            }
-            .annotation {
-                switch layout.wrappedValue {
-                case .horizontal:
-                    Text("Items are arranged in a single horizontal row.")
-                case .vertical:
-                    Text("Items are stacked vertically in a single column.")
-                case .grid:
-                    Text("Items are arranged in a grid with multiple columns.")
-                }
-            }
-
-            if layout.wrappedValue == .grid {
-                let gridColumnsDouble = Binding<Double>(
-                    get: { Double(gridColumns.wrappedValue) },
-                    set: { gridColumns.wrappedValue = Int($0) }
+        IceBarConfigurationControls(
+            alwaysShowHiddenItems: alwaysShowHiddenItems,
+            useIceBar: useIceBar,
+            location: location,
+            layout: layout,
+            gridColumns: gridColumns,
+            context: .globalTemplate
+        ) {
+            Toggle(
+                "Show at mouse pointer on hotkey",
+                isOn: Binding(
+                    get: { appState.settings.general.iceBarLocationOnHotkey },
+                    set: { appState.settings.general.iceBarLocationOnHotkey = $0 }
                 )
-                LabeledContent {
-                    IceSlider(
-                        value: gridColumnsDouble,
-                        in: 2 ... 10,
-                        step: 1
-                    ) {
-                        Text(verbatim: "\(gridColumns.wrappedValue)")
-                    }
-                } label: {
-                    Text("Columns")
-                        .frame(minWidth: maxSliderLabelWidth, alignment: .leading)
-                        .onFrameChange { frame in
-                            maxSliderLabelWidth = max(maxSliderLabelWidth, frame.width)
-                        }
-                }
-                .annotation("Maximum number of items per row in the grid arrangement.")
-            }
+            )
+            .annotation("Always show the \(Constants.displayName) Bar at the mouse pointer's location when it is shown using a hotkey.")
         }
 
         globalSpacingRow()
@@ -810,6 +679,156 @@ struct DisplaySettingsPane: View {
             return "\(displayMessage) \(profileInstruction)"
         } else {
             return displayMessage
+        }
+    }
+}
+
+private struct IceBarConfigurationControls<ExtraControls: View>: View {
+    enum Context {
+        case display
+        case globalTemplate
+    }
+
+    @Binding var alwaysShowHiddenItems: Bool
+    @Binding var useIceBar: Bool
+    @Binding var location: IceBarLocation
+    @Binding var layout: IceBarLayout
+    @Binding var gridColumns: Int
+
+    private let context: Context
+    private let extraControls: () -> ExtraControls
+    @State private var maxSliderLabelWidth: CGFloat = 0
+
+    init(
+        alwaysShowHiddenItems: Binding<Bool>,
+        useIceBar: Binding<Bool>,
+        location: Binding<IceBarLocation>,
+        layout: Binding<IceBarLayout>,
+        gridColumns: Binding<Int>,
+        context: Context,
+        @ViewBuilder extraControls: @escaping () -> ExtraControls
+    ) {
+        _alwaysShowHiddenItems = alwaysShowHiddenItems
+        _useIceBar = useIceBar
+        _location = location
+        _layout = layout
+        _gridColumns = gridColumns
+        self.context = context
+        self.extraControls = extraControls
+    }
+
+    var body: some View {
+        Toggle("Always show hidden items", isOn: $alwaysShowHiddenItems)
+            .disabled(useIceBar)
+            .onAppear {
+                maxSliderLabelWidth = 0
+            }
+            .annotation {
+                if useIceBar {
+                    switch context {
+                    case .display:
+                        Text("Not available because the \(Constants.displayName) Bar is enabled for this display.")
+                    case .globalTemplate:
+                        Text("Not available because the \(Constants.displayName) Bar is enabled in the global template.")
+                    }
+                } else {
+                    switch context {
+                    case .display:
+                        Text("Always show hidden menu bar items in the menu bar on this display.")
+                    case .globalTemplate:
+                        Text("Always show hidden menu bar items in the menu bar.")
+                    }
+                }
+            }
+
+        Toggle("Use \(Constants.displayName) Bar", isOn: $useIceBar)
+            .annotation("Show hidden menu bar items in a separate bar below the menu bar.")
+
+        extraControls()
+
+        if useIceBar {
+            IcePicker("Location", selection: $location) {
+                ForEach(IceBarLocation.allCases) { location in
+                    Text(location.localized).tag(location)
+                }
+            }
+            .annotation { locationAnnotation }
+
+            IcePicker("Arrangement", selection: $layout) {
+                ForEach(IceBarLayout.allCases) { layout in
+                    Text(layout.localized).tag(layout)
+                }
+            }
+            .annotation { layoutAnnotation }
+
+            if layout == .grid {
+                let gridColumnsDouble = Binding<Double>(
+                    get: { Double(gridColumns) },
+                    set: { gridColumns = Int($0) }
+                )
+                LabeledContent {
+                    IceSlider(value: gridColumnsDouble, in: 2 ... 10, step: 1) {
+                        Text(verbatim: "\(gridColumns)")
+                    }
+                } label: {
+                    Text("Columns")
+                        .frame(minWidth: maxSliderLabelWidth, alignment: .leading)
+                        .onFrameChange { frame in
+                            maxSliderLabelWidth = max(maxSliderLabelWidth, frame.width)
+                        }
+                }
+                .annotation("Maximum number of items per row in the grid arrangement.")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var locationAnnotation: some View {
+        switch location {
+        case .dynamic:
+            Text("The \(Constants.displayName) Bar's location changes based on context.")
+        case .mousePointer:
+            Text("The \(Constants.displayName) Bar is centered below the mouse pointer.")
+        case .iceIcon:
+            Text("The \(Constants.displayName) Bar is centered below the \(Constants.displayName) icon.")
+        case .leftAligned:
+            Text("The \(Constants.displayName) Bar is aligned to the left edge of the display.")
+        case .rightAligned:
+            Text("The \(Constants.displayName) Bar is aligned to the right edge of the display.")
+        }
+    }
+
+    @ViewBuilder
+    private var layoutAnnotation: some View {
+        switch layout {
+        case .horizontal:
+            Text("Items are arranged in a single horizontal row.")
+        case .vertical:
+            Text("Items are stacked vertically in a single column.")
+        case .grid:
+            Text("Items are arranged in a grid with multiple columns.")
+        }
+    }
+}
+
+private extension IceBarConfigurationControls where ExtraControls == EmptyView {
+    init(
+        alwaysShowHiddenItems: Binding<Bool>,
+        useIceBar: Binding<Bool>,
+        location: Binding<IceBarLocation>,
+        layout: Binding<IceBarLayout>,
+        gridColumns: Binding<Int>,
+        context: Context
+    ) {
+        self.init(
+            alwaysShowHiddenItems: alwaysShowHiddenItems,
+            useIceBar: useIceBar,
+            location: location,
+            layout: layout,
+            gridColumns: gridColumns,
+            context: context
+        ) {
+            EmptyView()
         }
     }
 }

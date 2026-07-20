@@ -41,6 +41,9 @@ struct GeneralSettingsPane: View {
                 rehideOptions
             }
         }
+        .onAppear {
+            maxSliderLabelWidth = 0
+        }
     }
 
     // MARK: App Options

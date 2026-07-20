@@ -43,6 +43,9 @@ struct AdvancedSettingsPane: View {
                 allPermissions
             }
         }
+        .onAppear {
+            maxSliderLabelWidth = 0
+        }
     }
 
     private var displayedSearchSectionNames: [MenuBarSection.Name] {

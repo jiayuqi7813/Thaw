@@ -13,8 +13,8 @@ import UniformTypeIdentifiers
 
 struct AutomationSettingsPane: View {
     @EnvironmentObject var appState: AppState
-    @StateObject private var settings = AutomationSettings()
-    @StateObject private var hookSettings = AutomationHookSettings()
+    @ObservedObject var settings: AutomationSettings
+    @ObservedObject var hookSettings: AutomationHookSettings
     @State private var newBundleId: String = ""
     @State private var isShowingAddError = false
     @State private var addErrorMessage = ""
@@ -619,6 +619,9 @@ private struct HookRow: View {
 // MARK: - Preview
 
 #Preview {
-    AutomationSettingsPane()
-        .frame(width: 600, height: 500)
+    AutomationSettingsPane(
+        settings: AutomationSettings(),
+        hookSettings: AutomationHookSettings()
+    )
+    .frame(width: 600, height: 500)
 }

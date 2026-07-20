@@ -52,7 +52,11 @@ struct ProfileSettingsPane: View {
             "Delete Profile?",
             isPresented: Binding(
                 get: { profileToDelete != nil },
-                set: { if !$0 { profileToDelete = nil } }
+                set: {
+                    if !$0 {
+                        profileToDelete = nil
+                    }
+                }
             ),
             presenting: profileToDelete
         ) { id in
@@ -282,8 +286,8 @@ struct ProfileSettingsPane: View {
         let name = newProfileName.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else { return }
         do {
-            try profileManager.saveProfile(name: name, from: appState)
-            profileManager.activeProfileID = profileManager.profiles.last?.id
+            let profileID = try profileManager.saveProfile(name: name, from: appState)
+            profileManager.activeProfileID = profileID
             newProfileName = ""
         } catch {
             errorMessage = error.localizedDescription
