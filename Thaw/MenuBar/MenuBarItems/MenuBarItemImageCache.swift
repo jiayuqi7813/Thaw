@@ -14,6 +14,22 @@ import PlatformRuntimeKit
 import ThawCapture
 
 /// Cache for menu bar item images.
+///
+/// Under the module's default `@MainActor` isolation, every stored property
+/// here (`accessTimestamps`, `accessCounter`, `cancellables`,
+/// `memoryPressureSource`, `currentUpdateTask`, `liveRefreshTask`, `appState`,
+/// and the `@Published` properties) is only ever read or written from
+/// implicitly-`@MainActor` methods. The `nonisolated`/`@concurrent` capture
+/// methods (`compositeCapture`, `individualCapture`, `axBoundsCapture`)
+/// only touch their own locals plus the immutable `let`s `windowServer` and
+/// `captureOption`, and the already lock-protected `failedCapturesLock` —
+/// they never read or write the `@MainActor` state above directly.
+/// `captureImages` and `refreshImages` are the exceptions: they do read and
+/// update `images`/`accessCounter`/`accessTimestamps`, but always inside an
+/// explicit `await MainActor.run { ... }`, so that state is still only ever
+/// touched on the main actor. `@unchecked Sendable` remains necessary because
+/// the type isn't declared `@MainActor` itself (it needs the
+/// `nonisolated`/`@concurrent` capture methods to run off the main actor).
 final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
     private static nonisolated let diagLog = DiagLog(category: "MenuBarItemImageCache")
     /// Seam over WindowServer reads; tests substitute a fake.
@@ -24,7 +40,16 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
     }
 
     /// A representation of a captured menu bar item image.
+    ///
+    /// `cgImage`/`scale` are immutable `let`s. `presentationCache`'s only
+    /// mutable property is only ever read or written from
+    /// `horizontallyTrimmedImage` below, which is `@MainActor`-isolated —
+    /// see `PresentationCache`'s own comment.
     struct CapturedImage: Hashable, @unchecked Sendable {
+        /// `horizontallyTrimmedImage` is only ever accessed through
+        /// `CapturedImage.horizontallyTrimmedImage`, which is `@MainActor`,
+        /// so this single stored property is effectively main-actor-confined
+        /// despite living in a nonisolated class.
         private final class PresentationCache: @unchecked Sendable {
             var horizontallyTrimmedImage: NSImage?
         }
@@ -1008,7 +1033,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                 height: bounds.height * scale
             )
 
-            let croppedImage = compositeImage.cropping(to: cropRect)
+            let croppedImage = compositeImage.cropping(to: cropRect)?.detachedCopy()
             guard let croppedImage else {
                 cropNilCount += 1
                 recordCaptureFailure(for: item)
@@ -1628,9 +1653,9 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
             let croppedImage: CGImage = if knockOutBackground,
                                            let cleaned = rawCroppedImage.knockingOutNearUniformBackground()
             {
-                cleaned
+                cleaned            // already a fresh makeImage() — do NOT double-detach
             } else {
-                rawCroppedImage
+                rawCroppedImage.detachedCopy()
             }
 
             guard !croppedImage.isTransparent(alphaThreshold: 0.05) else {
@@ -1987,7 +2012,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
             // above already rejects fully-transparent captures. Individual
             // transparent crops are intentional spacers. Failure tracking
             // lives in compositeCapture/individualCapture only.
-            guard let image = compositeImage.cropping(to: cropRect) else {
+            guard let image = compositeImage.cropping(to: cropRect)?.detachedCopy() else {
                 continue
             }
             newImages[item.tag] = CapturedImage(cgImage: image, scale: scale)
