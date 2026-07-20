@@ -344,8 +344,13 @@ final class LayoutBarContainer: NSView {
                 .clamped(to: newViews.startIndex ... newViews.endIndex)
             newViews.insert(opaqueView, at: insertionIndex)
         }
+        var newlyCreatedBadgeView: LayoutBarNewItemsBadgeView?
         if let badgeIndex {
-            let badgeView = arrangedViews.first(where: { $0.isNewItemsBadge }) ?? LayoutBarNewItemsBadgeView()
+            let existingBadgeView = arrangedViews.first(where: { $0.isNewItemsBadge })
+            let badgeView = existingBadgeView as? LayoutBarNewItemsBadgeView ?? LayoutBarNewItemsBadgeView()
+            if existingBadgeView == nil {
+                newlyCreatedBadgeView = badgeView
+            }
             badgeView.averageColorInfo = appState.menuBarManager.averageColorInfo
             let opaqueIndex = newViews.firstIndex {
                 if case .opaqueSlot = $0.kind {
@@ -362,6 +367,7 @@ final class LayoutBarContainer: NSView {
             newViews.insert(badgeView, at: insertionIndex)
         }
         arrangedViews = newViews
+        newlyCreatedBadgeView?.animateAppearance()
     }
 
     /// Updates the positions of the container's arranged views using the

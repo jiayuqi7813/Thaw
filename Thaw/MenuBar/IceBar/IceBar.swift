@@ -387,6 +387,7 @@ private func thawBarGlyphScale(imageHeight: CGFloat, rowHeight: CGFloat) -> CGFl
 }
 
 private struct IceBarContentView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject var appState: AppState
     @ObservedObject var colorManager: IceBarColorManager
     @ObservedObject var itemManager: MenuBarItemManager
@@ -627,10 +628,13 @@ private struct IceBarContentView: View {
             HStack {
                 if cacheGracePeriodActive {
                     Text("Loading menu bar items…")
+                        .transition(.opacity)
                 } else {
                     Text("No items in this section")
+                        .transition(.opacity)
                 }
             }
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: cacheGracePeriodActive)
             .padding(.horizontal, 10)
             .onChange(of: cacheGracePeriodActive) {
                 Self.diagLog.debug("IceBar content: grace period changed to \(self.cacheGracePeriodActive) for section \(self.section.logString) — items still empty: \(self.items.isEmpty)")
@@ -648,6 +652,7 @@ private struct IceBarContentView: View {
             HStack {
                 if loadingTimedOut {
                     Text("Unable to load menu bar items")
+                        .transition(.opacity)
                     Button {
                         openPermissionsSettings()
                     } label: {
@@ -657,8 +662,10 @@ private struct IceBarContentView: View {
                     .foregroundStyle(.link)
                 } else {
                     Text("Loading menu bar items…")
+                        .transition(.opacity)
                 }
             }
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: loadingTimedOut)
             .padding(.horizontal, 10)
             .onChange(of: loadingTimedOut) {
                 Self.diagLog.warning("IceBar content: loading timeout changed to \(self.loadingTimedOut) — itemCache.managedItems is still EMPTY")
@@ -670,9 +677,11 @@ private struct IceBarContentView: View {
             HStack {
                 if cacheGracePeriodActive {
                     Text("Loading menu bar items…")
+                        .transition(.opacity)
                 } else if loadingTimedOut {
                     // Final state: no further automatic retry.
                     Text("Unable to display menu bar items")
+                        .transition(.opacity)
                     Button {
                         openPermissionsSettings()
                     } label: {
@@ -682,8 +691,11 @@ private struct IceBarContentView: View {
                     .foregroundStyle(.link)
                 } else {
                     Text("Loading menu bar items…")
+                        .transition(.opacity)
                 }
             }
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: cacheGracePeriodActive)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: loadingTimedOut)
             .padding(.horizontal, 10)
             .onChange(of: loadingTimedOut) {
                 Self.diagLog.warning("IceBar content: cacheFailed timeout changed to \(self.loadingTimedOut) for section \(self.section.logString)")
@@ -789,6 +801,7 @@ private struct IceBarContentView: View {
 private struct IceBarItemView: View {
     private static let diagLog = DiagLog(category: "IceBar.ItemView")
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject var itemManager: MenuBarItemManager
     @ObservedObject var menuBarManager: MenuBarManager
 
@@ -798,6 +811,8 @@ private struct IceBarItemView: View {
     let maxHeight: CGFloat?
     let tooltipDelay: TimeInterval
     let displayImage: NSImage?
+
+    @State private var isHovered = false
 
     private var leftClickAction: () -> Void {
         clickAction(with: .left)
@@ -886,13 +901,17 @@ private struct IceBarItemView: View {
                 .resizable()
                 .frame(width: size.width, height: size.height)
                 .contentShape(Rectangle())
+                .scaleEffect(isHovered ? 1.12 : 1.0)
+                .animation(reduceMotion ? nil : .snappy(duration: 0.2), value: isHovered)
+                .transition(.opacity)
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: displayImage == nil)
                 .overlay {
                     IceBarItemClickView(
                         item: item,
                         tooltipDelay: tooltipDelay,
                         leftClickAction: leftClickAction,
                         rightClickAction: rightClickAction,
-                        onHover: { _ in }
+                        onHover: { isHovered = $0 }
                     )
                 }
                 .accessibilityLabel(item.displayName)
