@@ -168,7 +168,10 @@ struct SettingsView: View {
         case .advanced:
             AdvancedSettingsPane(settings: appState.settings.advanced)
         case .automation:
-            AutomationSettingsPane()
+            AutomationSettingsPane(
+                settings: appState.settings.automation,
+                hookSettings: appState.settings.automationHook
+            )
         case .tools:
             ToolsSettingsPane(settings: appState.settings.advanced)
         case .about:
@@ -190,17 +193,8 @@ enum SettingsDetailLayout {
     static let titleHorizontalInset: CGFloat = 28
 }
 
-// MARK: - SettingsPaneTitle
-
-private struct SettingsPaneTitleKey: EnvironmentKey {
-    static let defaultValue: LocalizedStringKey? = nil
-}
-
 extension EnvironmentValues {
-    var settingsPaneTitle: LocalizedStringKey? {
-        get { self[SettingsPaneTitleKey.self] }
-        set { self[SettingsPaneTitleKey.self] = newValue }
-    }
+    @Entry var settingsPaneTitle: LocalizedStringKey?
 }
 
 // MARK: - BehindWindowMaterialBackground

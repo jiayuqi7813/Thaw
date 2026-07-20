@@ -207,7 +207,10 @@ final class ProfileManager: ObservableObject {
     // MARK: - Public API
 
     /// Captures the current app state and saves it as a named profile.
-    func saveProfile(name: String, from appState: AppState) throws {
+    ///
+    /// - Returns: The identifier of the newly created profile.
+    @discardableResult
+    func saveProfile(name: String, from appState: AppState) throws -> UUID {
         let profile = Profile(
             name: name,
             content: ProfileContent(
@@ -234,6 +237,8 @@ final class ProfileManager: ObservableObject {
         )
         profiles.append(metadata)
         saveManifest()
+
+        return profile.id
     }
 
     /// Loads a full profile from disk by its identifier.

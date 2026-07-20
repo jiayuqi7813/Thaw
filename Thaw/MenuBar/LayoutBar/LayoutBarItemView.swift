@@ -70,6 +70,16 @@ final class LayoutBarItemView: LayoutBarArrangedView {
     /// menu-bar selection padding. Applied only in the layout editor.
     private var systemItemHorizontalPadding: CGFloat = 0
 
+    /// Cached result of `Bridging.isProcessUnresponsive(item.ownerPID)`,
+    /// refreshed on a timer rather than on every `draw(_:)` pass, which can
+    /// run at up to display refresh rate.
+    private var isOwnerUnresponsive = false
+
+    /// Tinted variants of template images passed to `draw(_:in:fraction:templateTint:)`,
+    /// keyed by source image identity and tint color. Cleared whenever
+    /// `menuBarForegroundColor` changes.
+    private var tintedImageCache: [ObjectIdentifier: [NSColor: NSImage]] = [:]
+
     override var kind: Kind {
         .item(item)
     }
@@ -102,6 +112,8 @@ final class LayoutBarItemView: LayoutBarArrangedView {
             )
         )
         unregisterDraggedTypes()
+
+        self.isOwnerUnresponsive = Bridging.isProcessUnresponsive(item.ownerPID)
 
         let experimentalSystemItemHiding = appState.settings.advanced.enableExperimentalSystemItemHiding
         isEnabled = LayoutBarPaddingView.acceptsLayoutDrag(of: item) &&
@@ -199,7 +211,20 @@ final class LayoutBarItemView: LayoutBarArrangedView {
                 .map { $0?.isBright(for: nil) == true }
                 .removeDuplicates()
                 .sink { [weak self] _ in
-                    self?.needsDisplay = true
+                    guard let self else { return }
+                    tintedImageCache.removeAll()
+                    needsDisplay = true
+                }
+                .store(in: &c)
+
+            Timer.publish(every: 1, on: .main, in: .common)
+                .autoconnect()
+                .sink { [weak self] _ in
+                    guard let self else { return }
+                    let unresponsive = Bridging.isProcessUnresponsive(item.ownerPID)
+                    guard unresponsive != isOwnerUnresponsive else { return }
+                    isOwnerUnresponsive = unresponsive
+                    needsDisplay = true
                 }
                 .store(in: &c)
 
@@ -252,7 +277,7 @@ final class LayoutBarItemView: LayoutBarArrangedView {
             } else {
                 drawPlaceholder()
             }
-            if Bridging.isProcessUnresponsive(item.ownerPID) {
+            if isOwnerUnresponsive {
                 let warningImage = NSImage.warning
                 let width = Metrics.unresponsiveBadgeWidth
                 let scale = width / warningImage.size.width
@@ -512,13 +537,23 @@ final class LayoutBarItemView: LayoutBarArrangedView {
         fraction: CGFloat,
         templateTint: NSColor
     ) {
-        let displayImage = image.isTemplate ? image.tinted(with: templateTint) : image
+        let displayImage = image.isTemplate ? tintedImage(for: image, tint: templateTint) : image
         displayImage.draw(
             in: rect,
             from: .zero,
             operation: .sourceOver,
             fraction: fraction
         )
+    }
+
+    private func tintedImage(for image: NSImage, tint: NSColor) -> NSImage {
+        let key = ObjectIdentifier(image)
+        if let cached = tintedImageCache[key]?[tint] {
+            return cached
+        }
+        let tinted = image.tinted(with: tint)
+        tintedImageCache[key, default: [:]][tint] = tinted
+        return tinted
     }
 
     private func refreshLivePlaceholderImage() {
