@@ -122,6 +122,12 @@ extension RunLoopLocalEventMonitor {
 }
 
 extension RunLoopLocalEventMonitor.RunLoopLocalEventPublisher {
+    /// `mask`/`mode` are immutable value-type `let`s. `box`'s mutable state is
+    /// behind its own `OSAllocatedUnfairLock` (see `SubscriberBox` below).
+    /// `monitor` is a `let` reference whose only mutation entry points,
+    /// `start()`/`stop()`, wrap `CFRunLoopAddObserver`/`CFRunLoopRemoveObserver`,
+    /// which are documented thread-safe by CoreFoundation — `RunLoopLocalEventMonitor`
+    /// itself doesn't need to be `Sendable` for that to be safe.
     private final nonisolated class RunLoopLocalEventSubscription<S: Subscriber<Output, Failure> & Sendable>: Subscription, @unchecked Sendable {
         private final nonisolated class SubscriberBox: Sendable {
             /// `OSAllocatedUnfairLock.withLock` requires a `Sendable` closure.

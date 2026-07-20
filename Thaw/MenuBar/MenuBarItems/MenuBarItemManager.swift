@@ -74,8 +74,14 @@ final class MenuBarItemManager: ObservableObject {
     private var temporarilyShownItemContexts = [TemporarilyShownItemContext]()
 
     /// A timer for rehiding temporarily shown menu bar items.
-    private nonisolated(unsafe) var rehideTimer: Timer?
-    private nonisolated(unsafe) var rehideCancellable: AnyCancellable?
+    ///
+    /// Only ever read or written from `@MainActor` methods and `deinit` —
+    /// the class is already `@MainActor`, so no explicit isolation marker is
+    /// needed. `deinit` below is `isolated deinit`: `Timer`/`AnyCancellable`
+    /// aren't `Sendable`, and a plain (non-isolated) `deinit` can't read a
+    /// `@MainActor`-isolated property of non-`Sendable` type.
+    private var rehideTimer: Timer?
+    private var rehideCancellable: AnyCancellable?
 
     /// Timestamp of the most recent menu bar item move operation.
     private var lastMoveOperationTimestamp: ContinuousClock.Instant?
@@ -216,7 +222,10 @@ final class MenuBarItemManager: ObservableObject {
     private var menuOpenCheckCachedAt: ContinuousClock.Instant?
 
     /// Timer for lightweight periodic cache checks.
-    private nonisolated(unsafe) var cacheTickCancellable: AnyCancellable?
+    ///
+    /// Only ever read or written from `@MainActor` methods; see the note
+    /// above `rehideTimer` for why no explicit isolation marker is needed.
+    private var cacheTickCancellable: AnyCancellable?
 
     /// Persisted identifiers of menu bar items we've already seen.
     var knownItemIdentifiers = Set<String>()
@@ -244,7 +253,7 @@ final class MenuBarItemManager: ObservableObject {
     /// stability grace; a changed difference resets both fields.
     private var pendingItemSignatureFirstSeen: ContinuousClock.Instant?
 
-    deinit {
+    isolated deinit {
         rehideTimer?.invalidate()
         rehideCancellable?.cancel()
         cacheTickCancellable?.cancel()

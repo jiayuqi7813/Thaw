@@ -198,7 +198,7 @@ extension Defaults {
 
         // MARK: Hotkeys Settings
 
-        static nonisolated(unsafe) let hotkeys: [Any]? = nil
+        static let hotkeys: [String: Data]? = nil
 
         // MARK: Appearance Settings
 

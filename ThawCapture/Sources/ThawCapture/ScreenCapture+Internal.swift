@@ -151,6 +151,14 @@ final class ContinuationBox<T, E: Error>: Sendable {
     }
 }
 
+/// `SCStream` delivers `stream(_:didOutputSampleBuffer:of:)`/
+/// `stream(_:didStopWithError:)` callbacks on `sampleHandlerQueue`, a
+/// background serial queue — not on any actor. `ciContext` just returns the
+/// `static let sharedCIContext`, an immutable, process-wide `CIContext`. The
+/// only mutable state (`continuation`, `bufferedImage`) lives in `lock`, an
+/// `OSAllocatedUnfairLock`, and is only ever read or written under that
+/// lock, which is how the background-queue callback safely hands a frame
+/// back to the awaiting caller.
 final class FrameCaptor: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sendable {
     /// Shared serial queue for all SCStream sample buffer handlers.
     static let sampleHandlerQueue = DispatchQueue(label: "com.stonerl.Thaw.screencapture")

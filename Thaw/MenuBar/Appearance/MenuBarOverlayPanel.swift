@@ -284,7 +284,13 @@ nonisolated enum MenuBarSplitPillGeometry {
 // MARK: - Overlay Panel
 
 /// A subclass of `NSPanel` that sits atop the menu bar to alter its appearance.
-final class MenuBarOverlayPanel: NSPanel, @unchecked Sendable {
+///
+/// Constructed only from `MenuBarAppearanceManager` (`@MainActor`), and has
+/// no `nonisolated` members of its own, so it is main-actor-confined like
+/// every other `NSPanel` subclass; `@MainActor` makes it implicitly
+/// `Sendable` without an `@unchecked` escape hatch.
+@MainActor
+final class MenuBarOverlayPanel: NSPanel {
     private let diagLog = DiagLog(category: "MenuBarOverlayPanel")
     /// Flags representing the updatable components of a panel.
     enum UpdateFlag: String, CustomStringConvertible {

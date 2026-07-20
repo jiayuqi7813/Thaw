@@ -39,7 +39,7 @@ final class HIDEventManager: ObservableObject {
 
     /// Timer that periodically checks whether the event tap is still
     /// valid and attempts to recreate it if the Mach port was invalidated.
-    private nonisolated(unsafe) var healthCheckTimer: Timer?
+    private var healthCheckTimer: Timer?
 
     /// The currently pending show-on-hover delay task.
     private var hoverTask: Task<Void, any Error>?
@@ -1014,7 +1014,7 @@ final class HIDEventManager: ObservableObject {
         dismissMenuBarTooltip()
     }
 
-    deinit {
+    isolated deinit {
         healthCheckTimer?.invalidate()
         clockActivationTask?.cancel()
     }
