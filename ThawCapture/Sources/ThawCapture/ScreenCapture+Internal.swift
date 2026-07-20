@@ -106,15 +106,29 @@ extension ScreenCapture {
 
     /// Helper to get shareable content using ScreenCaptureKit's async API.
     ///
+    /// One capture tick issues 2-3 independent calls (hosting-window capture,
+    /// display-strip capture, the hosting frame probe), each a full
+    /// window/display enumeration. `ShareableContentCache` coalesces calls
+    /// within `maxAge` of each other into a single underlying fetch.
+    static func getShareableContent(maxAge: Duration = .milliseconds(150)) async throws -> SCShareableContent {
+        let snapshot = try await shareableContentCache.content(
+            maxAge: maxAge,
+            fetch: fetchShareableContentUncached
+        )
+        return snapshot.content
+    }
+
+    private static let shareableContentCache = ShareableContentCache()
+
     /// `SCShareableContent.current` is the async form of
     /// `getShareableContentWithCompletionHandler:`. It has no built-in
     /// cancellation, so it runs inside a child task that races a
     /// `withTaskCancellationHandler` resume: a cancelled caller aborts promptly
     /// instead of proceeding to a wasted capture, while a late framework result
     /// is discarded because the continuation has already been taken.
-    static func getShareableContent() async throws -> SCShareableContent {
+    private static func fetchShareableContentUncached() async throws -> ShareableContentSnapshot {
         let box = ContinuationBox<SCShareableContent, any Error>()
-        return try await withTaskCancellationHandler {
+        let content = try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 box.setContinuation(continuation)
                 Task {
@@ -130,7 +144,67 @@ extension ScreenCapture {
             // Resume with cancellation error if still pending.
             box.takeContinuation()?.resume(throwing: CancellationError())
         }
+        return ShareableContentSnapshot(content: content)
     }
+}
+
+/// Coalesces concurrent/rapid `getShareableContent()` calls into one fetch.
+///
+/// Holds the most recent result plus an in-flight fetch task. Callers that
+/// arrive while a fetch is already running await that same task rather than
+/// starting a second enumeration; only the caller that started the task
+/// records the result and clears `inFlightTask`, so joiners never race each
+/// other over cache bookkeeping.
+actor ShareableContentCache {
+    private var cached: (content: ShareableContentSnapshot, timestamp: ContinuousClock.Instant)?
+    private var inFlightTask: Task<ShareableContentSnapshot, any Error>?
+
+    fileprivate func content(
+        maxAge: Duration,
+        fetch: @Sendable @escaping () async throws -> ShareableContentSnapshot
+    ) async throws -> ShareableContentSnapshot {
+        if let cached, ContinuousClock.now - cached.timestamp < maxAge {
+            return cached.content
+        }
+
+        if let inFlightTask {
+            return try await awaitWithoutCancelling(inFlightTask)
+        }
+
+        let task = Task<ShareableContentSnapshot, any Error> {
+            try await fetch()
+        }
+        inFlightTask = task
+        do {
+            let content = try await awaitWithoutCancelling(task)
+            cached = (content, .now)
+            inFlightTask = nil
+            return content
+        } catch {
+            inFlightTask = nil
+            throw error
+        }
+    }
+
+    /// A caller cancelling must not cancel the shared task — other callers
+    /// may still be awaiting its result.
+    private func awaitWithoutCancelling(
+        _ task: Task<ShareableContentSnapshot, any Error>
+    ) async throws -> ShareableContentSnapshot {
+        try await withTaskCancellationHandler {
+            try await task.value
+        } onCancel: {}
+    }
+}
+
+/// An immutable ScreenCaptureKit snapshot passed across the cache actor.
+///
+/// `SCShareableContent` is an Objective-C reference type without a Sendable
+/// annotation. It is returned as a completed framework snapshot and this
+/// wrapper never mutates or exposes any mutable state, so sharing that
+/// reference among the capture readers is safe.
+private struct ShareableContentSnapshot: @unchecked Sendable {
+    let content: SCShareableContent
 }
 
 // MARK: - Helper Types
