@@ -172,7 +172,7 @@ extension Defaults {
         static let tempShowInterval: TimeInterval = 15
         static let tooltipDelay: TimeInterval = 0.5
         static let showMenuBarTooltips = false
-        static let iconRefreshInterval: TimeInterval = 0.1
+        static let iconRefreshInterval: TimeInterval = 0.25
         #if DEBUG
             static let enableDiagnosticLogging = true
         #else
