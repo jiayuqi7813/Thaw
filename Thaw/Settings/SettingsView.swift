@@ -26,10 +26,10 @@ struct SettingsView: View {
             settingsPane
                 .id(navigationState.settingsNavigationIdentifier)
                 .transition(paneTransition)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .buttonStyle(.settingsGlass)
                 .environment(\.settingsPaneTitle, paneTitle)
-                .frame(maxWidth: SettingsDetailLayout.columnMaxWidth, alignment: .leading)
+                // Fill the detail column so the Form's scrollbar sits on the
+                // window/detail trailing edge — not on a 680pt content column.
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 // Draw under the transparent toolbar so the page title isn't pushed
                 // down by the ~60pt title-bar safe area.
@@ -77,18 +77,13 @@ struct SettingsView: View {
         colorScheme == .dark
     }
 
-    /// Keep the sidebar's dense vibrancy consistent in both appearances.
+    /// Dense behind-window vibrancy for the sidebar (and About) in both appearances.
     private var sidebarMaterial: NSVisualEffectView.Material {
         .hudWindow
     }
 
     private var sharedSidebarSurface: some View {
-        ZStack {
-            BehindWindowMaterialBackground(material: sidebarMaterial)
-            if colorScheme == .light {
-                Color.white.opacity(0.2)
-            }
-        }
+        BehindWindowMaterialBackground(material: sidebarMaterial)
     }
 
     private func configureSettingsWindowChrome(_ window: NSWindow?) {
@@ -100,15 +95,12 @@ struct SettingsView: View {
         window.styleMask.insert(.fullSizeContentView)
         window.titlebarAppearsTransparent = true
         window.titlebarSeparatorStyle = .none
-        // Clear-window desktop sampling looks great in dark mode; in light it
-        // washes the surfaces out, so keep a solid backdrop there.
-        if prefersExtremeVibrancy {
-            window.isOpaque = false
-            window.backgroundColor = .clear
-        } else {
-            window.isOpaque = true
-            window.backgroundColor = .windowBackgroundColor
-        }
+        // Clear chrome in both appearances so `.hudWindow` / under-window
+        // materials can sample the desktop the same way. Light detail keeps
+        // its own under-window + glass stack for readability; dark detail
+        // stays a solid Music-like fill.
+        window.isOpaque = false
+        window.backgroundColor = .clear
     }
 
     @ViewBuilder

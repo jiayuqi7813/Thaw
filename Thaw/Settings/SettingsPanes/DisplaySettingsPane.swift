@@ -106,7 +106,8 @@ struct DisplaySettingsPane: View {
                 .annotation("Before a display change or spacing edit relaunches your menu bar apps, Thaw asks you to confirm. Turn this off to apply spacing changes and relaunch apps without confirmation.")
 
             SettingsWarningPill(
-                message: "When a display transition requires Thaw to apply a different menu bar spacing, Thaw relaunches apps with menu bar items. Relaunching apps may cause unsaved input, progress, or transient app state to be lost."
+                title: "Apps may relaunch",
+                message: "Changing menu bar spacing for a display can relaunch apps with menu bar items. Unsaved input, progress, or transient app state may be lost."
             )
         }
 

@@ -32,7 +32,7 @@ struct ProfileSettingsPane: View {
 
             if !profileManager.profiles.isEmpty {
                 IceSection {
-                    Text("Auto-Switch").font(.headline)
+                    Text("Auto-Switch")
                 } content: {
                     autoSwitchInfo
                     autoSwitchControls
@@ -105,7 +105,7 @@ struct ProfileSettingsPane: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(profile.name)
-                        .font(.headline)
+                        .font(.body.weight(.semibold))
                     VStack(alignment: .leading, spacing: 1) {
                         Text("Created: \(profile.createdAt.formatted(date: .abbreviated, time: .shortened))")
                         Text("Modified: \(profile.modifiedAt.formatted(date: .abbreviated, time: .shortened))")
@@ -122,29 +122,32 @@ struct ProfileSettingsPane: View {
                 .buttonStyle(.settingsGlass)
                 .disabled(isApplying || profile.id == profileManager.activeProfileID)
 
-                Menu {
-                    Button("Update All") {
+                IceMenu(
+                    primaryAction: {
                         updateProfile(id: profile.id, scope: .all)
+                    },
+                    content: {
+                        Button("Update All") {
+                            updateProfile(id: profile.id, scope: .all)
+                        }
+                        Button("Update Layout Only") {
+                            updateProfile(id: profile.id, scope: .layoutOnly)
+                        }
+                        Button("Update Configuration Only") {
+                            updateProfile(id: profile.id, scope: .configurationOnly)
+                        }
+                        Divider()
+                        Button("Update Configuration on All Profiles") {
+                            updateConfigurationOnAllProfiles()
+                        }
+                    },
+                    title: {
+                        Text("Update")
                     }
-                    Button("Update Layout Only") {
-                        updateProfile(id: profile.id, scope: .layoutOnly)
-                    }
-                    Button("Update Configuration Only") {
-                        updateProfile(id: profile.id, scope: .configurationOnly)
-                    }
-                    Divider()
-                    Button("Update Configuration on All Profiles") {
-                        updateConfigurationOnAllProfiles()
-                    }
-                } label: {
-                    Text("Update")
-                } primaryAction: {
-                    updateProfile(id: profile.id, scope: .all)
-                }
-                .menuStyle(.borderlessButton)
+                )
                 .help("Update this profile with the current state")
 
-                Menu {
+                IceMenu {
                     Button("Rename") {
                         editingProfileID = profile.id
                         editingName = profile.name
@@ -163,11 +166,10 @@ struct ProfileSettingsPane: View {
                     Button("Delete", role: .destructive) {
                         profileToDelete = profile.id
                     }
-                } label: {
+                } title: {
                     Image(systemName: "ellipsis.circle")
                 }
-                .menuStyle(.borderlessButton)
-                .fixedSize()
+                .help("More profile actions")
             }
         }
     }
@@ -228,23 +230,17 @@ struct ProfileSettingsPane: View {
     }
 
     private var focusFilterFooter: some View {
-        VStack(spacing: 8) {
-            CalloutBox(systemImage: "info.circle", font: .callout) {
-                Text("To switch profiles with Focus modes, add \(Constants.displayName) as a Focus Filter in System Settings \(Constants.menuArrow) Focus \(Constants.menuArrow) [Mode] \(Constants.menuArrow) Focus Filters. When a Focus mode deactivates, the display profile is automatically restored.")
-            }
-            .padding(.top, 22)
-            .padding(.leading, -8)
-
-            HStack {
-                Spacer()
-                Button("Open Focus Settings") {
-                    if let url = URL(string: "x-apple.systempreferences:com.apple.Focus") {
-                        NSWorkspace.shared.open(url)
-                    }
-                }
-                .buttonStyle(.settingsGlass)
+        SettingsWarningPill(
+            title: "Focus Filters",
+            message: "To switch profiles with Focus modes, add \(Constants.displayName) as a Focus Filter in System Settings \(Constants.menuArrow) Focus \(Constants.menuArrow) [Mode] \(Constants.menuArrow) Focus Filters. When a Focus mode deactivates, the display profile is automatically restored.",
+            systemImage: "info.circle.fill",
+            actionTitle: "Open Focus Settings"
+        ) {
+            if let url = URL(string: "x-apple.systempreferences:com.apple.Focus") {
+                NSWorkspace.shared.open(url)
             }
         }
+        .padding(.top, 8)
     }
 
     @ViewBuilder

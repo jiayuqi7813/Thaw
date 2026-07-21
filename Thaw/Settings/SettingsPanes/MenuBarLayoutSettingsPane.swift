@@ -131,7 +131,8 @@ private struct LayoutSectionOptions: View {
         IceSection("Sections") {
             if isHidingUnavailable {
                 SettingsWarningPill(
-                    message: "Hiding is unavailable on this macOS build (the required system capability was not found). Reordering still works; hiding does not."
+                    title: "Hiding unavailable",
+                    message: "This macOS build is missing the system capability Thaw needs to hide items. Reordering still works; hiding does not."
                 )
             }
             Toggle(
@@ -210,7 +211,7 @@ private struct LayoutBarsSection: View {
                     if itemManager.areControlItemsMissing {
                         Text("One or more section dividers are hidden by macOS")
                         Text("Check System Settings > Menu Bar and enable \(Constants.displayName)")
-                            .font(.calloutBox)
+                            .font(.callout)
                             .foregroundStyle(.secondary)
                     } else {
                         Text("Unable to load menu bar items")
@@ -292,57 +293,42 @@ struct LayoutAdvancedControls: View {
     @State private var isExpanded = false
 
     var body: some View {
+        // Disclosure as a form row (Hotkeys pattern) — not nested mini-sections
+        // inside the card, which read as double chrome.
         IceSection {
             DisclosureGroup("Advanced layout controls", isExpanded: $isExpanded) {
-                VStack(alignment: .leading, spacing: 18) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Overflow handling")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.secondary)
+                Toggle(
+                    "Move items that don't fit into Hidden",
+                    isOn: $settings.enableMenuBarItemOverflow
+                )
+                .annotation(
+                    "Move menu bar items from Visible into Hidden when they don't fit beside the notch. Disable to keep the saved profile layout exactly as authored."
+                )
 
-                        Toggle(
-                            "Move items that don't fit into Hidden",
-                            isOn: $settings.enableMenuBarItemOverflow
-                        )
-                        .annotation(
-                            "Move menu bar items from Visible into Hidden when they don't fit beside the notch. Disable to keep the saved profile layout exactly as authored."
-                        )
-                    }
+                Toggle(
+                    "Use LCS sorting on notched displays",
+                    isOn: $settings.useLCSSortingOnNotchedDisplays
+                )
+                .annotation(
+                    "Use the faster LCS algorithm for profile sorting on notched displays. It minimises moves but may be less reliable at smaller resolutions."
+                )
 
-                    Divider()
+                if #available(macOS 27, *) {
+                    Toggle(
+                        "Use app icons instead of live previews",
+                        isOn: $settings.alwaysUseAppIconForMenuBarItems
+                    )
+                    .annotation(
+                        "Show each item's app icon in the Thaw Bar and layout editor instead of a live screenshot. Use this if macOS 27's native overflow control bleeds into the captured previews. The real menu bar is unaffected."
+                    )
 
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Compatibility and performance")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.secondary)
-
-                        Toggle(
-                            "Use LCS sorting on notched displays",
-                            isOn: $settings.useLCSSortingOnNotchedDisplays
-                        )
-                        .annotation(
-                            "Use the faster LCS algorithm for profile sorting on notched displays. It minimises moves but may be less reliable at smaller resolutions."
-                        )
-
-                        if #available(macOS 27, *) {
-                            Toggle(
-                                "Use app icons instead of live previews",
-                                isOn: $settings.alwaysUseAppIconForMenuBarItems
-                            )
-                            .annotation(
-                                "Show each item's app icon in the Thaw Bar and layout editor instead of a live screenshot. Use this if macOS 27's native overflow control bleeds into the captured previews. The real menu bar is unaffected."
-                            )
-
-                            LabeledContent("Reorder timeout") {
-                                IceSlider(value: $settings.menuBarOrderFulfillmentTimeout, in: 1 ... 15, step: 0.5) {
-                                    SecondsLabel(value: settings.menuBarOrderFulfillmentTimeout)
-                                }
-                            }
-                            .annotation("How long Thaw waits for macOS to apply a menu bar reorder before continuing with any remaining layout work.")
+                    LabeledContent("Reorder timeout") {
+                        IceSlider(value: $settings.menuBarOrderFulfillmentTimeout, in: 1 ... 15, step: 0.5) {
+                            SecondsLabel(value: settings.menuBarOrderFulfillmentTimeout)
                         }
                     }
+                    .annotation("How long Thaw waits for macOS to apply a menu bar reorder before continuing with any remaining layout work.")
                 }
-                .padding(.top, 10)
             }
         }
         .onChange(of: navigationState.requestedSettingsDisclosure, initial: true) { _, _ in

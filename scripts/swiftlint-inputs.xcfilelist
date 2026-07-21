@@ -152,7 +152,6 @@ $(SRCROOT)/Thaw/Settings/SettingsWindow.swift
 $(SRCROOT)/Thaw/Settings/UpdateConsentSheet.swift
 $(SRCROOT)/Thaw/UI/IceUI/IceForm.swift
 $(SRCROOT)/Thaw/UI/IceUI/IceGradientPicker.swift
-$(SRCROOT)/Thaw/UI/IceUI/IceGroupBox.swift
 $(SRCROOT)/Thaw/UI/IceUI/IceMenu.swift
 $(SRCROOT)/Thaw/UI/IceUI/IcePicker.swift
 $(SRCROOT)/Thaw/UI/IceUI/IceSection.swift
@@ -168,7 +167,6 @@ $(SRCROOT)/Thaw/UI/Utilities/IceColor.swift
 $(SRCROOT)/Thaw/UI/Utilities/IceGradient.swift
 $(SRCROOT)/Thaw/UI/Views/AnnotationView.swift
 $(SRCROOT)/Thaw/UI/Views/BetaBadge.swift
-$(SRCROOT)/Thaw/UI/Views/CalloutBox.swift
 $(SRCROOT)/Thaw/UI/Views/CustomTooltip.swift
 $(SRCROOT)/Thaw/UI/Views/HotkeyRecorder.swift
 $(SRCROOT)/Thaw/UI/Views/MenuBarItemContainer.swift

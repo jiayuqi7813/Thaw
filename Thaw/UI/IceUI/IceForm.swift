@@ -10,6 +10,7 @@ import SwiftUI
 
 struct IceForm<Content: View>: View {
     @Environment(\.settingsPaneTitle) private var settingsPaneTitle
+    @State private var formWidth: CGFloat = 0
 
     private let content: Content
 
@@ -19,7 +20,9 @@ struct IceForm<Content: View>: View {
 
     var body: some View {
         // Page title sits above the Form (not in a grouped row/card). Form
-        // scrolls in the remaining space so content cannot pass under the title.
+        // scrolls full-width so the scrollbar tracks the detail pane / window
+        // edge; reading width is enforced with symmetric gutters instead of
+        // shrinking the scroll view itself.
         VStack(alignment: .leading, spacing: 0) {
             if let settingsPaneTitle {
                 Text(settingsPaneTitle)
@@ -38,8 +41,38 @@ struct IceForm<Content: View>: View {
             .scrollContentBackground(.hidden)
             .scrollEdgeEffectStyle(.soft, for: .top)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background {
+                GeometryReader { proxy in
+                    Color.clear.preference(
+                        key: IceFormWidthKey.self,
+                        value: proxy.size.width
+                    )
+                }
+            }
+            .onPreferenceChange(IceFormWidthKey.self) { width in
+                formWidth = width
+            }
+            .contentMargins(.horizontal, readingGutter, for: .scrollContent)
         }
         .focusSection()
         .accessibilityElement(children: .contain)
+    }
+
+    /// Extra inset so grouped cards stay near ``SettingsDetailLayout/columnMaxWidth``
+    /// on wide windows without pinning the scrollbar to that column.
+    private var readingGutter: CGFloat {
+        let available = formWidth - (SettingsDetailLayout.titleHorizontalInset * 2)
+        let overflow = available - SettingsDetailLayout.columnMaxWidth
+        guard overflow > 0 else {
+            return 0
+        }
+        return overflow / 2
+    }
+}
+
+private struct IceFormWidthKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
