@@ -75,7 +75,7 @@ struct AutomationSettingsPane: View {
                 SettingsWarningPill(
                     title: "Settings URI disabled",
                     message: "External apps cannot read or modify \(Constants.displayName) settings.",
-                    systemImage: "lock.fill"
+                    systemImage: "lock.circle.fill"
                 )
             }
         }
