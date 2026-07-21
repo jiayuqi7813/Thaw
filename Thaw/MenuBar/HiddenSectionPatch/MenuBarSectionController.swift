@@ -1839,17 +1839,52 @@ final class MenuBarSectionController: ObservableObject {
         Set(assignmentIncludingAutomaticOverflow.keys.compactMap { snapshots[$0]?.tag })
     }
 
-    private func refreshSignature(
+    /// The item-set component of ``refreshSignature(allItems:experimentalSystemItemHiding:experimentalWindowHiding:)``.
+    ///
+    /// Items we conceal via the assessment-mode assertion drop out of the live
+    /// `allItems` cache as a *side effect of our own hiding*. Counting their
+    /// raw presence would flip the signature every time a concealed item
+    /// oscillates in and out of the cache, defeating the `lastRefreshSignature`
+    /// dedup in ``refresh(forceRestrictionPulse:)`` and re-applying the
+    /// assertion on nearly every 1 Hz tick. That whole-bar re-composite is the
+    /// 2-3s "items flicker then vanish" loop reported when Always Hidden holds
+    /// third-party items and position hiding is off (the default).
+    ///
+    /// Concealed identifiers are folded in as a stable constant (by canonical
+    /// identity) and stripped from the live contribution, so their cache
+    /// membership can no longer perturb the signature. Genuinely external
+    /// changes — a non-concealed item appearing or disappearing — still move
+    /// the signature and re-arm the refresh.
+    static func refreshSignatureItemComponent(
+        liveItemIdentifiers: [String],
+        concealedCanonicalIdentifiers: Set<String>
+    ) -> String {
+        let liveContribution = liveItemIdentifiers.filter { identifier in
+            !concealedCanonicalIdentifiers.contains(
+                MenuBarItemTag.canonicalPersistentIdentifier(identifier)
+            )
+        }
+        return (liveContribution + concealedCanonicalIdentifiers)
+            .sorted()
+            .joined(separator: ",")
+    }
+
+    func refreshSignature(
         allItems: [MenuBarItem],
         experimentalSystemItemHiding: Bool,
         experimentalWindowHiding: Bool
     ) -> String {
-        [
+        let concealedCanonicalIdentifiers = Set(effectiveAssignmentExcludingTemporarilyRevealed().keys)
+        let itemComponent = Self.refreshSignatureItemComponent(
+            liveItemIdentifiers: allItems.map(\.uniqueIdentifier),
+            concealedCanonicalIdentifiers: concealedCanonicalIdentifiers
+        )
+        return [
             "assignment=\(sectionAssignment.map { "\($0.key)=\($0.value.rawValue)" }.sorted().joined(separator: ","))",
             "overflow=\(overflowHiddenIdentifiers.sorted().joined(separator: ","))",
             "revealed=\(revealedSection?.rawValue ?? "none")",
             "temporary=\(temporarilyRevealedIDs.sorted().joined(separator: ","))",
-            "items=\(allItems.map(\.uniqueIdentifier).sorted().joined(separator: ","))",
+            "items=\(itemComponent)",
             "system=\(experimentalSystemItemHiding)",
             "window=\(experimentalWindowHiding)",
         ].joined(separator: "|")

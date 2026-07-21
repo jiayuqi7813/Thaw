@@ -618,6 +618,69 @@ final class MenuBarSectionControllerTests: XCTestCase {
         XCTAssertEqual(backend.applyCallCount, 0)
     }
 
+    func testRefreshSignatureStableWhenConcealedItemDropsFromCache() {
+        // Regression: a third-party item we conceal via the assertion drops
+        // out of the live `allItems` cache as a side effect of our own hiding.
+        // The refresh dedup signature must NOT change when that happens; if it
+        // did, refresh() would re-apply the assertion on the next 1 Hz tick and
+        // re-composite the whole bar — the 2-3s "Always Hidden items flicker
+        // then vanish and never come back" loop.
+        let controller = makeController()
+        let item = MenuBarItem(
+            tag: .appItem(bundleID: "com.test.AlwaysHidden", title: "Item-0"),
+            windowID: 91,
+            ownerPID: 300,
+            sourcePID: 300,
+            bounds: CGRect(x: 100, y: 0, width: 24, height: 22),
+            title: "Item-0",
+            isOnScreen: true
+        )
+        controller.setSection(.alwaysHidden, identifier: item.uniqueIdentifier)
+
+        let signatureWhilePresent = controller.refreshSignature(
+            allItems: [item],
+            experimentalSystemItemHiding: false,
+            experimentalWindowHiding: false
+        )
+        let signatureAfterConcealed = controller.refreshSignature(
+            allItems: [],
+            experimentalSystemItemHiding: false,
+            experimentalWindowHiding: false
+        )
+
+        XCTAssertEqual(signatureWhilePresent, signatureAfterConcealed)
+    }
+
+    func testRefreshSignatureChangesWhenNonConcealedItemAppears() {
+        // The dedup must still fire for genuine external changes: an unmanaged
+        // (visible) item appearing has to move the signature so refresh() can
+        // react. Guards against over-broadening the concealed-item
+        // stabilization above into "never notice new items".
+        let controller = makeController()
+        let item = MenuBarItem(
+            tag: .appItem(bundleID: "com.test.Visible", title: "Item-0"),
+            windowID: 92,
+            ownerPID: 301,
+            sourcePID: 301,
+            bounds: CGRect(x: 140, y: 0, width: 24, height: 22),
+            title: "Item-0",
+            isOnScreen: true
+        )
+
+        let signatureEmpty = controller.refreshSignature(
+            allItems: [],
+            experimentalSystemItemHiding: false,
+            experimentalWindowHiding: false
+        )
+        let signatureWithItem = controller.refreshSignature(
+            allItems: [item],
+            experimentalSystemItemHiding: false,
+            experimentalWindowHiding: false
+        )
+
+        XCTAssertNotEqual(signatureEmpty, signatureWithItem)
+    }
+
     func testShow_RevealsOnlyRequestedSection() {
         let controller = makeController()
 
