@@ -2577,16 +2577,20 @@ extension MenuBarItemManager {
         }
 
         // MenuBarAgent repopulates its preferred-position table in waves while
-        // login items reattach. Rewriting the structural controls during that
-        // startup settling window re-nudges the agent on every poll, turning
-        // the harmless reattachment churn into a full AX recache storm. The
-        // final cache pass after settling owns this one-time enforcement.
+        // login items reattach. Do not even enter structural-order policy during
+        // that startup window; after settling, the ambient reason remains
+        // observation-only on macOS 27 while legacy backends keep their normal
+        // divider enforcement.
         if isInStartupSettling {
             MenuBarItemManager.diagLog.debug(
                 "cacheItemsRegardless: startup settling active, deferring structural control order"
             )
         } else {
-            await enforceControlItemOrder(controlItems: controlItems, items: items)
+            await enforceControlItemOrder(
+                controlItems: controlItems,
+                items: items,
+                reason: .ambientCacheRefresh
+            )
         }
 
         guard !Task.isCancelled else {
@@ -4234,6 +4238,131 @@ extension MenuBarItemManager {
 
     // MARK: macOS 27 Command-drag move
 
+    /// Applies the saved structural permutation from the current cache before
+    /// the restriction is released. Assigned-item snapshots keep concealed
+    /// entries available here, so the menu bar can reveal directly into its
+    /// final order instead of first publishing an arbitrary permutation that
+    /// moves Thaw's click target.
+    func prepareMacOS27RevealedOrder() {
+        guard !MenuBarBackendProvider.current.supportsLegacySectionHiding,
+              let appState
+        else {
+            return
+        }
+
+        let cachedItems = itemCache.managedItems
+        let hiddenControlItemWindowID = appState.menuBarManager
+            .controlItem(withName: .hidden)?.window
+            .flatMap { CGWindowID(exactly: $0.windowNumber) }
+        let alwaysHiddenControlItemWindowID = appState.menuBarManager
+            .controlItem(withName: .alwaysHidden)?.window
+            .flatMap { CGWindowID(exactly: $0.windowNumber) }
+        var itemsForControlDiscovery = cachedItems
+        let discoveredControlItems = ControlItemPair(
+            items: &itemsForControlDiscovery,
+            hiddenControlItemWindowID: hiddenControlItemWindowID,
+            alwaysHiddenControlItemWindowID: alwaysHiddenControlItemWindowID
+        )
+        let controlItems: ControlItemPair
+        if let discoveredControlItems {
+            controlItems = discoveredControlItems
+        } else {
+            // Collapsed zero-width dividers have no AX children on macOS 27.
+            // Use the same synthetic identities as the cache path; the runtime
+            // position store resolves their real preference keys by tag/title.
+            let ourPID = ProcessInfo.processInfo.processIdentifier
+            let leadingX = itemCache.displayID.map { CGDisplayBounds($0).minX }
+                ?? (NSScreen.main?.frame.minX ?? 0)
+            let hidden = MenuBarItem(
+                tag: .hiddenControlItem,
+                windowID: hiddenControlItemWindowID ?? 0,
+                ownerPID: ourPID,
+                sourcePID: ourPID,
+                bounds: CGRect(x: leadingX, y: 0, width: 0, height: 0),
+                title: ControlItem.Identifier.hidden.rawValue,
+                isOnScreen: false
+            )
+            let alwaysHidden: MenuBarItem? = if appState.settings.advanced.isAlwaysHiddenSectionEnabled {
+                MenuBarItem(
+                    tag: .alwaysHiddenControlItem,
+                    windowID: alwaysHiddenControlItemWindowID ?? 0,
+                    ownerPID: ourPID,
+                    sourcePID: ourPID,
+                    bounds: CGRect(x: leadingX, y: 0, width: 0, height: 0),
+                    title: ControlItem.Identifier.alwaysHidden.rawValue,
+                    isOnScreen: false
+                )
+            } else {
+                nil
+            }
+            controlItems = ControlItemPair(
+                hidden: hidden,
+                alwaysHidden: alwaysHidden
+            )
+        }
+
+        if restoreMacOS27StructuralControlOrder(
+            controlItems: controlItems,
+            items: cachedItems
+        ) {
+            MenuBarItemManager.diagLog.info(
+                "macOS 27: prepared cached structural order before reveal"
+            )
+        }
+    }
+
+    /// Restores the complete persisted order after a hidden section becomes
+    /// visible. This deliberately performs only the runtime's batch preferred-
+    /// position write. It must not enter the per-assignment boundary loop in
+    /// ``reconcileMacOS27SectionBoundaries(revealing:)``: that loop made icons
+    /// flash through intermediate permutations and temporarily invalidated the
+    /// Thaw control item's click target.
+    func synchronizeMacOS27RevealedOrder(
+        revealing revealedSection: MenuBarSection.Name
+    ) async {
+        guard !MenuBarBackendProvider.current.supportsLegacySectionHiding,
+              let appState,
+              appState.menuBarManager.sectionController?.revealedSection == revealedSection
+        else {
+            return
+        }
+
+        let liveItems = await MenuBarItem.getMenuBarItems(option: .activeSpace)
+        guard !Task.isCancelled,
+              appState.menuBarManager.sectionController?.revealedSection == revealedSection
+        else {
+            return
+        }
+        let hiddenControlItemWindowID = appState.menuBarManager
+            .controlItem(withName: .hidden)?.window
+            .flatMap { CGWindowID(exactly: $0.windowNumber) }
+        let alwaysHiddenControlItemWindowID = appState.menuBarManager
+            .controlItem(withName: .alwaysHidden)?.window
+            .flatMap { CGWindowID(exactly: $0.windowNumber) }
+        var itemsForControlDiscovery = liveItems
+        guard let controlItems = ControlItemPair(
+            items: &itemsForControlDiscovery,
+            hiddenControlItemWindowID: hiddenControlItemWindowID,
+            alwaysHiddenControlItemWindowID: alwaysHiddenControlItemWindowID
+        ) else {
+            MenuBarItemManager.diagLog.debug(
+                "synchronizeMacOS27RevealedOrder: control items not ready"
+            )
+            return
+        }
+
+        let restored = await enforceControlItemOrder(
+            controlItems: controlItems,
+            items: liveItems,
+            reason: .revealedLayoutRestore
+        )
+        if !restored {
+            MenuBarItemManager.diagLog.debug(
+                "synchronizeMacOS27RevealedOrder: live order already matches saved layout"
+            )
+        }
+    }
+
     /// Repairs assignments written by earlier macOS 27 builds that concealed
     /// items without first moving them across a real divider. Runs only while a
     /// hidden section is revealed, because concealed items have no AX elements.
@@ -4267,7 +4396,7 @@ extension MenuBarItemManager {
             await enforceControlItemOrder(
                 controlItems: controlItems,
                 items: liveItems,
-                force: true
+                reason: .explicitLayoutRepair
             )
             // Divider enforcement can mutate geometry. Refresh once only when a
             // move was actually planned; routine no-op reconciliation reuses the
@@ -6329,6 +6458,23 @@ extension MenuBarItemManager {
         return ["status:\(littleSnitchAgentBundleID)::Item-0"]
     }
 
+    enum StructuralControlOrderReason {
+        case ambientCacheRefresh
+        case revealedLayoutRestore
+        case explicitLayoutRepair
+    }
+
+    static func shouldEnforceMacOS27StructuralControlOrder(
+        for reason: StructuralControlOrderReason
+    ) -> Bool {
+        switch reason {
+        case .ambientCacheRefresh:
+            false
+        case .revealedLayoutRestore, .explicitLayoutRepair:
+            true
+        }
+    }
+
     /// Visible-section structural sequence for macOS 27 preferred-position
     /// repair. Inserts the Visible Thaw control at its saved layout slot so
     /// enforcement cannot shove it to the far-right edge after a user ⌘-drag.
@@ -6348,89 +6494,138 @@ extension MenuBarItemManager {
         let visibleCanonical = MenuBarItemTag.canonicalPersistentIdentifier(
             visibleControl.uniqueIdentifier
         )
-        guard !canonicalOrder.isEmpty, canonicalOrder.contains(visibleCanonical) else {
-            let insertionIndex = ordinaryVisibleItems.firstIndex {
-                visibleControl.bounds.midX < $0.bounds.midX
-            } ?? ordinaryVisibleItems.count
-            var result = ordinaryVisibleItems
-            result.insert(visibleControl, at: insertionIndex)
-            return result
+        let liveSegment = MenuBarItem.sortByVisualCenterThenIdentifier(
+            ordinaryVisibleItems + [visibleControl]
+        )
+        guard !canonicalOrder.isEmpty,
+              canonicalOrder.contains(visibleCanonical)
+        else {
+            return liveSegment
         }
-        return MenuBarSectionController.overflowOrderedVisibleItems(
-            ordinaryVisibleItems + [visibleControl],
+        let canonicalSet = Set(canonicalOrder)
+        let newlyForcedVisible = liveSegment.filter {
+            !canonicalSet.contains(
+                MenuBarItemTag.canonicalPersistentIdentifier($0.uniqueIdentifier)
+            )
+        }
+        let authoredVisible = MenuBarSectionController.overflowOrderedVisibleItems(
+            liveSegment.filter {
+                canonicalSet.contains(
+                    MenuBarItemTag.canonicalPersistentIdentifier($0.uniqueIdentifier)
+                )
+            },
             using: savedOrder
         )
+        // Newly forced-visible MenuBarAgent children had no authored slot in
+        // older layouts. Put them before the authored Visible sequence so its
+        // trailing item (normally Thaw beside Control Center) stays trailing.
+        return newlyForcedVisible + authoredVisible
+    }
+
+    /// Complete left-to-right structural sequence for the runtime position
+    /// store. The Always Hidden divider is optional: macOS 27 can omit that
+    /// zero-width control from AX even while Hidden and Visible controls remain
+    /// available. Hidden -> Visible ordering must still be enforced in that
+    /// two-control layout.
+    static func macOS27StructuralOrder(
+        alwaysHiddenItems: [MenuBarItem],
+        alwaysHiddenControlItem: MenuBarItem?,
+        hiddenItems: [MenuBarItem],
+        hiddenControlItem: MenuBarItem,
+        visibleSegment: [MenuBarItem]
+    ) -> [MenuBarItem] {
+        alwaysHiddenItems
+            + (alwaysHiddenControlItem.map { [$0] } ?? [])
+            + hiddenItems
+            + [hiddenControlItem]
+            + visibleSegment
+    }
+
+    private func restoreMacOS27StructuralControlOrder(
+        controlItems: ControlItemPair,
+        items: [MenuBarItem]
+    ) -> Bool {
+        guard #available(macOS 27, *),
+              let visible = items.first(where: { $0.tag.matchesVisibleControlItem }),
+              let controller = appState?.menuBarManager.sectionController
+        else {
+            return false
+        }
+
+        let ordinaryItems = items.filter { !$0.isControlItem }
+        let alwaysHiddenItems = controller.ordered(
+            ordinaryItems.filter { controller.authoredSection(for: $0.uniqueIdentifier) == .alwaysHidden },
+            in: .alwaysHidden
+        )
+        let hiddenItems = controller.ordered(
+            ordinaryItems.filter { controller.authoredSection(for: $0.uniqueIdentifier) == .hidden },
+            in: .hidden
+        )
+        let visibleItems = controller.ordered(
+            ordinaryItems.filter { controller.authoredSection(for: $0.uniqueIdentifier) == .visible },
+            in: .visible
+        )
+        let recordedVisibleOrder = controller.sectionItemOrder[.visible]
+            ?? savedSectionOrder[sectionKey(for: .visible)]
+            ?? []
+        let visibleSegment = Self.structuralVisibleSegment(
+            ordinaryVisibleItems: visibleItems,
+            visibleControl: visible,
+            savedOrder: recordedVisibleOrder
+        )
+        let desiredOrder = Self.macOS27StructuralOrder(
+            alwaysHiddenItems: alwaysHiddenItems,
+            alwaysHiddenControlItem: controlItems.alwaysHidden,
+            hiddenItems: hiddenItems,
+            hiddenControlItem: controlItems.hidden,
+            visibleSegment: visibleSegment
+        )
+        let reordered = RuntimePositionStore.applyControlItemOrder(
+            desiredOrder: desiredOrder,
+            opaqueVisibleKeys: Self.opaqueVisibleRuntimePositionKeys(),
+            liveItems: items
+        )
+        guard !reordered.isEmpty else { return false }
+
+        controller.notePreferredPositionsSelfWrite()
+        requestMenuBarAgentPositionRefresh()
+        MenuBarItemManager.diagLog.info(
+            "macOS 27: restored structural divider order for \(reordered.count) control item(s)"
+        )
+        return true
     }
 
     private func enforceControlItemOrder(
         controlItems: ControlItemPair,
         items: [MenuBarItem],
-        force: Bool = false
-    ) async {
-        // During assessment-mode reflow, MenuBarAgent is still reshuffling
-        // preferred positions. Structural restores here fight the user's
-        // Visible-control placement and race `applySavedLayout`, which uses
-        // the same settle window (IamWJC snap-back on macOS 27).
-        // `force: true` (reveal / reset) still runs so dividers can be repaired.
-        if #available(macOS 27, *), !force, isWithinRestrictionReflowSettleWindow {
+        reason: StructuralControlOrderReason
+    ) async -> Bool {
+        // Ambient cache passes observe layout; they must not rewrite the whole
+        // preferred-position permutation. Doing so after restriction changes,
+        // unlock, and app churn moved the Visible Thaw control away from its
+        // saved slot and made unrelated third-party icons oscillate. Explicit
+        // reset/migration repair remains allowed to rebuild section boundaries.
+        if #available(macOS 27, *),
+           !MenuBarBackendProvider.current.supportsLegacySectionHiding,
+           !Self.shouldEnforceMacOS27StructuralControlOrder(for: reason)
+        {
             MenuBarItemManager.diagLog.debug(
-                "enforceControlItemOrder: skipping, within restriction-reflow settle window"
+                "enforceControlItemOrder: skipping ambient structural position rewrite"
             )
-            return
+            return false
         }
 
         let hidden = controlItems.hidden
+        var didRestoreOrder = false
 
         // macOS 27's runtime host owns the actual control-item order. This
         // must run independently of the legacy/assertion enforcement strategy:
         // collapsed dividers are structural anchors, not draggable items.
-        if #available(macOS 27, *),
-           let alwaysHidden = controlItems.alwaysHidden,
-           let visible = items.first(where: { $0.tag.matchesVisibleControlItem }),
-           let controller = appState?.menuBarManager.sectionController
-        {
-            let ordinaryItems = items.filter { !$0.isControlItem }
-
-            // A divider is the right boundary of its section, never an
-            // independent anchor. Build the complete structural sequence from
-            // the controller's persisted section order so a previous runtime
-            // shuffle cannot make the next repair preserve an interleaving.
-            // `ordered` also keeps newly discovered items by appending them in
-            // their current visual order until the user places them.
-            let alwaysHiddenItems = controller.ordered(
-                ordinaryItems.filter { controller.authoredSection(for: $0.uniqueIdentifier) == .alwaysHidden },
-                in: .alwaysHidden
-            )
-            let hiddenItems = controller.ordered(
-                ordinaryItems.filter { controller.authoredSection(for: $0.uniqueIdentifier) == .hidden },
-                in: .hidden
-            )
-            let visibleItems = controller.ordered(
-                ordinaryItems.filter { controller.authoredSection(for: $0.uniqueIdentifier) == .visible },
-                in: .visible
-            )
-            // Place Visible where saved layout says (not always last). Always
-            // appending it forced the Thaw icon to the far right and undid ⌘-drags.
-            let recordedVisibleOrder = controller.sectionItemOrder[.visible]
-                ?? savedSectionOrder[sectionKey(for: .visible)]
-                ?? []
-            let visibleSegment = Self.structuralVisibleSegment(
-                ordinaryVisibleItems: visibleItems,
-                visibleControl: visible,
-                savedOrder: recordedVisibleOrder
-            )
-            let reordered = RuntimePositionStore.applyControlItemOrder(
-                desiredOrder: alwaysHiddenItems + [alwaysHidden] + hiddenItems + [hidden] + visibleSegment,
-                opaqueVisibleKeys: Self.opaqueVisibleRuntimePositionKeys(),
-                liveItems: items
-            )
-            if !reordered.isEmpty {
-                controller.notePreferredPositionsSelfWrite()
-                requestMenuBarAgentPositionRefresh()
-                MenuBarItemManager.diagLog.info(
-                    "macOS 27: restored structural divider order for \(reordered.count) control item(s)"
-                )
-            }
+        if restoreMacOS27StructuralControlOrder(
+            controlItems: controlItems,
+            items: items
+        ) {
+            didRestoreOrder = true
         }
 
         switch MenuBarBackendProvider.current.controlItemEnforcementStrategy {
@@ -6443,7 +6638,7 @@ extension MenuBarItemManager {
                 // Zero-width section dividers are not ⌘-draggable on macOS 27;
                 // concealment is assignment-driven instead of divider-relative.
                 lastFailedDividerSignature = nil
-                return
+                return didRestoreOrder
             }
 
             let sectionAssignment = appState?.menuBarManager.sectionController?
@@ -6457,7 +6652,7 @@ extension MenuBarItemManager {
                 // Nothing to enforce — clear the thrash guard so a future genuine
                 // divergence is allowed to retry.
                 lastFailedDividerSignature = nil
-                return
+                return didRestoreOrder
             }
 
             // Divider-thrash guard: when a divider move can't be achieved (e.g.
@@ -6469,8 +6664,10 @@ extension MenuBarItemManager {
             // the layout changed since, skip it. Forced callers (reveal/reset)
             // bypass the guard so a deliberate action always re-enforces.
             let signature = Self.dividerSignature(items: items, destination: destination)
-            if !force, signature == lastFailedDividerSignature {
-                return
+            if case .ambientCacheRefresh = reason,
+               signature == lastFailedDividerSignature
+            {
+                return didRestoreOrder
             }
 
             do {
@@ -6484,6 +6681,7 @@ extension MenuBarItemManager {
                     allowSectionBoundaryTargetOnMacOS27: true
                 )
                 lastFailedDividerSignature = nil
+                didRestoreOrder = true
             } catch {
                 lastFailedDividerSignature = signature
                 MenuBarItemManager.diagLog.error(
@@ -6507,29 +6705,32 @@ extension MenuBarItemManager {
                         to: .leftOfItem(hidden),
                         skipInputPause: true
                     )
+                    didRestoreOrder = true
                 } catch {
                     MenuBarItemManager.diagLog.error(
                         "Error enforcing macOS 27 always-hidden divider order: \(error)"
                     )
                 }
             }
-            return
+            return didRestoreOrder
 
         case .legacyDividerSwap:
             guard
                 let alwaysHidden = controlItems.alwaysHidden,
                 hidden.bounds.maxX <= alwaysHidden.bounds.minX
             else {
-                return
+                return didRestoreOrder
             }
 
             do {
                 MenuBarItemManager.diagLog.debug("Control items have incorrect order")
                 try await move(item: alwaysHidden, to: .leftOfItem(hidden), skipInputPause: true)
+                didRestoreOrder = true
             } catch {
                 MenuBarItemManager.diagLog.error("Error enforcing control item order: \(error)")
             }
         }
+        return didRestoreOrder
     }
 
     /// Returns a Boolean value that indicates whether any menu bar item
@@ -7281,7 +7482,11 @@ extension MenuBarItemManager {
             throw LayoutResetError.missingControlItems
         }
 
-        await enforceControlItemOrder(controlItems: controlItems, items: items, force: true)
+        await enforceControlItemOrder(
+            controlItems: controlItems,
+            items: items,
+            reason: .explicitLayoutRepair
+        )
 
         return try await resetLayoutWithControlItems(controlItems: controlItems, items: items)
     }
@@ -9158,12 +9363,6 @@ extension MenuBarItemManager {
         return true
     }
 
-    /// Restores items that are stuck in a "blocked" state (positioned at x=-1)
-    /// back to the visible section. This is called when the app is terminating
-    /// to prevent items from being permanently stuck in macOS's Control Center preferences.
-    /// Only items at x=-1 are restored; normally hidden items are left as-is.
-    ///
-    /// - Returns: The number of items that failed to move.
     private func restoreMacOS27VisibleControlOrder(items: [MenuBarItem]) async -> Bool {
         let desiredOrder = savedSectionOrder[sectionKey(for: .visible)] ?? []
         guard let plannedMove = RuntimeLayoutCoordinator.visibleControlRestoreMove(

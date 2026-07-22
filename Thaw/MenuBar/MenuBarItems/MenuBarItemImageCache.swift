@@ -1653,7 +1653,7 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
             let croppedImage: CGImage = if knockOutBackground,
                                            let cleaned = rawCroppedImage.knockingOutNearUniformBackground()
             {
-                cleaned            // already a fresh makeImage() — do NOT double-detach
+                cleaned // already a fresh makeImage() — do NOT double-detach
             } else {
                 rawCroppedImage.detachedCopy()
             }
@@ -2770,7 +2770,11 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                 guard !Task.isCancelled else { return }
 
                 let previousRevealedSection = controller.revealedSection
-                controller.show(.alwaysHidden, reconcileBoundary: false)
+                controller.show(
+                    .alwaysHidden,
+                    reconcileBoundary: false,
+                    synchronizeOrder: false
+                )
                 defer {
                     switch Self.PrewarmRevealRestorationAction.resolve(
                         previous: previousRevealedSection,
@@ -2781,7 +2785,11 @@ final class MenuBarItemImageCache: ObservableObject, @unchecked Sendable {
                     case .noOp:
                         break
                     case let .show(section):
-                        controller.show(section, reconcileBoundary: false)
+                        controller.show(
+                            section,
+                            reconcileBoundary: false,
+                            synchronizeOrder: false
+                        )
                     }
                 }
                 guard controller.revealedSection == .alwaysHidden else {

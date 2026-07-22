@@ -689,19 +689,29 @@ final class MenuBarSectionControllerTests: XCTestCase {
         XCTAssertEqual(controller.revealedSection, .hidden)
     }
 
-    func testShow_DefaultSkipsBoundaryReconcileButStillRevealsAlwaysHidden() {
-        // Regression: reveal must not schedule preferred-position boundary
-        // repair by default. That repair rewrote TrailingItemPreferredPositions
-        // and invalidated the Visible control item's width for several seconds,
-        // so rehide clicks never reached performPrimaryAction (variable
-        // "can't rehide" dead zone + bar flash). Assertion reveal still works.
+    func testShow_DefaultSchedulesBatchOrderSynchronization() {
         let controller = makeController()
 
         controller.show(.alwaysHidden)
 
         XCTAssertEqual(controller.revealedSection, .alwaysHidden)
+        XCTAssertTrue(controller.hasPendingRevealOrderSynchronization)
         controller.hideRevealedSections()
         XCTAssertNil(controller.revealedSection)
+        XCTAssertFalse(controller.hasPendingRevealOrderSynchronization)
+    }
+
+    func testShow_CaptureRevealDoesNotScheduleOrderSynchronization() {
+        let controller = makeController()
+
+        controller.show(
+            .alwaysHidden,
+            reconcileBoundary: false,
+            synchronizeOrder: false
+        )
+
+        XCTAssertEqual(controller.revealedSection, .alwaysHidden)
+        XCTAssertFalse(controller.hasPendingRevealOrderSynchronization)
     }
 
     func testShow_IsIdempotentForSameSection() {

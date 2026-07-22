@@ -104,7 +104,11 @@ public struct MenuBarItem: CustomStringConvertible, Sendable {
         // Denylisted hiding-unsupported items stay forced-visible even under the
         // experimental toggle: the editor may reorder them, but they can never be
         // assigned to a hidden section. See ``MenuBarItemTag/isHidingUnsupported``.
-        guard experimentalSystemItemHiding, basePolicy.isForcedVisible, !tag.isHidingUnsupported else {
+        guard experimentalSystemItemHiding,
+              basePolicy.isForcedVisible,
+              !tag.isHidingUnsupported,
+              !tag.isMenuBarAgentItemForcedVisible
+        else {
             return basePolicy
         }
         return .hideable

@@ -282,6 +282,10 @@ final class MenuBarSectionController: ObservableObject {
 
     private var timer: Timer?
     private var boundaryReconciliationTask: Task<Void, Never>?
+    var hasPendingRevealOrderSynchronization: Bool {
+        boundaryReconciliationTask != nil
+    }
+
     private var lastRefreshSignature: String?
     private var nativeOverflowProbeTask: Task<Void, Never>?
     private var nativeOverflowState = NativeOverflowStateReducer()
@@ -756,7 +760,8 @@ final class MenuBarSectionController: ObservableObject {
             section != .visible &&
                 !isControlItemAssignmentIdentifier(identifier) &&
                 !isOwnAppAssignmentIdentifier(identifier) &&
-                !isHidingUnsupportedAssignmentIdentifier(identifier)
+                !isHidingUnsupportedAssignmentIdentifier(identifier) &&
+                !MenuBarItemTag.isMenuBarAgentForcedVisibleIdentifier(identifier)
         }
     }
 
@@ -1006,24 +1011,37 @@ final class MenuBarSectionController: ObservableObject {
 
     /// Temporarily reveals a hidden section in the real menu bar.
     ///
-    /// - Parameter reconcileBoundary: When `true`, schedules a preferred-position
-    ///   boundary repair after the reveal. Defaults to `false` because that
-    ///   repair rewrites `TrailingItemPreferredPositions`, force-reorders
-    ///   structural dividers, and repeatedly invalidates the Visible control
-    ///   item's status-item width — which makes the Thaw icon miss clicks for
-    ///   several seconds (variable "can't rehide" dead zone) and flashes the
-    ///   bar. AGENTS.md: avoid rewriting MenuBarAgent positions during reveal
-    ///   or hide cycles. Opt in only for explicit one-shot layout repair.
+    /// - Parameter reconcileBoundary: When `true`, also repairs legacy persisted
+    ///   assignments one item at a time. Normal reveals leave this disabled.
+    /// - Parameter synchronizeOrder: When `true`, schedules one cancellable,
+    ///   batch preferred-position restore after the reveal has settled. Capture
+    ///   prewarming disables this because it is not a user-visible reveal.
     func show(
         _ section: MenuBarSection.Name,
-        reconcileBoundary: Bool = false
+        reconcileBoundary: Bool = false,
+        synchronizeOrder: Bool = true
     ) {
-        if !reconcileBoundary {
+        if !reconcileBoundary, !synchronizeOrder {
             boundaryReconciliationTask?.cancel()
             boundaryReconciliationTask = nil
         }
         guard let target = Self.revealTarget(for: section), revealedSection != target else {
             return
+        }
+
+        // Pin the items that are already visible before releasing the
+        // assertion. Otherwise MenuBarAgent may shift Thaw's own status item
+        // during reveal, moving it out from under the pointer before the user's
+        // second click can rehide the section. The delayed batch restore below
+        // then only has to place the newly revealed items around this stable
+        // visible segment.
+        if #available(macOS 27, *),
+           !MenuBarBackendProvider.current.supportsLegacySectionHiding
+        {
+            appState?.itemManager.prepareMacOS27RevealedOrder()
+            if appState?.settings.advanced.enablePositionHiding == false {
+                _ = relockVisiblePositionsForRecovery()
+            }
         }
         revealedSection = target
         diagLog.info("show(\(target.rawValue)); temporarily revealing assigned item(s)")
@@ -1032,10 +1050,10 @@ final class MenuBarSectionController: ObservableObject {
         // before items ever appeared — clicks registered, nothing showed.
         refresh()
 
-        guard reconcileBoundary else { return }
+        guard reconcileBoundary || synchronizeOrder else { return }
 
-        // Opt-in repair for assignments that never crossed a physical divider.
-        // Not used on the normal click/hotkey reveal path (see parameter docs).
+        // The normal path performs one atomic preferred-position permutation.
+        // The slower per-item migration path remains explicit and separate.
         boundaryReconciliationTask?.cancel()
         boundaryReconciliationTask = Task { @MainActor [weak self, weak appState] in
             try? await Task.sleep(for: .milliseconds(350))
@@ -1046,9 +1064,18 @@ final class MenuBarSectionController: ObservableObject {
             else {
                 return
             }
-            await appState.itemManager.reconcileMacOS27SectionBoundaries(
-                revealing: target
-            )
+            if reconcileBoundary {
+                await appState.itemManager.reconcileMacOS27SectionBoundaries(
+                    revealing: target
+                )
+            } else {
+                await appState.itemManager.synchronizeMacOS27RevealedOrder(
+                    revealing: target
+                )
+            }
+            if !Task.isCancelled, self.revealedSection == target {
+                self.boundaryReconciliationTask = nil
+            }
         }
     }
 
