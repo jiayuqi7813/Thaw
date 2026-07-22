@@ -18,7 +18,7 @@ Targets are macOS 26+. macOS 27 "Golden Gate" support is in development on the
   (`thaw-app/prk-bin`, minimum **0.0.8** on `feat/macos-27-experimental`). Xcode resolves the XCFramework from
   GitHub Releases with no authentication. Local kit work: check out the private
   source repo as a sibling (`../PlatformRuntimeKit`), then open
-  `ThawDev.xcworkspace` or run `./scripts/thaw-devrun.sh` (symlinks the sibling
+  `ThawDev.xcworkspace` or run `./scripts/thaw-devrun.sh` (mirrors the sibling
   into `.swiftpm-overrides/prk-bin`). Without that sibling, `thaw-devrun.sh`
   falls back to `Thaw.xcodeproj` and the published packages. CI always uses the
   published binary. Alternately set `PRK_DEVELOPMENT=1` in the
@@ -130,8 +130,8 @@ Before touching menu bar hiding code, preserve these invariants:
   section's temporary reveal behavior as a shortcut for the other.
 - Capture paths should preserve display identity from the item cache when
   available, instead of recomputing the active menu bar display mid-capture.
-- Masked backend work should prefer overlay concealment and avoid rewriting
-  MenuBarAgent positions during reveal or hide cycles.
+- Masked backend reveal may perform one cancellable batch preferred-position
+  restore after settling; never run per-item reorder loops during reveal/hide.
 
 ## Maintenance
 

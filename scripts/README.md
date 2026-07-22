@@ -8,7 +8,7 @@ Builds the **Debug** configuration and runs it from `/Applications/Thaw Debug.ap
 
 On macOS 27, menu bar items need a clean code identity and a canonical `/Applications` install path. Running straight from DerivedData can cause Thaw’s own icon to disappear when items are hidden. This script:
 
-1. Optionally symlinks sibling local packages into `.swiftpm-overrides/` (falls back to published packages when absent)
+1. Optionally mirrors sibling local packages into `.swiftpm-overrides/` (falls back to published packages when absent)
 2. Resolves Swift package dependencies (`xcodebuild -resolvePackageDependencies`)
 3. Builds the Debug scheme (uses your Xcode project signing settings)
 4. Quits any running Thaw Debug instance (app + XPC service)
@@ -25,7 +25,7 @@ sibling is missing, the script removes any stale override and builds via
 
 | Sibling checkout | Override path | Behavior |
 |------------------|---------------|----------|
-| `../PlatformRuntimeKit` | `.swiftpm-overrides/prk-bin` → `../../PlatformRuntimeKit` | Optional — local kit if present, else published |
+| `../PlatformRuntimeKit` | `.swiftpm-overrides/prk-bin` source mirror | Optional — local kit if present, else published |
 
 `.swiftpm-overrides/` is gitignored. CI always uses published packages via
 `Thaw.xcodeproj`.
