@@ -21,6 +21,13 @@ struct ToolsSettingsPane: View {
 
     var body: some View {
         IceForm {
+            SettingsWarningPill(
+                title: "Safe vs maintenance tools",
+                message: "Diagnostics and Onboarding are non-destructive. Reset and Troubleshooting can delete preferences, clear the cache, or quit apps.",
+                systemImage: "info.circle.fill",
+                tint: .blue
+            )
+
             IceSection("Diagnostics") {
                 diagnosticLogging
             }

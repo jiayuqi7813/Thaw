@@ -11,22 +11,26 @@ import SwiftUI
 /// Glass alert banner for settings form rows.
 ///
 /// Uses the same Liquid Glass chrome as ``IceSlider``, tinted with
-/// `Color.accentColor` so notices pick up the app/system accent.
+/// `tint` (defaults to `Color.accentColor`) so notices pick up the
+/// app/system accent — or an explicit info/warning color.
 struct SettingsWarningPill: View {
     private let title: LocalizedStringKey?
     private let message: LocalizedStringKey
     private let systemImage: String
+    private let tint: Color
     private let actionTitle: LocalizedStringKey?
     private let action: (() -> Void)?
 
     /// Single-message banner (title omitted).
     init(
         message: LocalizedStringKey,
-        systemImage: String = "exclamationmark.circle.fill"
+        systemImage: String = "exclamationmark.circle.fill",
+        tint: Color = .accentColor
     ) {
         title = nil
         self.message = message
         self.systemImage = systemImage
+        self.tint = tint
         actionTitle = nil
         action = nil
     }
@@ -36,12 +40,14 @@ struct SettingsWarningPill: View {
         title: LocalizedStringKey,
         message: LocalizedStringKey,
         systemImage: String = "exclamationmark.circle.fill",
+        tint: Color = .accentColor,
         actionTitle: LocalizedStringKey? = nil,
         action: (() -> Void)? = nil
     ) {
         self.title = title
         self.message = message
         self.systemImage = systemImage
+        self.tint = tint
         self.actionTitle = actionTitle
         self.action = action
     }
@@ -50,7 +56,7 @@ struct SettingsWarningPill: View {
         HStack(alignment: .center, spacing: 12) {
             Image(systemName: systemImage)
                 .symbolRenderingMode(.palette)
-                .foregroundStyle(.white, Color.accentColor)
+                .foregroundStyle(.white, tint)
                 .font(.title2)
                 .accessibilityHidden(true)
 
@@ -76,20 +82,20 @@ struct SettingsWarningPill: View {
             if let actionTitle, let action {
                 Button(actionTitle, action: action)
                     .buttonStyle(.glassProminent)
-                    .tint(Color.accentColor)
+                    .tint(tint)
                     .controlSize(.small)
                     .fixedSize()
             }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
-        // Light accent wash over clear glass — reads like the mock's milky
-        // translucent pill, not a solid peach fill.
-        .glassEffect(.clear.tint(Color.accentColor.opacity(0.18)), in: shape)
+        // Light tint wash over clear glass — reads like the mock's milky
+        // translucent pill, not a solid fill.
+        .glassEffect(.clear.tint(tint.opacity(0.18)), in: shape)
         .overlay {
-            shape.strokeBorder(Color.accentColor.opacity(0.28), lineWidth: 1)
+            shape.strokeBorder(tint.opacity(0.28), lineWidth: 1)
         }
-        .shadow(color: Color.accentColor.opacity(0.12), radius: 10, y: 3)
+        .shadow(color: tint.opacity(0.12), radius: 10, y: 3)
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
         .listRowBackground(Color.clear)
