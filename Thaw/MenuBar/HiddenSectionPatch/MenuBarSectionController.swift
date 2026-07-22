@@ -1005,9 +1005,18 @@ final class MenuBarSectionController: ObservableObject {
     }
 
     /// Temporarily reveals a hidden section in the real menu bar.
+    ///
+    /// - Parameter reconcileBoundary: When `true`, schedules a preferred-position
+    ///   boundary repair after the reveal. Defaults to `false` because that
+    ///   repair rewrites `TrailingItemPreferredPositions`, force-reorders
+    ///   structural dividers, and repeatedly invalidates the Visible control
+    ///   item's status-item width — which makes the Thaw icon miss clicks for
+    ///   several seconds (variable "can't rehide" dead zone) and flashes the
+    ///   bar. AGENTS.md: avoid rewriting MenuBarAgent positions during reveal
+    ///   or hide cycles. Opt in only for explicit one-shot layout repair.
     func show(
         _ section: MenuBarSection.Name,
-        reconcileBoundary: Bool = true
+        reconcileBoundary: Bool = false
     ) {
         if !reconcileBoundary {
             boundaryReconciliationTask?.cancel()
@@ -1018,14 +1027,15 @@ final class MenuBarSectionController: ObservableObject {
         }
         revealedSection = target
         diagLog.info("show(\(target.rawValue)); temporarily revealing assigned item(s)")
+        // Restriction apply must stay synchronous with the reveal flag. Deferring
+        // it let a rapid follow-up click hide (and cancel the pending refresh)
+        // before items ever appeared — clicks registered, nothing showed.
         refresh()
 
         guard reconcileBoundary else { return }
 
-        // Existing assignments created by earlier macOS 27 builds may never
-        // have crossed a physical divider. Once their AX elements reappear,
-        // repair that persisted layout so the revealed bar is always:
-        // Hidden < divider < Visible.
+        // Opt-in repair for assignments that never crossed a physical divider.
+        // Not used on the normal click/hotkey reveal path (see parameter docs).
         boundaryReconciliationTask?.cancel()
         boundaryReconciliationTask = Task { @MainActor [weak self, weak appState] in
             try? await Task.sleep(for: .milliseconds(350))
@@ -2060,7 +2070,7 @@ final class MenuBarSectionController: ObservableObject {
         let unsupportedItems = items.filter { item in
             bundleIDs.contains(item.tag.namespace.description)
         }
-        let presentBundleIDs = Set(unsupportedItems.map { $0.tag.namespace.description })
+        let presentBundleIDs = Set(unsupportedItems.map(\.tag.namespace.description))
         return HidingUnsupportedVisibilityFailures(
             invisibleItems: unsupportedItems.filter { !$0.isOnScreen },
             absentBundleIDs: bundleIDs.subtracting(presentBundleIDs)

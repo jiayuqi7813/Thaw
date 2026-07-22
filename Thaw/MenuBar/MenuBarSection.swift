@@ -440,8 +440,9 @@ final class MenuBarSection {
             : [.visible, .hidden]
 
         Task { @MainActor [weak appState] in
-            // Let MenuBarAgent republish the revealed AX elements and allow the
-            // boundary reconciliation pass to settle their final coordinates.
+            // Let MenuBarAgent republish the revealed AX elements before capture.
+            // Boundary repair is intentionally not run on reveal (it rewrites
+            // preferred positions and invalidates the Thaw icon's hit target).
             try? await Task.sleep(for: .milliseconds(500))
             guard
                 let appState,

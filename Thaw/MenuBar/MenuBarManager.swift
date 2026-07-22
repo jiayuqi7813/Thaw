@@ -903,7 +903,11 @@ final class MenuBarManager: ObservableObject {
 
     /// Invalidates MenuBarAgent's live layout after a preferred-position write
     /// without restarting its compositor or synthesizing pointer input.
+    ///
+    /// No-ops while a section is revealed so reveal/hide clicks on the Thaw
+    /// icon stay hittable (see ``ControlItem/requestMenuBarAgentPositionRefresh()``).
     func requestMenuBarAgentPositionRefresh() {
+        guard sectionController?.revealedSection == nil else { return }
         controlItem(withName: .visible)?.requestMenuBarAgentPositionRefresh()
     }
 

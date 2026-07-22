@@ -692,7 +692,17 @@ final class ControlItem: NSObject {
     /// updates `TrailingItemPreferredPositions`. The temporary length matches
     /// the button's rendered width, so this does not hide the item, flash the
     /// compositor, or move the pointer.
+    ///
+    /// Skipped while a section is revealed: nudging the Visible control item's
+    /// length during reveal/hide reflow is what made rehide clicks miss for a
+    /// few seconds (the icon's hit target keeps getting invalidated while
+    /// boundary repair rewrites preferred positions).
     func requestMenuBarAgentPositionRefresh() {
+        if appState?.menuBarManager.sectionController?.revealedSection != nil {
+            diagLog.debug("Skipping MenuBarAgent position refresh while a section is revealed")
+            return
+        }
+
         menuBarAgentLayoutNudgeGeneration += 1
         let generation = menuBarAgentLayoutNudgeGeneration
         menuBarAgentLayoutNudgeTask?.cancel()
@@ -709,6 +719,13 @@ final class ControlItem: NSObject {
             guard let self, !Task.isCancelled,
                   generation == menuBarAgentLayoutNudgeGeneration
             else { return }
+
+            // Re-check: a reveal may have started during the settle delay.
+            if appState?.menuBarManager.sectionController?.revealedSection != nil {
+                diagLog.debug("Skipping MenuBarAgent position refresh; section revealed during settle")
+                menuBarAgentLayoutNudgeTask = nil
+                return
+            }
 
             let baseline = statusItem.length
             guard let temporaryLength = Self.menuBarAgentLayoutNudgeLength(
@@ -1135,6 +1152,18 @@ final class ControlItem: NSObject {
             }
         case .showAlwaysHidden:
             if let section = menuBarManager.section(withName: .alwaysHidden), section.isEnabled {
+                // Already revealing Always Hidden: treat as hide (stale
+                // clickCount>1 / double-click intent must not no-op).
+                if menuBarManager.sectionController?.revealedSection == .alwaysHidden {
+                    diagLog.debug("performPrimaryAction: showAlwaysHidden while revealed → hide")
+                    for s in menuBarManager.sections {
+                        s.desiredState = .hideSection
+                        s.updateControlItemState(for: nil)
+                    }
+                    menuBarManager.sectionController?.hideRevealedSections()
+                    menuBarManager.iceBarPanel.close()
+                    break
+                }
                 diagLog.debug("performPrimaryAction: showAlwaysHidden → permanent show")
                 for s in menuBarManager.sections {
                     s.desiredState = .showSection
@@ -1146,8 +1175,10 @@ final class ControlItem: NSObject {
             }
         case .toggleAlwaysHidden:
             if let section = menuBarManager.section(withName: .alwaysHidden), section.isEnabled {
-                let makeVisible = section.isHidden
-                diagLog.debug("performPrimaryAction: toggleAlwaysHidden → permanent toggle, isHidden=\(section.isHidden)")
+                // Prefer the controller's reveal flag over `section.isHidden`,
+                // which can briefly lag across Ice Bar / desiredState edges.
+                let makeVisible = menuBarManager.sectionController?.revealedSection != .alwaysHidden
+                diagLog.debug("performPrimaryAction: toggleAlwaysHidden → permanent toggle, makeVisible=\(makeVisible)")
                 for s in menuBarManager.sections {
                     s.desiredState = makeVisible ? .showSection : .hideSection
                     s.updateControlItemState(for: nil)
