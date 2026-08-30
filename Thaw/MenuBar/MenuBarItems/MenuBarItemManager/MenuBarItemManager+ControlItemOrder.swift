@@ -182,6 +182,13 @@ extension MenuBarItemManager {
                 return didAcceptMoveAttempt ? .failedAttempt : .noAttempt
             } catch {
                 MenuBarItemManager.diagLog.error("Failed to relocate system item \(systemItem.logString): \(error)")
+                await reportAutomaticMoveFailure(
+                    of: systemItem,
+                    to: .rightOfItem(controlItems.hidden),
+                    expectedSection: .visible,
+                    error: error,
+                    source: "the section layout"
+                )
                 return didAcceptMoveAttempt ? .failedAttempt : .noAttempt
             }
             return .completed
@@ -226,6 +233,13 @@ extension MenuBarItemManager {
                 return didAcceptMoveAttempt ? .failedAttempt : .noAttempt
             } catch {
                 MenuBarItemManager.diagLog.error("Failed to relocate \(candidate.logString): \(error)")
+                await reportAutomaticMoveFailure(
+                    of: candidate,
+                    to: destination,
+                    expectedSection: effectiveNewItemsSection,
+                    error: error,
+                    source: "new-item placement"
+                )
                 return didAcceptMoveAttempt ? .failedAttempt : .noAttempt
             }
             return .completed
@@ -293,6 +307,13 @@ extension MenuBarItemManager {
             return didAcceptMoveAttempt ? .failedAttempt : .noAttempt
         } catch {
             MenuBarItemManager.diagLog.error("Failed to relocate Thaw icon \(thawIcon.logString): \(error)")
+            await reportAutomaticMoveFailure(
+                of: thawIcon,
+                to: .rightOfItem(controlItems.hidden),
+                expectedSection: .visible,
+                error: error,
+                source: "the section layout"
+            )
             return didAcceptMoveAttempt ? .failedAttempt : .noAttempt
         }
         return .completed
@@ -477,6 +498,13 @@ extension MenuBarItemManager {
                         \(targetSection.logString): \(error)
                         """
                     )
+                    await reportAutomaticMoveFailure(
+                        of: item,
+                        to: destination,
+                        expectedSection: targetSection,
+                        error: error,
+                        source: "pending item restoration"
+                    )
                 }
 
             case .clearEntry:
@@ -569,6 +597,13 @@ extension MenuBarItemManager {
             return didAcceptMoveAttempt ? .failedAttempt : .noAttempt
         } catch {
             MenuBarItemManager.diagLog.error("Error enforcing control item order: \(error)")
+            await reportAutomaticMoveFailure(
+                of: alwaysHidden,
+                to: .leftOfItem(hidden),
+                expectedSection: nil,
+                error: error,
+                source: "control-item ordering"
+            )
             return didAcceptMoveAttempt ? .failedAttempt : .noAttempt
         }
     }

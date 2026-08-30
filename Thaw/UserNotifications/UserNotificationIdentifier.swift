@@ -9,4 +9,6 @@
 /// An identifier for a user notification.
 enum UserNotificationIdentifier: String {
     case updateCheck = "UpdateCheck"
+    /// An automatic menu bar move failed and saved a diagnostic report.
+    case moveFailed = "MoveFailed"
 }
