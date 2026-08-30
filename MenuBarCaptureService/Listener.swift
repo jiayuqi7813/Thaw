@@ -47,7 +47,17 @@ final nonisolated class Listener: @unchecked Sendable {
                     )
                     return nil
                 }
-                DiagnosticLogger.shared.attachToFile(at: requested)
+                guard DiagnosticLogger.shared.attachToFile(at: requested) else {
+                    // Answering success here would leave the app believing
+                    // both processes share a file while this one keeps
+                    // writing to the previous segment — which retention
+                    // eventually deletes out from under it. Failing the
+                    // request makes the app retry.
+                    diagLog.error(
+                        "Capture listener failed to attach diagnostic logging to \(requested.path)"
+                    )
+                    return nil
+                }
                 return .configureLogging
             case let .captureBatch(batch):
                 return capture(batch)

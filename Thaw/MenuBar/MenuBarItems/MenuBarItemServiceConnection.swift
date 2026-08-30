@@ -70,7 +70,16 @@ extension MenuBarItemService {
             //
             // Sent unconditionally: even with logging off, this hands over the
             // retention policy the service prunes the shared directory by.
-            await syncLogging()
+            // Only the initial push runs on the launch path: AppState.setupTask
+            // awaits start() before the rest of its setup, so the retry loop's
+            // 2s sleeps must not sit in between. A failing push marks the work
+            // pending and retries off the launch path.
+            if await sendLoggingConfiguration() {
+                loggingSync.withLock { $0.isPending = false }
+            } else {
+                loggingSync.withLock { $0.isPending = true }
+                Task { await syncLogging() }
+            }
 
             let response = await session.sendAsync(request: .start)
             guard let response else {
@@ -105,13 +114,21 @@ extension MenuBarItemService {
                 return true
             }
             guard isSender else { return }
-            defer { loggingSync.withLock { $0.isSending = false } }
 
             var attemptsLeft = Self.loggingSyncAttempts
             while loggingSync.withLock({ state -> Bool in
-                let wasPending = state.isPending
-                state.isPending = false
-                return wasPending
+                if state.isPending {
+                    state.isPending = false
+                    return true
+                }
+                // No outstanding work: release the sender role in the same
+                // critical section that observed the empty flag. Clearing it
+                // later (after the lock was released) raced a caller that
+                // arrived in between — it saw isSending set, declined to
+                // send, and the pending flag it had just set was stranded
+                // with no sender left to service it.
+                state.isSending = false
+                return false
             }) {
                 if await sendLoggingConfiguration() {
                     attemptsLeft = Self.loggingSyncAttempts
@@ -124,7 +141,13 @@ extension MenuBarItemService {
                 // process has already rotated away.
                 loggingSync.withLock { $0.isPending = true }
                 attemptsLeft -= 1
-                guard attemptsLeft > 0 else { break }
+                guard attemptsLeft > 0 else {
+                    // Exhausted: the pending flag stays set for the next
+                    // trigger; release the sender role explicitly, since the
+                    // loop exit above is what normally clears it.
+                    loggingSync.withLock { $0.isSending = false }
+                    break
+                }
                 try? await Task.sleep(for: .seconds(2))
             }
         }
@@ -149,21 +172,19 @@ extension MenuBarItemService {
             return true
         }
 
-        /// Re-sends the logging configuration when a push failed or the session
-        /// was replaced, so the service is never left writing to a file the app
-        /// has moved on from.
-        private func syncLoggingIfNeeded() async {
-            guard loggingSync.withLock({ $0.isPending }) else { return }
-            await syncLogging()
-        }
-
         /// Returns the source process identifiers for the given windows in a
         /// single batch XPC request, avoiding concurrent thread explosion
         /// in the XPC service.
         func sourcePIDs(for windows: [WindowInfo]) async -> [pid_t?] {
             // The app's most frequent request, and so the cheapest place to
-            // notice that the service is owed a logging configuration.
-            await syncLoggingIfNeeded()
+            // notice that the service is owed a logging configuration. Not
+            // awaited: a sync stuck in its retry cycle sleeps for seconds and
+            // must not delay the request — the kicked-off task re-enters
+            // syncLogging, whose single-sender lock makes extra kickoffs
+            // no-ops.
+            if loggingSync.withLock({ $0.isPending }) {
+                Task { await syncLogging() }
+            }
             let response = await session.sendAsync(request: .sourcePIDs(windows))
             guard let response else {
                 diagLog.error("Source PIDs batch request returned nil")

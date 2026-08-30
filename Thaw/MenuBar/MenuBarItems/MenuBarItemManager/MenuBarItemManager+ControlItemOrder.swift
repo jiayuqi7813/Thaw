@@ -153,7 +153,10 @@ extension MenuBarItemManager {
                 MenuBarItemManager.diagLog.info(
                     "Skipping new-item relocation for Thaw spacer \(candidate.logString)"
                 )
-                return true
+                // Nothing was relocated: reporting true would make the caller
+                // treat this cycle as interrupted and schedule an extra
+                // recache for a no-op. The spacer is already marked known.
+                return false
             }
 
             let destination = newItemsMoveDestination(for: controlItems, among: items)

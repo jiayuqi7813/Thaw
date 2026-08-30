@@ -242,7 +242,18 @@ final class LayoutBarPaddingView: NSView {
         }
 
         Task { [self, appState] in
-            guard !isStabilizing else { return }
+            guard !isStabilizing else {
+                // Bail without leaving either container frozen: the drop
+                // container was frozen by draggingEntered, the source by the
+                // dragging session.
+                await MainActor.run {
+                    self.container.canSetArrangedViews = true
+                    if sourceContainer !== self.container {
+                        sourceContainer?.canSetArrangedViews = true
+                    }
+                }
+                return
+            }
             isStabilizing = true
             await MainActor.run { self.showOverlay(true) }
             guard await (try? Task.sleep(for: .milliseconds(150))) != nil else {
@@ -270,7 +281,11 @@ final class LayoutBarPaddingView: NSView {
                 if let last = previous,
                    await stabilizePlacement(
                        of: last,
-                       to: destination,
+                       // Re-chain to the member before the last, not to the
+                       // head's destination: re-asserting the head's drop slot
+                       // would land the retried member AHEAD of the block,
+                       // scrambling the order the chaining loop produced.
+                       to: ordered.dropLast().last.map { .rightOfItem($0) } ?? destination,
                        expectedSection: container.section,
                        appState: appState
                    )
@@ -281,6 +296,29 @@ final class LayoutBarPaddingView: NSView {
                 Self.diagLog.info("Group move deferred, a menu bar item menu was open")
             } catch {
                 Self.diagLog.error("Error moving menu bar item group: \(error)")
+            }
+            // Mirror the single-item move's completion: re-anchor the New
+            // Items badge and re-enable BOTH containers before the flags are
+            // reset. resetStabilizingStateIfNeeded only restores the drop
+            // container; the source bar was frozen by the dragging session
+            // and would stay stuck at its mid-drag snapshot until an
+            // unrelated later drag reset it.
+            if let appState = container.appState {
+                await appState.itemManager.cacheItemsRegardless(skipRecentMoveCheck: true)
+            }
+            await MainActor.run {
+                if let appState = self.container.appState,
+                   self.containsNewItemsBadge()
+                {
+                    appState.itemManager.updateNewItemsPlacement(
+                        section: self.container.section,
+                        arrangedViews: self.container.arrangedViews
+                    )
+                }
+                self.container.canSetArrangedViews = true
+                if sourceContainer !== self.container {
+                    sourceContainer?.canSetArrangedViews = true
+                }
             }
             await resetStabilizingStateIfNeeded()
         }

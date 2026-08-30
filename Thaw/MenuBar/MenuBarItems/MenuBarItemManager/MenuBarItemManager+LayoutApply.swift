@@ -3175,10 +3175,13 @@ extension MenuBarItemManager {
         // Passing it through as duringSettling exempts that apply from
         // Phase 0's settling wait, which its gate-holding caller cannot
         // survive (#943).
-        // The completion counter, not the outcome counter: a user Cmd-drag or
-        // layout-editor drag landing mid-apply also records an outcome with
-        // zero unenacted moves, which would satisfy this check and clear the
-        // restoration shields without any apply having run.
+        // The completed-apply counter, not the shared outcome counter: a
+        // user Cmd-drag or layout-editor drag landing between the apply's
+        // own recordBulkApplyOutcome and this guard overwrites the shared
+        // counter with zero, which would satisfy this check and clear the
+        // restoration shields even though the apply finished with unenacted
+        // moves. Only a completed apply writes the completed-apply counter,
+        // and the generation comparison pins it to this apply.
         let completionGenerationBeforeApply = bulkApplyCompletionGeneration
         let restorationIdentifiersAtDispatch = triggerLayoutRestorationItemIdentifiers
         await applyProfileLayout(
@@ -3194,7 +3197,7 @@ extension MenuBarItemManager {
             duringSettling: resolvedIdentitiesOnly
         )
         if bulkApplyCompletionGeneration != completionGenerationBeforeApply,
-           lastBulkApplyUnenactedMoveCount == 0
+           lastCompletedBulkApplyUnenactedMoveCount == 0
         {
             let restored = restorationIdentifiersAtDispatch.filter { identifier in
                 LayoutSolver.savedPositionByBaseID(for: identifier, in: effectiveSavedOrder) != nil

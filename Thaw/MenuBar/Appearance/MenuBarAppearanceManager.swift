@@ -39,7 +39,8 @@ final class MenuBarAppearanceManager {
     }
 
     /// Appearance overrides applied while a specific Space is active, keyed
-    /// by the Space's `CGSSpaceID` rendered as a string for storage.
+    /// by the Space's persistent key — the reboot-stable identifier — with a
+    /// session-scoped `CGSSpaceID` fallback for Spaces that expose none.
     private(set) var spaceOverrides: [String: MenuBarAppearanceConfigurationV2] = [:]
 
     /// The most recently observed active Space.
@@ -170,28 +171,59 @@ final class MenuBarAppearanceManager {
     static nonisolated func effectiveConfiguration(
         base: MenuBarAppearanceConfigurationV2,
         overrides: [String: MenuBarAppearanceConfigurationV2],
-        activeSpaceID: CGSSpaceID
+        activeSpaceKey: String
     ) -> MenuBarAppearanceConfigurationV2 {
-        overrides[String(activeSpaceID)] ?? base
+        overrides[activeSpaceKey] ?? base
+    }
+
+    /// The key the active Space's override is stored under: the persistent
+    /// key where one exists — it survives logout, while space IDs are
+    /// reassigned after a reboot and would silently re-target a saved
+    /// override at an unrelated Space — falling back to the session-scoped
+    /// space ID for Spaces that expose no persistent key.
+    private func activeSpaceOverrideKey() -> String {
+        SpaceInfo(spaceID: activeSpaceID).persistentKey ?? String(activeSpaceID)
     }
 
     /// Whether the active Space renders a saved override.
     var activeSpaceHasOverride: Bool {
-        spaceOverrides[String(activeSpaceID)] != nil
+        spaceOverrides[activeSpaceOverrideKey()] != nil
     }
 
     /// Saves the shared configuration as the active Space's override.
     func saveOverrideForActiveSpace() {
-        spaceOverrides[String(activeSpaceID)] = configuration
+        let key = activeSpaceOverrideKey()
+        spaceOverrides[key] = configuration
+        pruneUnresolvableSpaceOverrides(keeping: key)
         persistSpaceOverrides()
         updateEffectiveConfiguration()
     }
 
     /// Removes the active Space's override, if any.
     func removeOverrideForActiveSpace() {
-        spaceOverrides[String(activeSpaceID)] = nil
+        spaceOverrides[activeSpaceOverrideKey()] = nil
         persistSpaceOverrides()
         updateEffectiveConfiguration()
+    }
+
+    /// Drops overrides whose key no longer resolves to a Space the window
+    /// server manages: session-scoped space-ID fallback keys from earlier
+    /// sessions (stale after a reboot), and keys of Spaces that have since
+    /// been deleted. Runs on save, the one moment that is allowed to rewrite
+    /// the dictionary anyway.
+    private func pruneUnresolvableSpaceOverrides(keeping key: String) {
+        var managedKeys = Set(
+            Bridging.getManagedSpaces().map { managedSpace in
+                managedSpace.persistentKey ?? String(managedSpace.spaceID)
+            }
+        )
+        managedKeys.insert(key)
+        let staleKeys = spaceOverrides.keys.filter { !managedKeys.contains($0) }
+        guard !staleKeys.isEmpty else { return }
+        for staleKey in staleKeys {
+            spaceOverrides.removeValue(forKey: staleKey)
+        }
+        diagLog.debug("Pruned \(staleKeys.count) stale per-Space appearance override(s)")
     }
 
     /// Removes every per-Space override.
@@ -214,8 +246,20 @@ final class MenuBarAppearanceManager {
         effectiveConfiguration = Self.effectiveConfiguration(
             base: configuration,
             overrides: spaceOverrides,
-            activeSpaceID: activeSpaceID
+            activeSpaceKey: activeSpaceOverrideKey()
         )
+        // Reconcile the panel lifecycle against the configuration now being
+        // rendered, mirroring `configurationPanelObservationTask` — which
+        // observes only the shared `configuration` and so never runs on a
+        // Space change. Without this, switching to a Space whose override
+        // first needs panels renders nothing (nothing creates them), and
+        // switching away keeps panels alive whose only justification was the
+        // override.
+        if overlayPanels.isEmpty {
+            configureOverlayPanels(with: effectiveConfiguration)
+        } else if !needsOverlayPanels(for: effectiveConfiguration) {
+            closeAllOverlayPanels()
+        }
     }
 
     /// Configures the internal observers for the manager.

@@ -536,6 +536,15 @@ final class MenuBarItemManager {
     /// user edit.
     private(set) var bulkApplyCompletionGeneration = 0
 
+    /// The unenacted-move count of the apply that owns the current
+    /// completion generation.
+    ///
+    /// Kept separate from ``lastBulkApplyUnenactedMoveCount`` because that
+    /// shared counter is overwritten by every outcome recording — including
+    /// a user move's — so it cannot be trusted to still hold the completed
+    /// apply's number by the time a reader pairs it with the generation.
+    private(set) var lastCompletedBulkApplyUnenactedMoveCount: Int?
+
     /// Records how a bulk apply ended, for the saveSectionOrder gate.
     ///
     /// A clean batch clears the arm rather than leaving it to expire: the
@@ -548,6 +557,12 @@ final class MenuBarItemManager {
         bulkApplyOutcomeGeneration += 1
         if isCompletedApply {
             bulkApplyCompletionGeneration += 1
+            // Tracked alongside the completion generation: a user Cmd-drag
+            // or layout-editor drag landing between the apply recording its
+            // outcome and a caller reading it records an outcome of its own
+            // with zero unenacted moves, which must not be mistaken for the
+            // apply's.
+            lastCompletedBulkApplyUnenactedMoveCount = unenactedMoveCount
         }
         lastBulkApplyUnenactedMoveCount = unenactedMoveCount
         guard unenactedMoveCount > 0 else {
@@ -1082,8 +1097,26 @@ final class MenuBarItemManager {
         // false` treats this as what it is, a user-initiated edit that should
         // happen now rather than at the next interaction lull. Closed apps'
         // entries are carried in the maps so their slots survive the apply.
+        // Exclude trigger-controlled identifiers exactly like applySavedLayout
+        // does: their temporary section belongs to the trigger until release,
+        // and an item present in the spec is a move target (only items absent
+        // from it are classified unmanaged), so including them here would yank
+        // them back and set up a tug-of-war with the trigger's own repair.
+        let liveItems = itemCache.managedItems
+        let effectiveGathered = Self.savedOrderExcludingTriggerControlledIdentifiers(
+            gathered,
+            controlledIdentifiers: triggerControlledItemIdentifiers,
+            knownBaseIdentifiers: Set(liveItems.map(\.tag.stableIdentifierBase)),
+            knownLiveIdentifiers: Set(liveItems.map(\.uniqueIdentifier))
+        )
+        guard effectiveGathered.values.contains(where: { !$0.isEmpty }) else {
+            MenuBarItemManager.diagLog.debug(
+                "applyGroupOrderToLiveSections: skipping live apply, every entry is trigger-controlled"
+            )
+            return
+        }
         var itemSectionMap = [String: String]()
-        for (sectionKey, identifiers) in gathered {
+        for (sectionKey, identifiers) in effectiveGathered {
             for identifier in identifiers {
                 itemSectionMap[identifier] = sectionKey
             }
@@ -1091,9 +1124,9 @@ final class MenuBarItemManager {
         let spec = ProfileLayoutSpec(
             pinnedHidden: pinnedHiddenBundleIDs,
             pinnedAlwaysHidden: pinnedAlwaysHiddenBundleIDs,
-            sectionOrder: gathered,
+            sectionOrder: effectiveGathered,
             itemSectionMap: itemSectionMap,
-            itemOrder: gathered
+            itemOrder: effectiveGathered
         )
         MenuBarItemManager.diagLog.info("Applying updated group order to live sections")
         await applyProfileLayout(spec, source: .savedOrder, automatic: false)

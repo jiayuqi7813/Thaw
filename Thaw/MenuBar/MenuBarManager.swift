@@ -448,7 +448,10 @@ final class MenuBarManager {
             appearanceConfigurationObservationTask?.cancel()
             appearanceConfigurationObservationTask = Task { [weak self, weak appState] in
                 var previousIsAdaptive: Bool?
-                let changes = Observations { appState?.appearanceManager.configuration }
+                // Observed from the effective configuration for the same
+                // reason as updateAverageColorInfoAsync above: the adaptive
+                // start/stop gates must follow the per-Space override.
+                let changes = Observations { appState?.appearanceManager.effectiveConfiguration }
                 for await config in changes {
                     guard let self else { return }
                     guard let config else { continue }
@@ -665,7 +668,12 @@ final class MenuBarManager {
         let isIceBarVisible = appState.navigationState.isIceBarPresented
         let isSearchVisible = appState.navigationState.isSearchPresented
         let anyIceBarEnabled = appState.settings.displaySettings.isIceBarEnabledOnAnyDisplay
-        let currentConfig = appState.appearanceManager.configuration.current
+        // Resolve from the configuration the overlay panels actually render:
+        // the active Space's override when one exists. Gating on the shared
+        // configuration alone meant a per-Space override that turns on an
+        // adaptive tint or background never received a palette, and its
+        // panels permanently rendered the average-color fallback.
+        let currentConfig = appState.appearanceManager.effectiveConfiguration.current
         let isAdaptiveActive = currentConfig.backgroundKind == .adaptive || currentConfig.tintKind.isAdaptive
 
         guard isSettingsVisible || isIceBarVisible || isSearchVisible || anyIceBarEnabled || isAdaptiveActive else {

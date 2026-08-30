@@ -21,6 +21,12 @@ extension MenuBarCaptureService {
         private let diagLog: DiagLog
         private let requestIDs = OSAllocatedUnfairLock(initialState: UInt64(0))
 
+        /// Whether the current helper process has never been told which log
+        /// file to write to. Set when the session is replaced — a recycled or
+        /// relaunched helper starts from scratch — and cleared by the next
+        /// successful logging push.
+        private let loggingPending: OSAllocatedUnfairLock<Bool>
+
         private init() {
             let queue = DispatchQueue.targetingGlobal(
                 label: "MenuBarCaptureService.Connection.queue",
@@ -28,16 +34,34 @@ extension MenuBarCaptureService {
                 attributes: .concurrent
             )
             let diagLog = DiagLog(category: "MenuBarCaptureService.Connection")
-            self.session = Session(queue: queue, diagLog: diagLog)
+            let loggingPending = OSAllocatedUnfairLock(initialState: false)
+            self.loggingPending = loggingPending
+            self.session = Session(queue: queue, diagLog: diagLog) {
+                loggingPending.withLock { $0 = true }
+            }
             self.queue = queue
             self.diagLog = diagLog
         }
 
         func start() async {
-            if let logFile = DiagnosticLogger.shared.currentLogFile {
-                _ = await session.sendAsync(request: .configureLogging(filePath: logFile.path))
-            }
+            await syncLogging()
             _ = await session.sendAsync(request: .start)
+        }
+
+        /// Points the helper at the diagnostic log file the app is writing to
+        /// right now. Re-sent whenever the session is replaced: a recycled
+        /// helper is a fresh process that has never been told which file to
+        /// log to, and without this push it silently falls back to OSLog-only
+        /// logging.
+        func syncLogging() async {
+            guard let logFile = DiagnosticLogger.shared.currentLogFile else { return }
+            guard case .configureLogging = await session.sendAsync(
+                request: .configureLogging(filePath: logFile.path)
+            ) else {
+                diagLog.error("Capture helper rejected logging configuration")
+                return
+            }
+            loggingPending.withLock { $0 = false }
         }
 
         func recycle() async {
@@ -50,6 +74,11 @@ extension MenuBarCaptureService {
             scale: CGFloat,
             option: CGWindowImageOption
         ) async -> [Frame] {
+            // The session was replaced since the last batch, so the helper
+            // handling this batch has never been told which file to log to.
+            if loggingPending.withLock({ $0 }) {
+                await syncLogging()
+            }
             if let frames = await sendCapture(
                 windowIDs: windowIDs,
                 scale: scale,
@@ -118,9 +147,19 @@ extension MenuBarCaptureService {
             private let queue: DispatchQueue
             private let diagLog: DiagLog
 
-            init(queue: DispatchQueue, diagLog: DiagLog) {
+            /// Called when a session is dropped, so state the peer only
+            /// learns by being told — the diagnostic log path — can be sent
+            /// again to whatever process comes back.
+            private let onInvalidate: @Sendable () -> Void
+
+            init(
+                queue: DispatchQueue,
+                diagLog: DiagLog,
+                onInvalidate: @escaping @Sendable () -> Void
+            ) {
                 self.queue = queue
                 self.diagLog = diagLog
+                self.onInvalidate = onInvalidate
             }
 
             func getSession() throws -> XPCSession {
@@ -136,10 +175,13 @@ extension MenuBarCaptureService {
                     self.diagLog.warning(
                         "Capture session was cancelled with error \(error.localizedDescription)"
                     )
-                    self.slot.withLock { state in
-                        if state.generation == generation {
-                            state.session = nil
-                        }
+                    let invalidated = self.slot.withLock { state -> Bool in
+                        guard state.generation == generation, state.session != nil else { return false }
+                        state.session = nil
+                        return true
+                    }
+                    if invalidated {
+                        self.onInvalidate()
                     }
                 }
                 if CodeSigningInfo.processTeamIdentifier != nil {
@@ -163,15 +205,23 @@ extension MenuBarCaptureService {
                     state.generation += 1
                     return state.session.take()
                 }
-                session?.cancel(reason: reason)
+                guard let session else { return }
+                onInvalidate()
+                session.cancel(reason: reason)
             }
         }
 
         private let storage: OSAllocatedUnfairLock<Storage>
         private let diagLog: DiagLog
 
-        init(queue: DispatchQueue, diagLog: DiagLog) {
-            self.storage = OSAllocatedUnfairLock(initialState: Storage(queue: queue, diagLog: diagLog))
+        init(
+            queue: DispatchQueue,
+            diagLog: DiagLog,
+            onInvalidate: @escaping @Sendable () -> Void
+        ) {
+            self.storage = OSAllocatedUnfairLock(
+                initialState: Storage(queue: queue, diagLog: diagLog, onInvalidate: onInvalidate)
+            )
             self.diagLog = diagLog
         }
 
