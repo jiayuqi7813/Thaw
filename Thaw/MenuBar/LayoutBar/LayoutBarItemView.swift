@@ -31,6 +31,12 @@ final class LayoutBarItemView: LayoutBarArrangedView {
 
     private var cancellables = Set<AnyCancellable>()
 
+    /// Whether the current mouse gesture has crossed into the existing drag
+    /// path. AppKit normally consumes mouse-up when a dragging session starts,
+    /// but retaining this bit makes the click action safe even if a source app
+    /// or future drag implementation lets that mouse-up reach the view.
+    private var didBeginDraggingForCurrentClick = false
+
     /// Observes `appState.imageCache.images` (wave 3: `MenuBarItemImageCache`
     /// is @Observable rather than a Combine `ObservableObject`, so its old
     /// `$images` projection is gone). This is an AppKit view (not a SwiftUI
@@ -87,6 +93,35 @@ final class LayoutBarItemView: LayoutBarArrangedView {
             }
             needsDisplay = true
         }
+    }
+
+    /// Whether a cache observation may replace the thumbnail currently shown
+    /// by the layout editor.
+    ///
+    /// A system move temporarily relocates the real status-item window. Live
+    /// capture can observe it under the notch or between sections and publish
+    /// a transient thumbnail while the drag UI is intentionally frozen. Keep
+    /// the last stable thumbnail until the container thaws.
+    static nonisolated func shouldUpdateCachedImage(
+        hasContainer: Bool,
+        containerAllowsUpdates: Bool
+    ) -> Bool {
+        !hasContainer || containerAllowsUpdates
+    }
+
+    /// Opacity used for the captured icon.
+    ///
+    /// The dragged view remains in the arranged views as the drop placeholder.
+    /// Keeping a dimmed snapshot there avoids a blank slot while the dragging
+    /// image follows the pointer.
+    static nonisolated func iconFraction(
+        isDraggingPlaceholder: Bool,
+        isEnabled: Bool
+    ) -> CGFloat {
+        if isDraggingPlaceholder {
+            return 0.45
+        }
+        return isEnabled ? 1.0 : 0.67
     }
 
     override var kind: Kind {
@@ -152,6 +187,48 @@ final class LayoutBarItemView: LayoutBarArrangedView {
         tooltipController.cancel()
     }
 
+    override func mouseDown(with event: NSEvent) {
+        didBeginDraggingForCurrentClick = false
+        super.mouseDown(with: event)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        super.mouseUp(with: event)
+
+        let location = convert(event.locationInWindow, from: nil)
+        let shouldActivate = Self.shouldActivateRepresentedItem(
+            buttonNumber: event.buttonNumber,
+            didBeginDragging: didBeginDraggingForCurrentClick,
+            mouseUpInsideBounds: bounds.contains(location)
+        )
+        didBeginDraggingForCurrentClick = false
+
+        guard shouldActivate else { return }
+        activateRepresentedItem()
+    }
+
+    /// Pure click-versus-drag gate used by the AppKit event handlers.
+    static nonisolated func shouldActivateRepresentedItem(
+        buttonNumber: Int,
+        didBeginDragging: Bool,
+        mouseUpInsideBounds: Bool
+    ) -> Bool {
+        buttonNumber == 0 && !didBeginDragging && mouseUpInsideBounds
+    }
+
+    /// Performs the status item's native left-click action. For an on-screen
+    /// item this clicks it in place; for a hidden item the shared activation
+    /// path temporarily reveals it, opens its menu/popover (or launches its
+    /// app when that is the item's normal behavior), and schedules a rehide.
+    private func activateRepresentedItem() {
+        let representedItem = effectiveItem
+        guard let itemManager = appState?.itemManager else { return }
+        let displayID = NSScreen.screenWithActiveMenuBar?.displayID
+        Task {
+            await itemManager.activate(item: representedItem, on: displayID)
+        }
+    }
+
     private func configureCancellables() {
         let c = Set<AnyCancellable>()
 
@@ -164,7 +241,7 @@ final class LayoutBarItemView: LayoutBarArrangedView {
                     guard let self else { return }
                     guard !MenuBarItemImageCache.CapturedImage.isVisuallyEqual(previous, image) else { continue }
                     previous = image
-                    self.cachedImage = image
+                    self.updateCachedImageIfAllowed(image)
                 }
             }
         }
@@ -298,17 +375,24 @@ final class LayoutBarItemView: LayoutBarArrangedView {
     }
 
     override func draw(_: NSRect) {
+        let fraction = Self.iconFraction(
+            isDraggingPlaceholder: isDraggingPlaceholder,
+            isEnabled: isEnabled
+        )
+        if let capturedImage = cachedImage?.nsImage {
+            capturedImage.draw(
+                in: bounds,
+                from: .zero,
+                operation: .sourceOver,
+                fraction: fraction
+            )
+        } else {
+            drawPlaceholder(fraction: fraction)
+        }
+
+        // Keep status badges out of the drag placeholder; the dimmed icon is
+        // enough to preserve identity without making the slot visually busy.
         if !isDraggingPlaceholder {
-            if let capturedImage = cachedImage?.nsImage {
-                capturedImage.draw(
-                    in: bounds,
-                    from: .zero,
-                    operation: .sourceOver,
-                    fraction: isEnabled ? 1.0 : 0.67
-                )
-            } else {
-                drawPlaceholder()
-            }
             if Bridging.isProcessUnresponsive(item.ownerPID) {
                 let warningImage = NSImage.warning
                 let width = Metrics.unresponsiveBadgeWidth
@@ -331,7 +415,12 @@ final class LayoutBarItemView: LayoutBarArrangedView {
 
     override func mouseDragged(with event: NSEvent) {
         super.mouseDragged(with: event)
+        didBeginDraggingForCurrentClick = true
         tooltipController.cancel()
+
+        guard canBeginDraggingFromCurrentContainer else {
+            return
+        }
 
         // #905 fallback: before refusing an `unresolvedControlCenterPlaceholder`
         // drag, attempt to re-tag the slot with its app-owned identity (when
@@ -381,6 +470,17 @@ final class LayoutBarItemView: LayoutBarArrangedView {
         beginDraggingSession(with: [draggingItem], event: event, source: self)
     }
 
+    private func updateCachedImageIfAllowed(_ image: MenuBarItemImageCache.CapturedImage?) {
+        let container = superview as? LayoutBarContainer
+        guard Self.shouldUpdateCachedImage(
+            hasContainer: container != nil,
+            containerAllowsUpdates: container?.canSetArrangedViews ?? true
+        ) else {
+            return
+        }
+        cachedImage = image
+    }
+
     private func preferredSize(for image: MenuBarItemImageCache.CapturedImage?) -> CGSize {
         Self.preferredSize(for: item, image: image)
     }
@@ -400,12 +500,6 @@ final class LayoutBarItemView: LayoutBarArrangedView {
 
     /// The icon of the app that put this item on the bar, or `nil` when the
     /// owner can only name Control Center.
-    ///
-    /// On macOS 26 every Control Center slot reports Control Center as its
-    /// owner, so an unresolved placeholder would take Control Center's icon
-    /// through the fallback. That is wrong on its face, and caching it as a
-    /// resolved icon also retires the retry below for the owner that shows
-    /// up once the source PID is known.
     private static func resolvedAppIcon(for item: MenuBarItem) -> NSImage? {
         if let icon = item.sourceApplication?.icon {
             return icon
@@ -429,7 +523,7 @@ final class LayoutBarItemView: LayoutBarArrangedView {
         )
     }
 
-    private func drawPlaceholder() {
+    private func drawPlaceholder(fraction: CGFloat) {
         let placeholderRect = bounds.insetBy(
             dx: Metrics.placeholderHorizontalInset,
             dy: Metrics.placeholderVerticalInset
@@ -439,10 +533,10 @@ final class LayoutBarItemView: LayoutBarArrangedView {
             xRadius: Metrics.placeholderCornerRadius,
             yRadius: Metrics.placeholderCornerRadius
         )
-        NSColor.quaternaryLabelColor.withAlphaComponent(0.35).setFill()
+        NSColor.quaternaryLabelColor.withAlphaComponent(0.35 * fraction).setFill()
         backgroundPath.fill()
 
-        NSColor.separatorColor.withAlphaComponent(0.6).setStroke()
+        NSColor.separatorColor.withAlphaComponent(0.6 * fraction).setStroke()
         backgroundPath.lineWidth = 1
         backgroundPath.stroke()
 
@@ -450,21 +544,11 @@ final class LayoutBarItemView: LayoutBarArrangedView {
             return
         }
 
-        // #981: if the placeholder fell back to the generic symbol at init
-        // because the owning app was not launchable yet, try the app icon
-        // again now. The view is reused across cache refreshes when the
-        // item's identity is stable, so this is the one place a later
-        // resolution surfaces. One lookup per resolution; the flag stops
-        // repeat work once an icon is in hand.
         if !placeholderResolvedFromApp,
            let icon = Self.resolvedAppIcon(for: item)
         {
             self.placeholderImage = icon
             placeholderResolvedFromApp = true
-            // Draw the resolved icon in this pass. Assigning only the stored
-            // property left the local binding above holding the generic
-            // symbol, so the icon swap waited on an unrelated invalidation
-            // that never comes for items the image cache can't capture.
             placeholderImage = icon
         }
 
@@ -492,14 +576,14 @@ final class LayoutBarItemView: LayoutBarArrangedView {
                 in: iconRect,
                 from: .zero,
                 operation: .sourceOver,
-                fraction: isEnabled ? 0.8 : 0.5
+                fraction: (isEnabled ? 0.8 : 0.5) * fraction
             )
         } else {
             placeholderImage.draw(
                 in: iconRect,
                 from: .zero,
                 operation: .sourceOver,
-                fraction: isEnabled ? 0.9 : 0.5
+                fraction: (isEnabled ? 0.9 : 0.5) * fraction
             )
         }
     }
