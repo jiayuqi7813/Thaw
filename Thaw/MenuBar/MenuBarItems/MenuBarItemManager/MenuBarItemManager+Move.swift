@@ -10,6 +10,7 @@ import Cocoa
 
 // @preconcurrency: see the note in MenuBarItemManager.swift.
 @preconcurrency import CoreGraphics
+import os.lock
 
 // MARK: - Moving Items
 
@@ -78,16 +79,119 @@ extension MenuBarItemManager {
         }
     }
 
-    /// Returns a safe location for an off-screen move's initial mouse-down.
-    ///
-    /// `NSScreen` frames use AppKit coordinates, while `CGEvent` locations use
-    /// Core Graphics coordinates. Their horizontal axes align, so the notch
-    /// supplies only the x-coordinate; the target supplies the event's y-coordinate.
-    static nonisolated func notchMouseDownPoint(
-        notchFrameAppKit: CGRect,
-        targetPointCoreGraphics: CGPoint
-    ) -> CGPoint {
-        CGPoint(x: notchFrameAppKit.midX, y: targetPointCoreGraphics.y)
+    /// Final coordinates used to create the opening and closing events for a
+    /// move. A teleport has no visible intermediate press: its mouse-down is
+    /// stamped directly at the destination, including when that destination
+    /// is parked off-screen.
+    nonisolated struct MoveEventLocations: Equatable {
+        let press: CGPoint
+        let release: CGPoint
+    }
+
+    static nonisolated func moveEventLocations(
+        targetPoints: (start: CGPoint, end: CGPoint),
+        faithfulDragStart: CGPoint?
+    ) -> MoveEventLocations {
+        MoveEventLocations(
+            press: faithfulDragStart ?? targetPoints.start,
+            release: targetPoints.end
+        )
+    }
+
+    /// Exact ordinal positions from one WindowServer snapshot. Verification
+    /// never falls back to a same-tag window, because a relaunched or cloned
+    /// item is not the endpoint whose move acquired the gate.
+    nonisolated struct MoveEndpointIndices: Equatable {
+        let source: Int
+        let destination: Int
+    }
+
+    static nonisolated func moveEndpointIndices(
+        in items: [MenuBarItem],
+        sourceWindowID: CGWindowID,
+        destinationWindowID: CGWindowID
+    ) -> MoveEndpointIndices? {
+        guard sourceWindowID != destinationWindowID else {
+            return nil
+        }
+        guard
+            items.count(where: { $0.windowID == sourceWindowID }) == 1,
+            items.count(where: { $0.windowID == destinationWindowID }) == 1,
+            let sourceItem = items.first(where: { $0.windowID == sourceWindowID }),
+            let destinationItem = items.first(where: { $0.windowID == destinationWindowID })
+        else {
+            return nil
+        }
+
+        // An equal-X endpoint is mid-reflow or zero-width-overlapped. Giving
+        // it an arbitrary order by enumeration or window ID could certify the
+        // wrong side, so wait for a later settled snapshot instead.
+        guard
+            items.count(where: { $0.bounds.minX == sourceItem.bounds.minX }) == 1,
+            items.count(where: { $0.bounds.minX == destinationItem.bounds.minX }) == 1
+        else {
+            return nil
+        }
+
+        let sorted = items.sorted {
+            if $0.bounds.minX == $1.bounds.minX {
+                return $0.windowID < $1.windowID
+            }
+            return $0.bounds.minX < $1.bounds.minX
+        }
+        guard
+            let source = sorted.firstIndex(where: { $0.windowID == sourceWindowID }),
+            let destination = sorted.firstIndex(where: { $0.windowID == destinationWindowID })
+        else {
+            return nil
+        }
+        return MoveEndpointIndices(source: source, destination: destination)
+    }
+
+    /// Whether a freshly enumerated endpoint is still the exact item that was
+    /// planned before the move waited for the app-wide gate.
+    static nonisolated func moveEndpointIsCurrent(
+        _ candidate: MenuBarItem,
+        expected: MenuBarItem
+    ) -> Bool {
+        guard
+            candidate.windowID == expected.windowID,
+            candidate.ownerPID == expected.ownerPID,
+            candidate.tag.matchesIgnoringWindowID(expected.tag)
+        else {
+            return false
+        }
+        if let expectedSourcePID = expected.sourcePID {
+            return candidate.sourcePID == expectedSourcePID
+        }
+        return true
+    }
+
+    static nonisolated func currentMoveEndpoint(
+        in items: [MenuBarItem],
+        expected: MenuBarItem
+    ) -> MenuBarItem? {
+        let matches = items.filter { moveEndpointIsCurrent($0, expected: expected) }
+        return matches.count == 1 ? matches[0] : nil
+    }
+
+    /// Serializes complete move transactions app-wide. Serializing only event
+    /// posts lets two independent retry loops undo each other between attempts.
+    private static let moveGate = SimpleSemaphore(value: 1)
+
+    /// A blocked-item recovery may call `move` while its parent still owns the
+    /// gate; task-local ownership lets that nested move pass through safely.
+    @TaskLocal private static var holdsMoveGate = false
+
+    private static let moveGateTimeout: Duration = .seconds(15)
+
+    /// Runs a caller's gate-owned completion hook before another move can enter.
+    static func performMoveGateExitActions(
+        didFinishWhileHoldingGate: (@MainActor () -> Void)?,
+        releaseGate: () -> Void
+    ) {
+        didFinishWhileHoldingGate?()
+        releaseGate()
     }
 
     /// Returns the default timeout for move operations associated
@@ -240,6 +344,22 @@ extension MenuBarItemManager {
         clickOperationTimeouts = clickOperationTimeouts.filter { validTags.contains($0.key) }
     }
 
+    /// Reads geometry only from the exact WindowServer window selected by the
+    /// move plan. A same-tag replacement may belong to a relaunch or clone and
+    /// must be left for a fresh cache cycle to plan.
+    private nonisolated func exactMoveBounds(
+        for item: MenuBarItem,
+        isDestination: Bool = false
+    ) throws -> CGRect {
+        guard let bounds = Bridging.getWindowBounds(for: item.windowID) else {
+            if isDestination {
+                throw EventError.missingDestinationBounds(item)
+            }
+            throw EventError.missingItemBounds(item)
+        }
+        return bounds
+    }
+
     /// Returns the target points for creating the events needed to
     /// move a menu bar item to the given destination.
     private nonisolated func getTargetPoints(
@@ -247,8 +367,8 @@ extension MenuBarItemManager {
         to destination: MoveDestination,
         on displayID: CGDirectDisplayID
     ) async throws -> (start: CGPoint, end: CGPoint) {
-        let itemBounds = try await getCurrentBounds(for: item)
-        let targetBounds = try await getCurrentBounds(for: destination.targetItem)
+        let itemBounds = try exactMoveBounds(for: item)
+        let targetBounds = try exactMoveBounds(for: destination.targetItem, isDestination: true)
 
         let start = destination.targetPoint(
             in: targetBounds,
@@ -278,10 +398,9 @@ extension MenuBarItemManager {
     /// moved (#900).
     ///
     /// Reading one list fixes that: both operands come from the same snapshot,
-    /// so they cannot drift apart mid-check. It also sidesteps
-    /// ``getCurrentBounds(for:)`` mixing coordinate spaces — its windowID path
-    /// answers for parked offscreen windows while its tag-matching fallback
-    /// answers from the on-screen list, and which one runs depends on timing.
+    /// so they cannot drift apart mid-check. Both endpoints are matched by
+    /// exact window ID; equal-X endpoints remain unverified rather than being
+    /// assigned an arbitrary order while the bar is reflowing.
     ///
     /// - Note: source PIDs are deliberately left unresolved. Only tags, window
     ///   IDs and bounds are needed here, and this runs once per attempt.
@@ -296,30 +415,24 @@ extension MenuBarItemManager {
     ) async throws -> Bool {
         // Not `.onScreen`: an item moved into a collapsed section is parked
         // offscreen, and that is a landing we still have to be able to confirm.
-        let items = await MenuBarItem
-            .getMenuBarItems(on: displayID, option: .activeSpace, resolveSourcePID: false)
-            .sorted { $0.bounds.minX < $1.bounds.minX }
-
-        /// Prefer the exact window, falling back to the tag, matching the
-        /// preference order `getCurrentBounds(for:)` already uses.
-        func index(of needle: MenuBarItem) -> Int? {
-            items.firstIndex { $0.windowID == needle.windowID }
-                ?? items.firstIndex(matching: needle.tag)
-        }
-
-        guard
-            let itemIndex = index(of: item),
-            let targetIndex = index(of: destination.targetItem)
-        else {
-            // One of the two no longer enumerates on this display's active
-            // space, so the landing cannot be confirmed either way. Report a
-            // miss and let the caller's attempt budget decide what happens.
+        let items = await MenuBarItem.getMenuBarItems(
+            on: displayID,
+            option: .activeSpace,
+            resolveSourcePID: false
+        ).filter { !$0.isSystemClone }
+        guard let indices = Self.moveEndpointIndices(
+            in: items,
+            sourceWindowID: item.windowID,
+            destinationWindowID: destination.targetItem.windowID
+        ) else {
+            // One endpoint no longer enumerates on this display's active
+            // space, or equal-X geometry makes its order ambiguous.
             return false
         }
 
         return switch destination {
-        case .leftOfItem: itemIndex == targetIndex - 1
-        case .rightOfItem: itemIndex == targetIndex + 1
+        case .leftOfItem: indices.source == indices.destination - 1
+        case .rightOfItem: indices.source == indices.destination + 1
         }
     }
 
@@ -342,7 +455,7 @@ extension MenuBarItemManager {
         let responseTask = Task.detached {
             while true {
                 try Task.checkCancellation()
-                let origin = try await self.getCurrentBounds(for: item).origin
+                let origin = try self.exactMoveBounds(for: item).origin
                 if origin != initialOrigin {
                     return origin
                 }
@@ -385,7 +498,8 @@ extension MenuBarItemManager {
         item: MenuBarItem,
         destination: MoveDestination,
         on displayID: CGDirectDisplayID,
-        warpCursorAfter: Bool = true
+        warpCursorAfter: Bool = true,
+        releaseGuard: PressReleaseGuard? = nil
     ) async throws -> Duration {
         var acquiredSemaphore = false
         do {
@@ -431,7 +545,7 @@ extension MenuBarItemManager {
             throw EventError.ownerUnresponsive(item)
         }
 
-        let itemBounds = try await getCurrentBounds(for: item)
+        let itemBounds = try exactMoveBounds(for: item)
         var itemOrigin = itemBounds.origin
         let targetPoints = try await getTargetPoints(forMoving: item, to: destination, on: displayID)
 
@@ -443,7 +557,11 @@ extension MenuBarItemManager {
         // second teleported it. A drag-gesture geometry was trialled behind
         // a setting to remove that warm-up and did not fix it, so it was
         // withdrawn; the warm-up attempt remains an open problem.
-        let pressPoint = targetPoints.start
+        let eventLocations = Self.moveEventLocations(
+            targetPoints: targetPoints,
+            faithfulDragStart: nil
+        )
+        let pressPoint = eventLocations.press
 
         // Capture mouse location only when this call owns the cursor warp.
         // When called from move(), the outer move() handles the single warp
@@ -464,7 +582,7 @@ extension MenuBarItemManager {
                 item: destination.targetItem,
                 source: source,
                 type: .move(.mouseUp),
-                location: targetPoints.end
+                location: eventLocations.release
             )
         else {
             throw EventError.eventCreationFailure(item)
@@ -510,29 +628,9 @@ extension MenuBarItemManager {
         if warpIsOnScreen {
             await eventSleep(for: .milliseconds(20))
         }
-        // For notched displays, when the target is offscreen, redirect
-        // mouseDown's horizontal hit-test location into the notch itself. The
-        // notch is hardware with no clickable UI, so the OS hit-test there has
-        // nothing to dismiss, no menu to open, and no app window to surface a
-        // click against. Keep the Core Graphics y-coordinate inside the menu
-        // bar; frameOfNotch is in AppKit coordinates and its y-coordinate would
-        // instead point near the bottom of the display. mouseUp keeps its
-        // original location (the drop position the receiving app uses to place
-        // the item). For non-notched displays the original behaviour is
-        // preserved (no override).
-        if !warpIsOnScreen {
-            let activeScreen = NSScreen.screens.first(where: { $0.displayID == displayID })
-                ?? NSScreen.main
-            if let activeScreen,
-               activeScreen.hasNotch,
-               let notch = activeScreen.frameOfNotch
-            {
-                mouseDown.location = Self.notchMouseDownPoint(
-                    notchFrameAppKit: notch,
-                    targetPointCoreGraphics: targetPoints.start
-                )
-            }
-        }
+        // Keep an off-screen teleport's stamped press at the off-screen
+        // destination. Redirecting it to the notch midpoint made the real
+        // status-item window visibly jump to the center before the release.
         defer {
             if let mouseLocation {
                 MouseHelpers.restoreCursorPosition(to: mouseLocation)
@@ -546,6 +644,9 @@ extension MenuBarItemManager {
             lastMoveOperationTimestamp = .now
         }
 
+        // From here the press may be down; a deadline guard posts a matching
+        // release even if the async attempt stops making progress.
+        releaseGuard?.arm()
         do {
             try await scrombleEvent(
                 mouseDown,
@@ -724,6 +825,110 @@ extension MenuBarItemManager {
         }
     }
 
+    /// How long a synthetic press may remain down before its guard releases it.
+    static nonisolated func pressReleaseDeadline(for timeout: Duration) -> Duration {
+        (timeout * 6).clamped(min: .milliseconds(1500), max: .seconds(3))
+    }
+
+    /// The immutable event data posted by a press-release guard. `CGEvent`
+    /// posting is thread-safe and the event is not mutated after arming.
+    nonisolated struct PressReleaseEvents: @unchecked Sendable {
+        let mouseUp: CGEvent
+        let pid: pid_t
+    }
+
+    /// Releases a synthetic press when an async move attempt stops making
+    /// progress. A dangling press can turn the user's next real click into the
+    /// end of a drag, including a drag that removes the status item.
+    final nonisolated class PressReleaseGuard: Sendable {
+        private nonisolated struct Status {
+            var isArmed = false
+            var didFire = false
+        }
+
+        private let status = OSAllocatedUnfairLock(initialState: Status())
+        private let deadline: Duration
+        private let events: PressReleaseEvents
+        private let item: MenuBarItem
+
+        init(deadline: Duration, events: PressReleaseEvents, item: MenuBarItem) {
+            self.deadline = deadline
+            self.events = events
+            self.item = item
+        }
+
+        func arm() {
+            let armed = status.withLock { status -> Bool in
+                guard !status.isArmed, !status.didFire else {
+                    return false
+                }
+                status.isArmed = true
+                return true
+            }
+            guard armed else {
+                return
+            }
+            let status = status
+            let events = events
+            let item = item
+            let milliseconds = max(1, Int(deadline.milliseconds))
+            DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + .milliseconds(milliseconds)) {
+                let fires = status.withLock { status -> Bool in
+                    guard status.isArmed else {
+                        return false
+                    }
+                    status.isArmed = false
+                    status.didFire = true
+                    return true
+                }
+                guard fires else {
+                    return
+                }
+                MenuBarItemManager.diagLog.warning(
+                    "Press on \(item.logString) outlived its \(milliseconds) ms deadline; releasing it"
+                )
+                events.mouseUp.post(to: .sessionEventTap)
+                events.mouseUp.post(to: .pid(events.pid))
+            }
+        }
+
+        var didFire: Bool {
+            status.withLock(\.didFire)
+        }
+
+        func disarm() {
+            status.withLock { $0.isArmed = false }
+        }
+    }
+
+    /// Builds the independent safety release for one attempt.
+    private func makePressReleaseGuard(
+        for item: MenuBarItem,
+        destination: MoveDestination,
+        on displayID: CGDirectDisplayID
+    ) async -> PressReleaseGuard? {
+        guard
+            let targetBounds = try? exactMoveBounds(for: destination.targetItem, isDestination: true),
+            let source = try? getEventSource(),
+            let mouseUp = CGEvent.menuBarItemEvent(
+                item: destination.targetItem,
+                source: source,
+                type: .move(.mouseUp),
+                location: destination.targetPoint(in: targetBounds, on: CGDisplayBounds(displayID))
+            )
+        else {
+            MenuBarItemManager.diagLog.warning(
+                "No release event could be built for \(item.logString); the press runs unguarded"
+            )
+            return nil
+        }
+        return PressReleaseGuard(
+            deadline: Self.pressReleaseDeadline(for: getMoveOperationTimeout(for: item)),
+            events: PressReleaseEvents(mouseUp: mouseUp, pid: getEventPID(for: item)),
+            item: item
+        )
+    }
+
     /// Moves a menu bar item to the given destination.
     ///
     /// - Parameters:
@@ -735,8 +940,58 @@ extension MenuBarItemManager {
         on displayID: CGDirectDisplayID? = nil,
         skipInputPause: Bool = false,
         watchdogTimeout: Duration? = nil,
-        maxMoveAttempts: Int = 8
+        maxMoveAttempts: Int = 8,
+        shouldBegin: (@MainActor () -> Bool)? = nil,
+        didFinishWhileHoldingGate: (@MainActor () -> Void)? = nil
     ) async throws {
+        // Serialize the whole move, including retries and verification. A
+        // nested recovery move inherits task-local ownership and cannot wait
+        // on itself.
+        if !Self.holdsMoveGate {
+            let waitStartedAt = ContinuousClock.now
+            do {
+                try await Self.moveGate.wait(timeout: Self.moveGateTimeout)
+            } catch is SimpleSemaphore.TimeoutError {
+                MenuBarItemManager.diagLog.error(
+                    "move: another move has held the bar for \(Self.moveGateTimeout); giving up on \(item.logString)"
+                )
+                throw EventError.moveEngineBusy(item)
+            }
+            defer {
+                Self.performMoveGateExitActions(
+                    didFinishWhileHoldingGate: didFinishWhileHoldingGate,
+                    releaseGate: {
+                        Task.detached { await Self.moveGate.signal() }
+                    }
+                )
+            }
+            let waited = ContinuousClock.now - waitStartedAt
+            if waited > .milliseconds(100) {
+                MenuBarItemManager.diagLog.debug(
+                    "move: waited \(Int(waited.milliseconds)) ms for another move to finish before moving \(item.logString)"
+                )
+            }
+            return try await Self.$holdsMoveGate.withValue(true) {
+                try await move(
+                    item: item,
+                    to: destination,
+                    on: displayID,
+                    skipInputPause: skipInputPause,
+                    watchdogTimeout: watchdogTimeout,
+                    maxMoveAttempts: maxMoveAttempts,
+                    shouldBegin: shouldBegin,
+                    didFinishWhileHoldingGate: nil
+                )
+            }
+        }
+
+        // Evaluate once, only after the transaction owns the gate. A caller
+        // can reject a plan that became stale while queued without mistaking
+        // the move's own subsequent updates for supersession.
+        guard shouldBegin?() ?? true else {
+            throw EventError.moveSuperseded(item)
+        }
+
         // System clone windows are transient WindowServer duplicates that
         // must never be moved. Refuse here as a final safety net so no
         // planning path can drag a phantom and displace real items. The
@@ -795,6 +1050,25 @@ extension MenuBarItemManager {
             Bridging.getActiveMenuBarDisplayID() ?? CGMainDisplayID()
         }
 
+        // The plan may have waited behind another move. Resolve both endpoints
+        // again on the selected display and require the same window, owner,
+        // stable tag, and resolved source. A same-tag replacement needs a new
+        // plan; it is never a silent transport fallback.
+        let liveEndpoints = await MenuBarItem.getMenuBarItems(
+            on: resolvedDisplayID,
+            option: .activeSpace,
+            resolveSourcePID: true
+        ).filter { !$0.isSystemClone }
+        guard Self.currentMoveEndpoint(in: liveEndpoints, expected: item) != nil else {
+            throw EventError.missingItemBounds(item)
+        }
+        guard Self.currentMoveEndpoint(
+            in: liveEndpoints,
+            expected: destination.targetItem
+        ) != nil else {
+            throw EventError.missingDestinationBounds(destination.targetItem)
+        }
+
         if !skipInputPause {
             try await waitForUserToPauseInput()
         }
@@ -830,11 +1104,10 @@ extension MenuBarItemManager {
         // one more fallback at a fixed 100 ms. At the ceiling that is
         // roughly 32 s for eight attempts — far past the old flat 10 s,
         // whose comment still assumed "8 × ~500 ms". When the watchdog
-        // fires partway through, the cursor is force-shown at the
-        // synthetic event's last cursorPosition (mid-display, per the
-        // offscreen-target override below in postMoveEvents) and the user
-        // sees a brief cursor flash. The floor stays at 10 s so ordinary
-        // moves keep their safety net against genuinely stuck states.
+        // fires partway through, the cursor is force-shown before the move's
+        // final restoration and the user sees a brief cursor flash. The floor
+        // stays at 10 s so ordinary moves keep their safety net against
+        // genuinely stuck states.
         MouseHelpers.hideCursor(
             watchdogTimeout: watchdogTimeout ?? Self.cursorHideWatchdogTimeout(
                 maxAttempts: max(1, maxMoveAttempts)
@@ -856,7 +1129,7 @@ extension MenuBarItemManager {
         // was chosen against the bar as it looked when this move was planned;
         // if the target itself travels a long way while we are dragging, the
         // plan describes an arrangement that no longer exists.
-        let plannedTargetBounds = try? await getCurrentBounds(for: destination.targetItem)
+        let plannedTargetBounds = try? exactMoveBounds(for: destination.targetItem, isDestination: true)
 
         // Where the target has sat at the end of each failed attempt. A
         // single nudge is expected; a run of them in one direction is the
@@ -869,6 +1142,7 @@ extension MenuBarItemManager {
                 MenuBarItemManager.diagLog.debug("move: cancelled before attempt \(n) for \(item.logString)")
                 throw EventError.cannotComplete
             }
+            var releaseGuard: PressReleaseGuard?
             do {
                 if try await itemHasCorrectPosition(item: item, for: destination, on: resolvedDisplayID) {
                     // On the first iteration trust the position match
@@ -884,12 +1158,22 @@ extension MenuBarItemManager {
                         "Position match without observable displacement on attempt \(n); treating as false positive on a zero-width control item and retrying"
                     )
                 }
+                releaseGuard = await makePressReleaseGuard(
+                    for: item,
+                    destination: destination,
+                    on: resolvedDisplayID
+                )
                 let attemptTimeout = try await postMoveEvents(
                     item: item,
                     destination: destination,
                     on: resolvedDisplayID,
-                    warpCursorAfter: false // move() owns the single warp in its defer
+                    warpCursorAfter: false, // move() owns the single warp in its defer
+                    releaseGuard: releaseGuard
                 )
+                releaseGuard?.disarm()
+                guard releaseGuard?.didFire != true else {
+                    throw EventError.moveTimedOut(item)
+                }
                 // postMoveEvents only returns without throwing when both
                 // waitForMoveEventResponse calls observed origin changes,
                 // i.e. our drag actually displaced the item.
@@ -931,7 +1215,10 @@ extension MenuBarItemManager {
                 // batch with a fresh partial arrangement on every pass (#900).
                 // Stop instead and let the next cache tick re-plan against a
                 // settled bar.
-                let currentTargetBounds = try? await getCurrentBounds(for: destination.targetItem)
+                let currentTargetBounds = try? exactMoveBounds(
+                    for: destination.targetItem,
+                    isDestination: true
+                )
                 if let currentTargetBounds {
                     targetMinXHistory.append(currentTargetBounds.minX)
                 }
@@ -973,6 +1260,13 @@ extension MenuBarItemManager {
                     continue
                 }
             } catch {
+                releaseGuard?.disarm()
+                if releaseGuard?.didFire == true {
+                    MenuBarItemManager.diagLog.warning(
+                        "Attempt \(n): the press on \(item.logString) outlived its deadline and was released"
+                    )
+                    throw EventError.moveTimedOut(item)
+                }
                 // missingItemBounds is definitive: getCurrentBounds already
                 // refreshed the on-screen items and re-matched by tag before
                 // throwing, so the item's window is genuinely gone (transient
@@ -983,6 +1277,15 @@ extension MenuBarItemManager {
                     MenuBarItemManager.diagLog.warning(
                         "Attempt \(n): \(item.logString) no longer reports bounds, aborting move"
                     )
+                    throw error
+                }
+                if case EventError.missingDestinationBounds = error {
+                    MenuBarItemManager.diagLog.warning(
+                        "Attempt \(n): \(destination.targetItem.logString) no longer reports bounds, abandoning the destination"
+                    )
+                    throw error
+                }
+                if case EventError.moveTimedOut = error {
                     throw error
                 }
                 // Also definitive for the duration of this call: a hung owner
