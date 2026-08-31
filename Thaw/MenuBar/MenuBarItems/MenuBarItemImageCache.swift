@@ -136,6 +136,18 @@ final class MenuBarItemImageCache: @unchecked Sendable {
     /// The cached item images, keyed by their corresponding tags.
     private(set) var images = [MenuBarItemTag: CapturedImage]()
 
+    /// Display ID of the screen the current ``images`` were last captured for.
+    ///
+    /// Used by the Thaw Bar to drop stale bitmaps when opening on a different
+    /// screen: menu bar icon light/dark tint is baked into the capture, so
+    /// reusing another display's cache briefly shows the wrong icon colors.
+    private(set) var lastCaptureDisplayID: CGDirectDisplayID?
+
+    /// Per-display icon snapshots so switching screens can restore the correct
+    /// light/dark tint immediately instead of flashing the previous screen.
+    @ObservationIgnored
+    private var imagesByDisplay = [CGDirectDisplayID: [MenuBarItemTag: CapturedImage]]()
+
     /// Memoized results of ``trimmedImage(for:)``, keyed by tag, each paired
     /// with the `CGImage` it was derived from so a recapture invalidates it.
     ///
@@ -787,7 +799,7 @@ final class MenuBarItemImageCache: @unchecked Sendable {
 
             let nav = appState.navigationState
 
-            let preferredDisplayID = appState.itemManager.itemCache.displayID
+            let preferredDisplayID = preferredCaptureDisplayID(appState: appState)
             guard let resolvedScreen = Self.resolveScreen(preferredDisplayID: preferredDisplayID) else {
                 MenuBarItemImageCache.diagLog.warning("liveRefresh: no connected screens available, skipping")
                 continue
@@ -899,6 +911,10 @@ final class MenuBarItemImageCache: @unchecked Sendable {
                         await refreshImages(of: offscreenBatch, scale: scale)
                     }
                 }
+            }
+
+            await MainActor.run {
+                storeImages(for: screen.displayID)
             }
         }
 
@@ -1712,12 +1728,41 @@ final class MenuBarItemImageCache: @unchecked Sendable {
 
     // MARK: Update Cache
 
+    /// Display to capture from while a consumer is visible.
+    ///
+    /// Prefer the Thaw Bar's screen when it is presented so a cross-display
+    /// open does not keep sampling the previous menu bar's icon tint.
+    @MainActor
+    private func preferredCaptureDisplayID(
+        appState: AppState,
+        override: CGDirectDisplayID? = nil
+    ) -> CGDirectDisplayID? {
+        if let override {
+            return override
+        }
+        if appState.navigationState.isIceBarPresented,
+           let iceBarDisplayID = appState.menuBarManager.iceBarPanel.screen?.displayID
+        {
+            return iceBarDisplayID
+        }
+        return appState.itemManager.itemCache.displayID
+    }
+
     /// Updates the cache for the given sections, without checking whether
     /// caching is necessary.
+    ///
+    /// - Parameter preferredDisplayID: When set (e.g. the Thaw Bar's screen),
+    ///   capture from that display instead of the standing item-cache display.
     @MainActor
-    func updateCacheWithoutChecks(sections: [MenuBarSection.Name]) async {
+    func updateCacheWithoutChecks(
+        sections: [MenuBarSection.Name],
+        preferredDisplayID: CGDirectDisplayID? = nil
+    ) async {
         await withCapturePermit {
-            await performCacheUpdateWithoutChecks(sections: sections)
+            await performCacheUpdateWithoutChecks(
+                sections: sections,
+                preferredDisplayID: preferredDisplayID
+            )
         }
     }
 
@@ -1734,7 +1779,10 @@ final class MenuBarItemImageCache: @unchecked Sendable {
     }
 
     @MainActor
-    private func performCacheUpdateWithoutChecks(sections: [MenuBarSection.Name]) async {
+    private func performCacheUpdateWithoutChecks(
+        sections: [MenuBarSection.Name],
+        preferredDisplayID: CGDirectDisplayID? = nil
+    ) async {
         guard let appState else {
             MenuBarItemImageCache.diagLog.warning("updateCacheWithoutChecks: appState is nil, aborting")
             return
@@ -1746,15 +1794,15 @@ final class MenuBarItemImageCache: @unchecked Sendable {
             return
         }
 
-        let preferredDisplayID = appState.itemManager.itemCache.displayID
-        guard let resolvedScreen = Self.resolveScreen(preferredDisplayID: preferredDisplayID) else {
+        let resolvedPreferred = preferredCaptureDisplayID(appState: appState, override: preferredDisplayID)
+        guard let resolvedScreen = Self.resolveScreen(preferredDisplayID: resolvedPreferred) else {
             MenuBarItemImageCache.diagLog.warning("updateCacheWithoutChecks: no connected screens available, aborting")
             return
         }
         let screen = resolvedScreen.screen
-        if resolvedScreen.usedFallback, let preferredDisplayID {
+        if resolvedScreen.usedFallback, let resolvedPreferred {
             MenuBarItemImageCache.diagLog.warning(
-                "updateCacheWithoutChecks: cached displayID \(preferredDisplayID) is not connected; using displayID \(screen.displayID)"
+                "updateCacheWithoutChecks: cached displayID \(resolvedPreferred) is not connected; using displayID \(screen.displayID)"
             )
         }
 
@@ -1801,7 +1849,7 @@ final class MenuBarItemImageCache: @unchecked Sendable {
             appState.itemManager.itemCache.managedItems.map(\.tag)
         )
 
-        await MainActor.run { [newImages, allValidTags] in
+        await MainActor.run { [newImages, allValidTags, screen] in
             let beforeCount = images.count
 
             // Tags with recent capture failures should keep their cached images
@@ -1895,6 +1943,10 @@ final class MenuBarItemImageCache: @unchecked Sendable {
                 MenuBarItemImageCache.diagLog.warning(
                     "Cache inconsistency: \(afterCount) cached images vs \(finalAccessOrderCount) LRU entries"
                 )
+            }
+
+            if !newImages.isEmpty {
+                storeImages(for: screen.displayID)
             }
         }
     }
@@ -1997,6 +2049,110 @@ final class MenuBarItemImageCache: @unchecked Sendable {
         )
     }
 
+    /// Force-recaptures a section for a specific display, including off-screen
+    /// (hidden / always-hidden) items via SkyLight.
+    ///
+    /// Used when the Thaw Bar opens on a different screen than the standing
+    /// image cache: ``updateCacheWithoutChecks`` skips off-screen items, and
+    /// waiting for the live-refresh loop would leave a ~1s wrong-tint flash.
+    @MainActor
+    func recaptureSection(
+        _ section: MenuBarSection.Name,
+        preferredDisplayID: CGDirectDisplayID
+    ) async {
+        guard let appState else { return }
+        guard let resolvedScreen = Self.resolveScreen(preferredDisplayID: preferredDisplayID) else {
+            return
+        }
+        let screen = resolvedScreen.screen
+        let scale = screen.backingScaleFactor
+        let items = appState.itemManager.itemCache.managedItems(for: section)
+            .filter { !$0.isControlItem }
+        guard !items.isEmpty else { return }
+
+        MenuBarItemImageCache.diagLog.notice(
+            "recaptureSection: section=\(section.logString) displayID=\(screen.displayID) items=\(items.count)"
+        )
+
+        await withCapturePermit {
+            if section == .visible {
+                await refreshImages(of: items, scale: scale, viaSCK: true)
+            } else {
+                await refreshImages(of: items, scale: scale, viaSCK: false)
+            }
+        }
+        storeImages(for: screen.displayID)
+    }
+
+    /// Restores a warm per-display snapshot for the Thaw Bar, or clears the
+    /// section when only another screen's bitmaps are available.
+    ///
+    /// Call before the panel is ordered front so the first paint either has
+    /// the correct tint or a loading state — never the wrong screen's icons.
+    @MainActor
+    func prepareImagesForDisplay(_ displayID: CGDirectDisplayID, section: MenuBarSection.Name) {
+        guard let appState else { return }
+        let sectionItems = appState.itemManager.itemCache[section]
+        guard !sectionItems.isEmpty else { return }
+
+        if let stored = imagesByDisplay[displayID], !stored.isEmpty {
+            var applied = 0
+            for item in sectionItems {
+                if let image = storedImage(for: item.tag, in: stored) {
+                    images[item.tag] = image
+                    updateAccessOrder(for: item.tag)
+                    applied += 1
+                }
+            }
+            if applied > 0 {
+                lastCaptureDisplayID = displayID
+                MenuBarItemImageCache.diagLog.notice(
+                    "prepareImagesForDisplay: restored \(applied)/\(sectionItems.count) icons for display \(displayID)"
+                )
+                return
+            }
+        }
+
+        if lastCaptureDisplayID != displayID {
+            MenuBarItemImageCache.diagLog.notice(
+                "prepareImagesForDisplay: no warm cache for display \(displayID); clearing section \(section.logString) to avoid wrong tint"
+            )
+            clearImages(for: section)
+        }
+    }
+
+    /// Snapshots the standing ``images`` under `displayID` for instant restore.
+    @MainActor
+    func storeImages(for displayID: CGDirectDisplayID) {
+        guard !images.isEmpty else { return }
+        var stored = imagesByDisplay[displayID] ?? [:]
+        stored.merge(images) { _, new in new }
+        imagesByDisplay[displayID] = stored
+        lastCaptureDisplayID = displayID
+        pruneDisconnectedDisplayCaches()
+    }
+
+    @MainActor
+    private func storedImage(
+        for tag: MenuBarItemTag,
+        in stored: [MenuBarItemTag: CapturedImage]
+    ) -> CapturedImage? {
+        if let exact = stored[tag] {
+            return exact
+        }
+        guard !tag.isSystemItem else { return nil }
+        for (storedTag, image) in stored where storedTag.matchesIgnoringWindowID(tag) {
+            return image
+        }
+        return nil
+    }
+
+    @MainActor
+    private func pruneDisconnectedDisplayCaches() {
+        let connected = Set(NSScreen.screens.map(\.displayID))
+        imagesByDisplay = imagesByDisplay.filter { connected.contains($0.key) }
+    }
+
     /// Clears the images for the given section.
     @MainActor
     func clearImages(for section: MenuBarSection.Name) {
@@ -2008,6 +2164,32 @@ final class MenuBarItemImageCache: @unchecked Sendable {
         for tag in tags {
             accessOrder.remove(tag)
         }
+        if images.isEmpty {
+            lastCaptureDisplayID = nil
+        }
+    }
+
+    /// Prepares icons for `displayID` and reports whether a fresh capture is needed.
+    ///
+    /// Restores a warm per-display snapshot when available; otherwise clears
+    /// wrong-display bitmaps. Returns `true` when the section still has no
+    /// usable icons (caller should recapture ASAP in the background).
+    @MainActor
+    func prepareImagesForThawBar(
+        displayID: CGDirectDisplayID,
+        section: MenuBarSection.Name
+    ) -> Bool {
+        prepareImagesForDisplay(displayID, section: section)
+        return !sectionHasCachedImages(section)
+    }
+
+    @MainActor
+    private func sectionHasCachedImages(_ section: MenuBarSection.Name) -> Bool {
+        guard let appState else { return false }
+        let items = appState.itemManager.itemCache[section]
+        guard !items.isEmpty else { return true }
+        let keys = Set(images.keys)
+        return items.contains { keys.contains($0.tag) }
     }
 
     /// Clears all cached images and failure tracking.
@@ -2015,6 +2197,8 @@ final class MenuBarItemImageCache: @unchecked Sendable {
     func clearAll() {
         images.removeAll()
         accessOrder.removeAll()
+        imagesByDisplay.removeAll()
+        lastCaptureDisplayID = nil
         failedCapturesLock.withLock { $0.removeAll() }
     }
 
