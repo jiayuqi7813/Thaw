@@ -311,19 +311,26 @@ nonisolated extension ThawBarAppearancePartialConfiguration {
 
     /// Resolved fill color used for icon contrast when a concrete color is
     /// available (sampled strip, solid, or a representative gradient stop).
+    ///
+    /// Translucent fills are composited over ``sampled`` with the same opacity
+    /// ``ThawBarChrome`` paints, so glyph contrast tracks the visible panel
+    /// rather than the full-opacity source color.
     func resolvedFillColor(sampled: CGColor?) -> CGColor? {
         switch backgroundKind {
         case .adaptive:
-            sampled.map { brightnessAdjustedSample(from: $0) }
+            guard let sampled else { return nil }
+            let fill = brightnessAdjustedSample(from: sampled)
+            return Self.compositing(fill, over: sampled, opacity: adaptiveFillOpacity)
         case .glass, .none, .sampled:
-            sampled
+            return sampled
         case .solid:
-            backgroundColor
+            return Self.compositing(backgroundColor, over: sampled, opacity: backgroundOpacity)
         case .gradient:
             // Avoid ``IceGradient/averageColor`` here: that API is `@MainActor`
-            // because it renders through AppKit. A middle stop is enough for
-            // icon contrast decisions from nonisolated configuration code.
-            representativeGradientColor ?? backgroundColor
+            // because it renders through AppKit. A middle-stop blend is enough
+            // for icon contrast decisions from nonisolated configuration code.
+            let fill = representativeGradientColor ?? backgroundColor
+            return Self.compositing(fill, over: sampled, opacity: backgroundOpacity)
         }
     }
 
@@ -369,6 +376,15 @@ nonisolated extension ThawBarAppearancePartialConfiguration {
         let bl = ca[2] + (cb[2] - ca[2]) * clamped
         let alpha = aa + (ab - aa) * clamped
         return CGColor(colorSpace: CGColorSpaceCreateDeviceRGB(), components: [r, g, bl, alpha])
+    }
+
+    /// Paints `fill` at `opacity` over an opaque `underlay`, matching SwiftUI
+    /// `.opacity` compositing for contrast decisions.
+    private static func compositing(_ fill: CGColor, over underlay: CGColor?, opacity: Double) -> CGColor {
+        let clamped = min(max(opacity, 0), 1)
+        if clamped >= 1 { return fill }
+        guard let underlay else { return fill }
+        return blend(underlay, fill, t: clamped) ?? fill
     }
 
     /// Whether icon glyphs should render dark on top of the resolved fill.

@@ -159,6 +159,21 @@ struct ThawBarAppearanceConfigurationTests {
             #expect(config.resolvedFillColor(sampled: sampled) === sampled)
         }
 
+        @Test("Translucent fills composite over the sample before contrast")
+        func translucentFillCompositesForContrast() throws {
+            var config = ThawBarAppearancePartialConfiguration.defaultConfiguration
+            config.backgroundKind = .solid
+            config.backgroundColor = CGColor(gray: 1, alpha: 1)
+            config.backgroundOpacity = 0.25
+            let darkSample = CGColor(gray: 0.1, alpha: 1)
+
+            let resolved = try #require(config.resolvedFillColor(sampled: darkSample))
+            let components = try #require(resolved.components)
+            // 0.25 white over 0.1 gray ≈ 0.325 — well below a light fill.
+            #expect(components[0] < 0.5)
+            #expect(components[0] > 0.2)
+        }
+
         @Test("Glass kind always uses liquid glass; Match Menu Bar follows the glass slider")
         func appliesLiquidGlass() {
             #expect(ThawBarBackgroundKind.glass.usesLiquidGlass)

@@ -57,7 +57,7 @@ final class IceBarColorManager {
                     guard let self, let screen else { return }
                     Task { [weak self] in
                         guard let self else { return }
-                        await self.updateWindowImage(for: screen)
+                        _ = await self.updateWindowImage(for: screen)
                     }
                 }
                 .store(in: &c)
@@ -107,7 +107,7 @@ final class IceBarColorManager {
                 let frame = iceBarPanel.frame
                 Task { [weak self] in
                     guard let self else { return }
-                    await self.updateWindowImage(for: screen)
+                    guard await self.updateWindowImage(for: screen) else { return }
                     withAnimation(.easeInOut(duration: 0.35)) {
                         self.updateColorInfo(with: frame, screen: screen)
                     }
@@ -126,7 +126,7 @@ final class IceBarColorManager {
                             let frame = iceBarPanel.frame
                             Task { [weak self] in
                                 guard let self else { return }
-                                await self.updateWindowImage(for: screen)
+                                guard await self.updateWindowImage(for: screen) else { return }
                                 self.updateColorInfo(with: frame, screen: screen)
                             }
                         }
@@ -159,7 +159,7 @@ final class IceBarColorManager {
                 let frame = iceBarPanel.frame
                 Task { [weak self] in
                     guard let self else { return }
-                    await self.updateWindowImage(for: screen)
+                    guard await self.updateWindowImage(for: screen) else { return }
                     withAnimation(.easeInOut(duration: 0.35)) {
                         self.updateColorInfo(with: frame, screen: screen)
                     }
@@ -183,7 +183,14 @@ final class IceBarColorManager {
         windowImage = nil
     }
 
-    private func updateWindowImage(for screen: NSScreen) async {
+    /// Captures the menu bar / wallpaper strip for `screen`.
+    ///
+    /// - Returns: `true` when this call stored the current generation's image.
+    ///   Callers must not update ``colorInfo`` after a `false` result — a stale
+    ///   capture would otherwise sample a newer `windowImage` with an older
+    ///   frame / screen.
+    @discardableResult
+    private func updateWindowImage(for screen: NSScreen) async -> Bool {
         let windows = WindowInfo.createWindows(option: .onScreen)
         let displayID = screen.displayID
 
@@ -191,7 +198,7 @@ final class IceBarColorManager {
             let menuBarWindow = WindowInfo.menuBarWindow(from: windows, for: displayID),
             let wallpaperWindow = WindowInfo.wallpaperWindow(from: windows, for: displayID)
         else {
-            return
+            return false
         }
 
         let windowIDs = [menuBarWindow.windowID, wallpaperWindow.windowID]
@@ -212,8 +219,9 @@ final class IceBarColorManager {
             screenBounds: bounds,
             option: .nominalResolution
         )
-        guard generation == windowImageGeneration, let image else { return }
+        guard generation == windowImageGeneration, let image else { return false }
         windowImage = image
+        return true
     }
 
     /// The horizontal position (`0...1`) of the bar's center within the screen,
@@ -289,7 +297,7 @@ final class IceBarColorManager {
 
     /// Captures the menu bar strip for `screen` and rewrites ``colorInfo``.
     func refresh(with frame: CGRect, screen: NSScreen) async {
-        await updateWindowImage(for: screen)
+        guard await updateWindowImage(for: screen) else { return }
         updateColorInfo(with: frame, screen: screen)
     }
 }
