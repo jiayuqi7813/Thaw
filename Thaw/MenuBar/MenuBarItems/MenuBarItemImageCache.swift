@@ -1542,6 +1542,24 @@ final class MenuBarItemImageCache: @unchecked Sendable {
                 "Memory pressure: Cleared \(tagsToRemove.count) items from cache"
             )
         }
+
+        // Per-display warm snapshots are independent of the standing LRU; drop
+        // non-standing displays first, then trim the standing copy to match.
+        let standing = lastCaptureDisplayID
+        for displayID in imagesByDisplay.keys where displayID != standing {
+            imagesByDisplay.removeValue(forKey: displayID)
+        }
+        if let standing, var standingImages = imagesByDisplay[standing] {
+            standingImages = standingImages.filter { images[$0.key] != nil }
+            if standingImages.count > images.count {
+                let excess = standingImages.count - images.count
+                let dropKeys = Array(standingImages.keys.prefix(excess))
+                for key in dropKeys {
+                    standingImages.removeValue(forKey: key)
+                }
+            }
+            imagesByDisplay[standing] = standingImages
+        }
     }
 
     /// Returns the `count` least recently used tags, sorted by access time (oldest first).
@@ -2078,6 +2096,9 @@ final class MenuBarItemImageCache: @unchecked Sendable {
             if section == .visible {
                 await refreshImages(of: items, scale: scale, viaSCK: true)
             } else {
+                // Share the live-refresh SkyLight budget so repeated IceBar
+                // opens cannot bypass the #759 leak throttle.
+                lastSkyLightBatchAt = ContinuousClock.now
                 await refreshImages(of: items, scale: scale, viaSCK: false)
             }
         }
@@ -2089,27 +2110,40 @@ final class MenuBarItemImageCache: @unchecked Sendable {
     ///
     /// Call before the panel is ordered front so the first paint either has
     /// the correct tint or a loading state — never the wrong screen's icons.
+    ///
+    /// - Returns: `true` when a background recapture is still needed (cold or
+    ///   incomplete warm restore).
     @MainActor
-    func prepareImagesForDisplay(_ displayID: CGDirectDisplayID, section: MenuBarSection.Name) {
-        guard let appState else { return }
+    @discardableResult
+    func prepareImagesForDisplay(_ displayID: CGDirectDisplayID, section: MenuBarSection.Name) -> Bool {
+        guard let appState else { return true }
         let sectionItems = appState.itemManager.itemCache[section]
-        guard !sectionItems.isEmpty else { return }
+        guard !sectionItems.isEmpty else { return false }
 
         if let stored = imagesByDisplay[displayID], !stored.isEmpty {
             var applied = 0
+            var missingTags = [MenuBarItemTag]()
             for item in sectionItems {
                 if let image = storedImage(for: item.tag, in: stored) {
                     images[item.tag] = image
                     updateAccessOrder(for: item.tag)
                     applied += 1
+                } else {
+                    missingTags.append(item.tag)
                 }
+            }
+            // Drop unrestored tags so previous-display bitmaps cannot linger
+            // beside a partial warm restore.
+            for tag in missingTags {
+                images.removeValue(forKey: tag)
+                accessOrder.remove(tag)
             }
             if applied > 0 {
                 lastCaptureDisplayID = displayID
                 MenuBarItemImageCache.diagLog.notice(
                     "prepareImagesForDisplay: restored \(applied)/\(sectionItems.count) icons for display \(displayID)"
                 )
-                return
+                return !missingTags.isEmpty
             }
         }
 
@@ -2118,18 +2152,22 @@ final class MenuBarItemImageCache: @unchecked Sendable {
                 "prepareImagesForDisplay: no warm cache for display \(displayID); clearing section \(section.logString) to avoid wrong tint"
             )
             clearImages(for: section)
+            return true
         }
+        return !sectionHasCachedImages(section)
     }
 
     /// Snapshots the standing ``images`` under `displayID` for instant restore.
     @MainActor
     func storeImages(for displayID: CGDirectDisplayID) {
         guard !images.isEmpty else { return }
-        var stored = imagesByDisplay[displayID] ?? [:]
-        stored.merge(images) { _, new in new }
-        imagesByDisplay[displayID] = stored
+        // Replace the display snapshot with the standing cache rather than
+        // merging forever — otherwise every live-refresh tick accumulates
+        // tags that the main LRU / memory-pressure paths already dropped.
+        imagesByDisplay[displayID] = images
         lastCaptureDisplayID = displayID
         pruneDisconnectedDisplayCaches()
+        enforcePerDisplayCacheLimit()
     }
 
     @MainActor
@@ -2151,6 +2189,35 @@ final class MenuBarItemImageCache: @unchecked Sendable {
     private func pruneDisconnectedDisplayCaches() {
         let connected = Set(NSScreen.screens.map(\.displayID))
         imagesByDisplay = imagesByDisplay.filter { connected.contains($0.key) }
+    }
+
+    /// Caps total icons retained across per-display snapshots.
+    @MainActor
+    private func enforcePerDisplayCacheLimit() {
+        let total = imagesByDisplay.values.reduce(0) { $0 + $1.count }
+        let limit = Self.maxCacheSize * max(imagesByDisplay.count, 1)
+        guard total > limit else { return }
+
+        // Prefer dropping snapshots for displays that are not the standing one.
+        let standing = lastCaptureDisplayID
+        let victims = imagesByDisplay.keys.filter { $0 != standing }
+        for displayID in victims {
+            imagesByDisplay.removeValue(forKey: displayID)
+            let remaining = imagesByDisplay.values.reduce(0) { $0 + $1.count }
+            if remaining <= limit { return }
+        }
+
+        if var standingImages = standing.flatMap({ imagesByDisplay[$0] }),
+           standingImages.count > Self.maxCacheSize
+        {
+            let keys = Array(standingImages.keys.prefix(standingImages.count - Self.maxCacheSize))
+            for key in keys {
+                standingImages.removeValue(forKey: key)
+            }
+            if let standing {
+                imagesByDisplay[standing] = standingImages
+            }
+        }
     }
 
     /// Clears the images for the given section.
@@ -2180,7 +2247,6 @@ final class MenuBarItemImageCache: @unchecked Sendable {
         section: MenuBarSection.Name
     ) -> Bool {
         prepareImagesForDisplay(displayID, section: section)
-        return !sectionHasCachedImages(section)
     }
 
     @MainActor

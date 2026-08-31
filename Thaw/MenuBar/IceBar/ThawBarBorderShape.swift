@@ -15,6 +15,9 @@ import SwiftUI
 struct ThawBarBorderShape: Shape {
     /// Corner radius of the un-inset clip path.
     var cornerRadius: CGFloat
+    /// Matches ``ThawBarChrome``'s clip: circular for fully rounded ends,
+    /// continuous for square corners.
+    var cornerStyle: RoundedCornerStyle = .continuous
     /// When `true`, the path starts at the top-leading corner, runs down the
     /// leading side, across the bottom, and up the trailing side — leaving the
     /// top edge open.
@@ -28,7 +31,7 @@ struct ThawBarBorderShape: Shape {
         let radius = min(max(cornerRadius - inset, 0), min(drawRect.width, drawRect.height) / 2)
 
         if !omitTopEdge {
-            return RoundedRectangle(cornerRadius: radius, style: .continuous)
+            return RoundedRectangle(cornerRadius: radius, style: cornerStyle)
                 .path(in: drawRect)
         }
 
@@ -41,6 +44,9 @@ struct ThawBarBorderShape: Shape {
             return path
         }
 
+        // Continuous corners approximate a squircle; for the open-top path we
+        // still stroke circular arcs of the same radius so the visible edges
+        // meet the clip cleanly for both styles.
         var path = Path()
         // Top-leading → down the leading edge → bottom-leading arc →
         // bottom edge → bottom-trailing arc → up the trailing edge →

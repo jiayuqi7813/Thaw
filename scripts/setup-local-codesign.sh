@@ -61,7 +61,6 @@ security unlock-keychain -p "" "${KEYCHAIN}" 2>/dev/null || true
 security import "${TMP}/cert.p12" \
   -k "${KEYCHAIN}" \
   -P thaw-local \
-  -A \
   -T /usr/bin/codesign \
   -T /usr/bin/security \
   -T /usr/bin/productsign

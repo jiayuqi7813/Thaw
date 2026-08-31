@@ -327,11 +327,48 @@ nonisolated extension ThawBarAppearancePartialConfiguration {
         }
     }
 
-    /// A representative stop color from ``backgroundGradient`` for contrast.
+    /// A representative color from ``backgroundGradient`` for contrast,
+    /// interpolated at location `0.5` when neighboring stops exist.
     private var representativeGradientColor: CGColor? {
         guard !backgroundGradient.stops.isEmpty else { return nil }
         let sorted = backgroundGradient.stops.sorted { $0.location < $1.location }
-        return sorted[sorted.count / 2].color
+        if sorted.count == 1 {
+            return sorted[0].color
+        }
+        if let exact = sorted.first(where: { abs($0.location - 0.5) < 0.000_1 }) {
+            return exact.color
+        }
+        guard
+            let lower = sorted.last(where: { $0.location <= 0.5 }),
+            let upper = sorted.first(where: { $0.location >= 0.5 })
+        else {
+            return sorted[sorted.count / 2].color
+        }
+        if lower.location == upper.location {
+            return lower.color
+        }
+        let t = (0.5 - lower.location) / (upper.location - lower.location)
+        return Self.blend(lower.color, upper.color, t: t) ?? lower.color
+    }
+
+    /// Linear blend of two device-RGB colors.
+    private static func blend(_ a: CGColor, _ b: CGColor, t: Double) -> CGColor? {
+        guard
+            let rgbA = a.converted(to: CGColorSpaceCreateDeviceRGB(), intent: .defaultIntent, options: nil),
+            let rgbB = b.converted(to: CGColorSpaceCreateDeviceRGB(), intent: .defaultIntent, options: nil),
+            let ca = rgbA.components, ca.count >= 3,
+            let cb = rgbB.components, cb.count >= 3
+        else {
+            return nil
+        }
+        let clamped = min(max(t, 0), 1)
+        let aa = ca.count > 3 ? ca[3] : 1
+        let ab = cb.count > 3 ? cb[3] : 1
+        let r = ca[0] + (cb[0] - ca[0]) * clamped
+        let g = ca[1] + (cb[1] - ca[1]) * clamped
+        let bl = ca[2] + (cb[2] - ca[2]) * clamped
+        let alpha = aa + (ab - aa) * clamped
+        return CGColor(colorSpace: CGColorSpaceCreateDeviceRGB(), components: [r, g, bl, alpha])
     }
 
     /// Whether icon glyphs should render dark on top of the resolved fill.

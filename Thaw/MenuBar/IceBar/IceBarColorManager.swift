@@ -244,9 +244,16 @@ final class IceBarColorManager {
 
         let percentage = Self.colorSamplePercentage(frame: frame, screenFrame: screen.frame)
 
-        let cropRect = CGRect(x: imageBounds.width * percentage, y: 0, width: 0, height: 1)
-            .insetBy(dx: -150, dy: 0)
-            .intersection(imageBounds)
+        // Sample a horizontal band across the full captured menu-bar height so
+        // the average tracks the visible bar body, not only the top pixel row.
+        let cropRect = CGRect(
+            x: imageBounds.width * percentage,
+            y: 0,
+            width: 0,
+            height: imageBounds.height
+        )
+        .insetBy(dx: -150, dy: 0)
+        .intersection(imageBounds)
 
         guard
             let croppedImage = image.cropping(to: cropRect),

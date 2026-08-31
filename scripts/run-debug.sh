@@ -16,6 +16,8 @@ DERIVED="${DERIVED_DATA_PATH:-${HOME}/Library/Developer/Xcode/DerivedData/Thaw-l
 APP="${DERIVED}/Build/Products/Debug/Thaw.app"
 
 echo "Building with identity: ${NAME}"
+# Self-signed local identity cannot satisfy Hardened Runtime entitlement
+# checks; keep this Debug-only helper off Hardened Runtime on purpose.
 xcodebuild \
   -scheme Thaw \
   -destination 'platform=macOS' \

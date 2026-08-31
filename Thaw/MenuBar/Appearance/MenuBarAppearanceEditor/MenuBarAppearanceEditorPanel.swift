@@ -203,7 +203,6 @@ private final class MenuBarAppearanceEditorHostingController: NSHostingControlle
             return
         }
         let configuration = appState.appearanceManager.configuration
-        let thawBar = configuration.currentThawBar
         let baseHeight: CGFloat = configuration.isDynamic ? 980 : 780
         let shapeBonus: CGFloat = configuration.shapeKind == .noShape ? 0 : 105
         let headingBonus: CGFloat = 32
@@ -220,33 +219,42 @@ private final class MenuBarAppearanceEditorHostingController: NSHostingControlle
             return height
         }()
         let thawBarBonus: CGFloat = {
-            var height: CGFloat = 0
-            switch thawBar.backgroundKind {
-            case .adaptive:
-                height += 72 // brightness + glass
-            case .solid, .gradient, .sampled:
-                height += 36 // background opacity
-            case .glass:
-                height += 36 // glass style
-            case .none:
-                break
+            // Dynamic mode renders light and dark Thaw Bar editors together.
+            if configuration.isDynamic {
+                return thawBarEditorHeightBonus(for: configuration.thawBarLightModeConfiguration)
+                    + thawBarEditorHeightBonus(for: configuration.thawBarDarkModeConfiguration)
             }
-            if thawBar.tintKind != .noTint {
-                height += 36 // tint opacity
-            }
-            if thawBar.hasBorder {
-                height += 80 // border color + width
-                if !thawBar.cornerStyle.isFullyRounded {
-                    height += 48 // omit top border
-                }
-            }
-            return height
+            return thawBarEditorHeightBonus(for: configuration.currentThawBar)
         }()
         preferredContentSize = NSSize(
             width: 525,
             height: baseHeight + shapeBonus + headingBonus + tintOpacityBonus + backgroundBonus + thawBarBonus
         )
         view.setFrameSize(preferredContentSize)
+    }
+
+    private func thawBarEditorHeightBonus(for thawBar: ThawBarAppearancePartialConfiguration) -> CGFloat {
+        var height: CGFloat = 0
+        switch thawBar.backgroundKind {
+        case .adaptive:
+            height += 72 // brightness + glass
+        case .solid, .gradient, .sampled:
+            height += 36 // background opacity
+        case .glass:
+            height += 36 // glass style
+        case .none:
+            break
+        }
+        if thawBar.tintKind != .noTint {
+            height += 36 // tint opacity
+        }
+        if thawBar.hasBorder {
+            height += 80 // border color + width
+            if !thawBar.cornerStyle.isFullyRounded {
+                height += 48 // omit top border
+            }
+        }
+        return height
     }
 }
 

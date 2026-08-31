@@ -149,6 +149,7 @@ struct ThawBarChrome<Content: View>: View {
     private var borderOverlay: some View {
         ThawBarBorderShape(
             cornerRadius: cornerRadius,
+            cornerStyle: configuration.cornerStyle.isFullyRounded ? .circular : .continuous,
             omitTopEdge: configuration.shouldOmitTopBorder,
             inset: configuration.borderWidth / 2
         )
