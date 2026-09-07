@@ -8,28 +8,64 @@
 
 import SwiftUI
 
-/// A rounded rectangle whose stroke can omit the top edge.
+/// The Thaw Bar's rounded-rectangle geometry, serving as both its clip and
+/// its border stroke.
 ///
-/// Used by the Thaw Bar when square corners meet the display's rounded
-/// screen corners (#325): drawing the top edge would be clipped and look
-/// broken, so only the leading, trailing, and bottom edges are stroked.
-nonisolated struct ThawBarBorderShape: Shape {
-    /// Corner radius of the un-inset clip path.
+/// The clip and the stroke have to agree on corner radius and style or the
+/// border drifts off the clipped edge, so both are built by the factories
+/// below instead of by separately maintained expressions at each call site.
+///
+/// When square corners meet the display's rounded screen corners (#325),
+/// the top edge of the stroke would be clipped and look broken, so the
+/// border omits it and draws only the leading, trailing, and bottom edges.
+nonisolated struct ThawBarBorderShape: InsettableShape {
+    /// Corner radius of the un-inset path.
     var cornerRadius: CGFloat
-    /// Matches the Thaw Bar clip: circular for fully rounded ends,
-    /// continuous for square corners.
+    /// Circular for fully rounded ends, continuous for square corners.
     var cornerStyle: RoundedCornerStyle = .continuous
     /// When `true`, the path starts at the top-leading corner, runs down the
     /// leading side, across the bottom, and up the trailing side — leaving the
     /// top edge open.
     var omitTopEdge: Bool
-    /// Inset applied before constructing the path (half the stroke width so
-    /// the stroke sits on the clip edge, matching `InsettableShape.inset`).
-    var inset: CGFloat = 0
+    /// Inset applied before constructing the path. Accumulated through
+    /// ``inset(by:)`` rather than set directly.
+    var insetAmount: CGFloat = 0
+
+    /// The Thaw Bar's clip for a given content height: fully rounded ends get
+    /// a circular half-height radius, square corners a continuous
+    /// quarter-height one.
+    static func thawBarClip(height: CGFloat, hasRoundedShape: Bool) -> ThawBarBorderShape {
+        ThawBarBorderShape(
+            cornerRadius: hasRoundedShape ? height / 2 : height / 4,
+            cornerStyle: hasRoundedShape ? .circular : .continuous,
+            omitTopEdge: false
+        )
+    }
+
+    /// The border that traces ``thawBarClip(height:hasRoundedShape:)``.
+    ///
+    /// Derived from the clip so the two cannot drift apart, inset by half the
+    /// stroke width so the stroke sits centred on the clip edge, and opened at
+    /// the top on square corners (#325).
+    static func thawBarBorder(
+        height: CGFloat,
+        hasRoundedShape: Bool,
+        borderWidth: CGFloat
+    ) -> ThawBarBorderShape {
+        var shape = thawBarClip(height: height, hasRoundedShape: hasRoundedShape)
+        shape.omitTopEdge = !hasRoundedShape
+        return shape.inset(by: borderWidth / 2)
+    }
+
+    func inset(by amount: CGFloat) -> ThawBarBorderShape {
+        var shape = self
+        shape.insetAmount += amount
+        return shape
+    }
 
     func path(in rect: CGRect) -> Path {
-        let drawRect = rect.insetBy(dx: inset, dy: inset)
-        let radius = min(max(cornerRadius - inset, 0), min(drawRect.width, drawRect.height) / 2)
+        let drawRect = rect.insetBy(dx: insetAmount, dy: insetAmount)
+        let radius = min(max(cornerRadius - insetAmount, 0), min(drawRect.width, drawRect.height) / 2)
 
         if !omitTopEdge {
             return RoundedRectangle(cornerRadius: radius, style: cornerStyle)
