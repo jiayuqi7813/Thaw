@@ -60,6 +60,7 @@ $(SRCROOT)/Thaw/MenuBar/Groups/MenuBarItemGroupPolicy.swift
 $(SRCROOT)/Thaw/MenuBar/Groups/MenuBarItemGroupResolution.swift
 $(SRCROOT)/Thaw/MenuBar/Groups/MenuBarItemGrouping.swift
 $(SRCROOT)/Thaw/MenuBar/IceBar/IceBar.swift
+$(SRCROOT)/Thaw/MenuBar/IceBar/ThawBarBorderShape.swift
 $(SRCROOT)/Thaw/MenuBar/IceBar/IceBarColorManager.swift
 $(SRCROOT)/Thaw/MenuBar/IceBar/IceBarLayout.swift
 $(SRCROOT)/Thaw/MenuBar/IceBar/IceBarLocation.swift

@@ -515,10 +515,18 @@ private struct IceBarContentView: View {
             .clipShape(clipShape)
 
             if appearance.hasBorder {
-                clipShape
-                    .inset(by: appearance.borderWidth / 2)
-                    .stroke(lineWidth: appearance.borderWidth)
-                    .foregroundStyle(Color(cgColor: appearance.borderColor))
+                // Square corners sit under the display's rounded screen edge
+                // (#325): omit the top stroke so it is not clipped mid-line.
+                ThawBarBorderShape(
+                    cornerRadius: appearance.hasRoundedShape
+                        ? contentHeight / 2
+                        : contentHeight / 4,
+                    cornerStyle: appearance.hasRoundedShape ? .circular : .continuous,
+                    omitTopEdge: !appearance.hasRoundedShape,
+                    inset: appearance.borderWidth / 2
+                )
+                .stroke(lineWidth: appearance.borderWidth)
+                .foregroundStyle(Color(cgColor: appearance.borderColor))
             }
         }
         .padding(5)
