@@ -13,7 +13,7 @@ import SwiftUI
 /// Used by the Thaw Bar when square corners meet the display's rounded
 /// screen corners (#325): drawing the top edge would be clipped and look
 /// broken, so only the leading, trailing, and bottom edges are stroked.
-struct ThawBarBorderShape: Shape {
+nonisolated struct ThawBarBorderShape: Shape {
     /// Corner radius of the un-inset clip path.
     var cornerRadius: CGFloat
     /// Matches the Thaw Bar clip: circular for fully rounded ends,
