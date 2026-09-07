@@ -97,59 +97,97 @@ nonisolated struct ThawBarBorderShape: InsettableShape {
         return Self.openPathOmittingTopEdge(closed, in: drawRect)
     }
 
-    /// Drops the top edge of a closed rounded-rect path and reverses the
+    /// Drops the top edge of a closed rounded-rect path and reopens the
     /// remaining outline so the stroke runs top-leading → bottom → top-trailing.
+    ///
+    /// The source is a closed loop, but SwiftUI is free to begin that loop
+    /// anywhere on it — `UnevenRoundedRectangle` in fact begins partway down
+    /// the trailing edge — so the removed edge usually sits in the *middle* of
+    /// the emitted order. Walking that order directly would join the two loose
+    /// ends and draw the top edge straight back in, while losing the stretch of
+    /// trailing edge above the start point. The outline is therefore rebuilt as
+    /// a full loop, including the segment `closeSubpath` implies, and rotated
+    /// to begin just after the top edge before being reversed.
     private static func openPathOmittingTopEdge(_ closed: Path, in rect: CGRect) -> Path {
-        var current = CGPoint.zero
-        var skippedTopEdge = false
-        var chain: [(from: CGPoint, to: CGPoint, element: ElementKind)] = []
-
-        closed.forEach { element in
-            switch element {
-            case .move(to: let point):
-                current = point
-            case .line(to: let point):
-                if !skippedTopEdge,
-                   abs(current.y - rect.minY) < 0.5,
-                   abs(point.y - rect.minY) < 0.5 {
-                    skippedTopEdge = true
-                    current = point
-                    return
-                }
-                chain.append((current, point, .line))
-                current = point
-            case .quadCurve(to: let point, control: let control):
-                chain.append((current, point, .quad(control: control)))
-                current = point
-            case .curve(to: let point, control1: let c1, control2: let c2):
-                chain.append((current, point, .cubic(control1: c1, control2: c2)))
-                current = point
-            case .closeSubpath:
-                break
-            }
+        let loop = segments(of: closed)
+        guard let topEdge = loop.firstIndex(where: { isTopEdge($0, in: rect) }) else {
+            // Nothing recognizable to remove; a closed outline beats a mangled
+            // one, so draw the shape as it came.
+            return closed
         }
+
+        let chain = Array(loop[(topEdge + 1)...] + loop[..<topEdge])
 
         var path = Path()
         guard let last = chain.last else {
             return path
         }
 
-        // Reverse so drawing starts at the original end (top-leading).
+        // Reverse so drawing starts at the top-leading corner.
         path.move(to: last.to)
         for segment in chain.reversed() {
-            switch segment.element {
+            switch segment.kind {
             case .line:
                 path.addLine(to: segment.from)
-            case .quad(let control):
+            case let .quad(control):
                 path.addQuadCurve(to: segment.from, control: control)
-            case .cubic(let control1, let control2):
+            case let .cubic(control1, control2):
                 path.addCurve(to: segment.from, control1: control2, control2: control1)
             }
         }
         return path
     }
 
-    private enum ElementKind {
+    /// Flattens a path into its segments, materializing the closing segment
+    /// that `closeSubpath` only implies.
+    private static func segments(of path: Path) -> [Segment] {
+        var segments: [Segment] = []
+        var current = CGPoint.zero
+        var subpathStart = CGPoint.zero
+
+        path.forEach { element in
+            switch element {
+            case let .move(to: point):
+                current = point
+                subpathStart = point
+            case let .line(to: point):
+                segments.append(Segment(from: current, to: point, kind: .line))
+                current = point
+            case let .quadCurve(to: point, control: control):
+                segments.append(Segment(from: current, to: point, kind: .quad(control: control)))
+                current = point
+            case let .curve(to: point, control1: control1, control2: control2):
+                let kind = SegmentKind.cubic(control1: control1, control2: control2)
+                segments.append(Segment(from: current, to: point, kind: kind))
+                current = point
+            case .closeSubpath:
+                if current != subpathStart {
+                    segments.append(Segment(from: current, to: subpathStart, kind: .line))
+                }
+                current = subpathStart
+            }
+        }
+        return segments
+    }
+
+    /// Whether a segment is the run along the top of `rect`.
+    ///
+    /// The width test matters: a zero-radius corner still emits curve elements,
+    /// they are just zero-length, and both of the top ones sit exactly on
+    /// `minY`. Without it the first of those would be mistaken for the edge.
+    private static func isTopEdge(_ segment: Segment, in rect: CGRect) -> Bool {
+        abs(segment.from.y - rect.minY) < 0.5
+            && abs(segment.to.y - rect.minY) < 0.5
+            && abs(segment.to.x - segment.from.x) > 0.5
+    }
+
+    private struct Segment {
+        var from: CGPoint
+        var to: CGPoint
+        var kind: SegmentKind
+    }
+
+    private enum SegmentKind {
         case line
         case quad(control: CGPoint)
         case cubic(control1: CGPoint, control2: CGPoint)
