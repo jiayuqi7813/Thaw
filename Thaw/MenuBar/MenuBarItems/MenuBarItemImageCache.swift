@@ -950,6 +950,7 @@ final class MenuBarItemImageCache: @unchecked Sendable {
 
             var hiddenItems = [MenuBarItem]()
             var alwaysHiddenItems = [MenuBarItem]()
+            var capturedTags = [MenuBarItemTag]()
 
             for section in sections {
                 let availableItems = appState.itemManager.itemCache.managedItems(for: section)
@@ -983,6 +984,7 @@ final class MenuBarItemImageCache: @unchecked Sendable {
                         await withCapturePermit {
                             await refreshImages(of: items, scale: scale, viaSCK: true)
                         }
+                        capturedTags.append(contentsOf: items.map(\.tag))
                     }
                     nextWake = min(
                         nextWake,
@@ -1028,6 +1030,7 @@ final class MenuBarItemImageCache: @unchecked Sendable {
                 await withCapturePermit {
                     await refreshImages(of: hiddenItems, scale: scale)
                 }
+                capturedTags.append(contentsOf: hiddenItems.map(\.tag))
             case .alwaysHidden:
                 lastAlwaysHiddenRefreshAt = now
                 MenuBarItemImageCache.diagLog.debug(
@@ -1036,12 +1039,13 @@ final class MenuBarItemImageCache: @unchecked Sendable {
                 await withCapturePermit {
                     await refreshImages(of: alwaysHiddenItems, scale: scale)
                 }
+                capturedTags.append(contentsOf: alwaysHiddenItems.map(\.tag))
             case .visible, nil:
                 break
             }
 
             await MainActor.run {
-                storeImages(for: screen.displayID)
+                storeImages(for: screen.displayID, capturedTags: capturedTags)
             }
 
             if let hiddenInterval, !hiddenItems.isEmpty {
@@ -2266,7 +2270,7 @@ final class MenuBarItemImageCache: @unchecked Sendable {
             }
 
             if !newImages.isEmpty {
-                storeImages(for: displayID)
+                storeImages(for: displayID, capturedTags: newImages.keys)
             }
         }
     }
@@ -2421,7 +2425,8 @@ final class MenuBarItemImageCache: @unchecked Sendable {
                 await refreshImages(of: items, scale: scale, viaSCK: false)
             }
         }
-        storeImages(for: screen.displayID)
+        guard !Task.isCancelled else { return }
+        storeImages(for: screen.displayID, capturedTags: items.map(\.tag))
     }
 
     /// Waits for — then claims — the live-refresh offscreen slot for `section`.
@@ -2505,14 +2510,26 @@ final class MenuBarItemImageCache: @unchecked Sendable {
         return !sectionHasCachedImages(section)
     }
 
-    /// Snapshots the standing ``images`` under `displayID` for instant restore.
+    /// Snapshots the tags a capture just produced for `displayID`.
+    ///
+    /// The standing `images` cache also holds other sections' bitmaps, which
+    /// may belong to a different display. Recording the whole cache under
+    /// `displayID` would label another display's tint as this one's, so only
+    /// the captured tags are merged into that display's snapshot. Entries no
+    /// longer in `images` are dropped so the snapshot cannot accumulate.
     @MainActor
-    func storeImages(for displayID: CGDirectDisplayID) {
-        guard !images.isEmpty else { return }
-        // Replace the display snapshot with the standing cache rather than
-        // merging forever — otherwise every live-refresh tick accumulates
-        // tags that the main LRU / memory-pressure paths already dropped.
-        imagesByDisplay[displayID] = images
+    func storeImages(
+        for displayID: CGDirectDisplayID,
+        capturedTags: some Sequence<MenuBarItemTag>
+    ) {
+        var snapshot = (imagesByDisplay[displayID] ?? [:]).filter { images[$0.key] != nil }
+        for tag in capturedTags {
+            if let image = Self.image(for: tag, in: images) {
+                snapshot[tag] = image
+            }
+        }
+        guard !snapshot.isEmpty else { return }
+        imagesByDisplay[displayID] = snapshot
         lastCaptureDisplayID = displayID
         pruneDisconnectedDisplayCaches()
         enforcePerDisplayCacheLimit()
@@ -2536,7 +2553,9 @@ final class MenuBarItemImageCache: @unchecked Sendable {
         for displayID in victims {
             imagesByDisplay.removeValue(forKey: displayID)
             let remaining = imagesByDisplay.values.reduce(0) { $0 + $1.count }
-            if remaining <= limit { return }
+            if remaining <= limit {
+                return
+            }
         }
 
         if var standingImages = standing.flatMap({ imagesByDisplay[$0] }),
