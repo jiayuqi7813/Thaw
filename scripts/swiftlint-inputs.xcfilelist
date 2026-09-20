@@ -64,6 +64,7 @@ $(SRCROOT)/Thaw/MenuBar/IceBar/IceBarColorManager.swift
 $(SRCROOT)/Thaw/MenuBar/IceBar/IceBarLayout.swift
 $(SRCROOT)/Thaw/MenuBar/IceBar/IceBarLocation.swift
 $(SRCROOT)/Thaw/MenuBar/IceBar/MenuBarItemIconFallback.swift
+$(SRCROOT)/Thaw/MenuBar/IceBar/ThawBarBorderShape.swift
 $(SRCROOT)/Thaw/MenuBar/LayoutBar/LayoutBar.swift
 $(SRCROOT)/Thaw/MenuBar/LayoutBar/LayoutBarArrangedView.swift
 $(SRCROOT)/Thaw/MenuBar/LayoutBar/LayoutBarContainer.swift
@@ -117,6 +118,8 @@ $(SRCROOT)/Thaw/MenuBar/Search/MenuBarSearchModel.swift
 $(SRCROOT)/Thaw/MenuBar/Search/MenuBarSearchPanel.swift
 $(SRCROOT)/Thaw/MenuBar/Spacing/MenuBarItemSpacingError.swift
 $(SRCROOT)/Thaw/MenuBar/Spacing/MenuBarItemSpacingManager.swift
+$(SRCROOT)/Thaw/MenuBar/Spacing/SpacingApplyMode.swift
+$(SRCROOT)/Thaw/MenuBar/Spacing/SpacingRelaunchPolicy.swift
 $(SRCROOT)/Thaw/MenuBar/Spacing/SystemLaunchAgentIndex.swift
 $(SRCROOT)/Thaw/Onboarding/GlassSupport.swift
 $(SRCROOT)/Thaw/Onboarding/OnboardingPermissionsView.swift
